@@ -14,6 +14,7 @@ dependencies = [
     # QRCodeDetector (and aruco) are present in the headless build on OpenCV 5.
     "opencv-python-headless>=4.10",
     "pillow>=11.0",
+    "python-dotenv>=1.2.4",
 ]
 
 [dependency-groups]
