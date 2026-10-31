@@ -1,0 +1,105 @@
+"""Unit tests for the application settings module."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from src.settings import Settings, get_settings, load_settings
+
+
+def test_default_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Settings load with documented defaults when no environment variables are set."""
+    # Clear any project-specific env vars that might exist in developer shells
+    for var in [
+        "LLAMA_BASE_URL",
+        "LLAMA_MODEL",
+        "LLAMA_TIMEOUT_S",
+        "GEMINI_API_KEY",
+        "GEMINI_MODEL",
+        "OPENAI_API_KEY",
+        "OPENAI_MODEL",
+        "OCR_ENGINE",
+        "EASYOCR_LANGS",
+        "TESSERACT_CMD",
+        "DATA_DIR",
+        "RECEIPTS_DIR",
+        "GROUND_TRUTH_PATH",
+        "RESULTS_DIR",
+    ]:
+        monkeypatch.delenv(var, raising=False)
+
+    settings = load_settings(repo_root=tmp_path)
+
+    assert settings.llama_base_url == "http://127.0.0.1:8080/v1"
+    assert settings.llama_model == "local-llm"
+    assert settings.llama_timeout_s == 120.0
+    assert settings.gemini_api_key is None
+    assert settings.gemini_model == "gemini-2.5-flash"
+    assert settings.openai_api_key is None
+    assert settings.openai_model == "gpt-4o-mini"
+    assert settings.ocr_engine == "easyocr"
+    assert settings.easyocr_langs == ("pt", "en")
+    assert settings.tesseract_cmd is None
+    assert settings.repo_root == tmp_path.resolve()
+    assert settings.data_dir == (tmp_path / "data").resolve()
+    assert settings.receipts_dir == (tmp_path / "data" / "receipts").resolve()
+    assert settings.ground_truth_path == (tmp_path / "data" / "ground_truth.csv").resolve()
+    assert settings.results_dir == (tmp_path / "results").resolve()
+
+
+def test_empty_string_api_keys_normalize_to_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Empty strings in environment or .env are normalized to None."""
+    monkeypatch.setenv("GEMINI_API_KEY", "   ")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("TESSERACT_CMD", "")
+
+    settings = load_settings(repo_root=tmp_path)
+
+    assert settings.gemini_api_key is None
+    assert settings.openai_api_key is None
+    assert settings.tesseract_cmd is None
+
+
+def test_environment_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Environment variables successfully override defaults."""
+    monkeypatch.setenv("LLAMA_BASE_URL", "http://192.168.1.10:8080/v1")
+    monkeypatch.setenv("LLAMA_MODEL", "qwen2.5-3b")
+    monkeypatch.setenv("LLAMA_TIMEOUT_S", "45.5")
+    monkeypatch.setenv("GEMINI_API_KEY", "secret-gemini-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "secret-openai-key")
+    monkeypatch.setenv("OCR_ENGINE", "tesseract")
+    monkeypatch.setenv("EASYOCR_LANGS", "pt, es, fr")
+    monkeypatch.setenv("TESSERACT_CMD", "/usr/bin/tesseract")
+    monkeypatch.setenv("DATA_DIR", "custom_data")
+
+    settings = load_settings(repo_root=tmp_path)
+
+    assert settings.llama_base_url == "http://192.168.1.10:8080/v1"
+    assert settings.llama_model == "qwen2.5-3b"
+    assert settings.llama_timeout_s == 45.5
+    assert settings.gemini_api_key == "secret-gemini-key"
+    assert settings.openai_api_key == "secret-openai-key"
+    assert settings.ocr_engine == "tesseract"
+    assert settings.easyocr_langs == ("pt", "es", "fr")
+    assert settings.tesseract_cmd == Path("/usr/bin/tesseract").resolve()
+    assert settings.data_dir == (tmp_path / "custom_data").resolve()
+
+
+def test_invalid_timeout_falls_back_to_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Malformed numeric timeout defaults safely to 120.0 instead of crashing."""
+    monkeypatch.setenv("LLAMA_TIMEOUT_S", "not-a-number")
+
+    settings = load_settings(repo_root=tmp_path)
+
+    assert settings.llama_timeout_s == 120.0
+
+
+def test_get_settings_returns_cached_instance() -> None:
+    """get_settings returns a valid Settings instance and caches it."""
+    s1 = get_settings()
+    s2 = get_settings()
+
+    assert isinstance(s1, Settings)
+    assert s1 is s2
