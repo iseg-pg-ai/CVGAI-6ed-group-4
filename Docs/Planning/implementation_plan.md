@@ -361,9 +361,6 @@ porque só esse módulo as usa.
 
 ## 5. Pacotes de Trabalho
 
-Legenda de dono: **Vitor** (pipeline), **José** (background de SQL, a aprender Python),
-**Raquel** (não programadora: corpus e apresentação).
-
 | ID | Título | Dono | Depende de | Tamanho | Ficheiros |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | WP-00 | Estrutura inicial do repositório | Vitor | — | 3 h | `pyproject.toml`, `.env.example`, `.gitignore`, `README.md`, `tests/conftest.py`, `tests/test_smoke.py` |
@@ -386,19 +383,17 @@ Legenda de dono: **Vitor** (pipeline), **José** (background de SQL, a aprender 
 | WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` |
 | WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` |
 
-O caminho crítico é WP-00 → WP-01 → WP-04 → WP-05 → WP-10 → WP-16. Nada do que o José ou a
-Raquel têm em mãos está no caminho crítico: um atraso deles custa ao relatório, não à
-demonstração.
+O caminho crítico é WP-00 → WP-01 → WP-04 → WP-05 → WP-10 → WP-16.
 
 ---
 
-## 6. Especificação Detalhada dos Pacotes do José
+## 6. Especificação Detalhada dos Pacotes de dados e métricas
 
 Regras gerais, válidas para todos os pacotes abaixo:
 
 - Trabalhar sempre num branch próprio: `feat/wp-02-normalizers`.
 - Um branch = um pacote de trabalho. No máximo ~200 linhas de diff.
-- Não alterar ficheiros fora da lista do pacote. Se for necessário, pedir ao Vitor.
+- Não alterar ficheiros fora da lista do pacote.
 - Correr antes de abrir o merge request:
 
   ```bash
@@ -413,9 +408,6 @@ Regras gerais, válidas para todos os pacotes abaixo:
 ---
 
 ### WP-02 — Normalizadores puros (`src/normalizers.py`)
-
-**Porque é adequado:** são funções puras com especificação fechada, exatamente o tipo de
-tarefa em que um background de SQL ajuda (regras de conversão e de comparação, sem estado).
 
 **Assinaturas a implementar:**
 
@@ -485,8 +477,6 @@ variáveis de ambiente.
 
 ### WP-03 — Carregador e validador do golden set (`src/golden_set.py`)
 
-**Porque é adequado:** é literalmente validação de dados com restrições, o que mapeia
-diretamente em `CHECK` / `NOT NULL` de SQL.
 
 **Contrato de entrada (`data/ground_truth.csv`), colunas obrigatórias:**
 
@@ -536,9 +526,6 @@ que espera uma lista vazia.
 
 ### WP-06 — Backend Tesseract (`src/ocr_tesseract.py`)
 
-**Porque é adequado:** fica atrás da interface `OcrEngine`, por isso não pode quebrar o caminho
-principal. O trabalho é ler uma estrutura tabular e convertê-la: outra vez, terreno familiar.
-
 **Assinatura:**
 
 ```python
@@ -569,9 +556,6 @@ todas com `bbox` dentro dos limites da imagem e `id` sequencial sem falhas.
 ---
 
 ### WP-13 — Pontuação e agregação (`src/scoring.py`)
-
-**Porque é adequado:** é um `JOIN` entre verdade e previsão seguido de um `GROUP BY`. O desenho
-das métricas é a parte difícil, e essa está especificada abaixo, não deixada em aberto.
 
 **Assinaturas:**
 
@@ -634,11 +618,9 @@ plano         12        12        12       7      12     12
 amarrotado     8         7         8       5       8      8
 ```
 
-Alimenta diretamente o slide de caracterização do corpus da Raquel.
-
 ---
 
-## 7. Especificação dos Pacotes do Vitor (resumo técnico)
+## 7. Especificação dos Pacotes da pipeline
 
 **WP-04 `preprocessing.py`**
 
@@ -702,7 +684,7 @@ def build_client(provider: str) -> LLMClient: ...
 
 ---
 
-## 8. Golden Set — Especificação para a Raquel
+## 8. Especificação do Golden Set
 
 ### 8.1 Composição
 
@@ -747,7 +729,7 @@ Preenchido à mão a partir da leitura visual de cada imagem. Regras:
 
 ### 8.5 Controlo de qualidade
 
-O Vitor revê 100 % das linhas contra as imagens antes do primeiro benchmark. As divergências
+Deve-se revê 100 % das linhas contra as imagens antes do primeiro benchmark. As divergências
 resolvem-se sempre a favor da imagem, nunca da memória. Este passo é obrigatório porque uma
 verdade de referência errada invalida todas as métricas do relatório.
 
@@ -769,9 +751,7 @@ verdade de referência errada invalida todas as métricas do relatório.
 - Trunk Based Development: branches curtos a partir de `master`, dois dias no máximo.
 - Nomes: `feat/wp-02-normalizers`, `feat/wp-06-tesseract`, `fix/ocr-rotation`.
 - Commits pequenos e descritivos, em inglês, no imperativo.
-- Ninguém faz merge sem revisão do Vitor. O Vitor não faz commit nem push: entrega o trabalho e
-  o dono do repositório decide.
-
+  
 ### 9.2 Tamanho e forma do merge request
 
 - No máximo ~200 linhas de diff útil.
@@ -790,7 +770,7 @@ verdade de referência errada invalida todas as métricas do relatório.
 - [ ] O diff não toca em ficheiros fora do âmbito declarado.
 - [ ] Números mágicos substituídos por constantes nomeadas.
 
-### 9.4 Como dar feedback ao José
+### 9.4 Como dar feedback de código
 
 - Um comentário por problema, com o porquê, não só o quê.
 - Sugerir a correção em pseudocódigo quando o problema é conceptual.
@@ -840,7 +820,7 @@ Notas:
 | Pesos do EasyOCR descarregados da internet no primeiro uso | A demonstração offline falha | Pré-aquecer e documentar o diretório `~/.EasyOCR`; correr uma vez com rede antes da aula |
 | `llama-server` devolve JSON válido com as chaves erradas | A extração falha em silêncio | Descrever o schema no prompt; validar o JSON e rejeitar chaves desconhecidas |
 | Modelo de 3B não cabe nos 2 GB de VRAM | Latência alta na demonstração | Offload parcial (`-ngl`), contexto 8192 e cache de OCR para não repetir a fase cara |
-| Golden set com erros | Todas as métricas do relatório ficam inválidas | Revisão a 100 % pelo Vitor antes do primeiro benchmark |
+| Golden set com erros | Todas as métricas do relatório ficam inválidas | Revisão a 100 %  antes do primeiro benchmark |
 | Imagens contêm NIF e fragmentos de cartão | Exposição de RGPD no GitLab | Manter o repositório privado; opcionalmente mascarar os dígitos do cartão nas imagens; não publicar o corpus fora do grupo |
 | Tesseract sem o pacote de língua portuguesa | OCR comparativo degradado | Instalar `tesseract-ocr-por` e documentar no README |
 | Gradio muda de API entre versões | A interface quebra | Fixar a versão no `pyproject.toml` e não atualizar depois do Dia 8 |
