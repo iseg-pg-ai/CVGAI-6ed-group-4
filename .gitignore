@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+models/*.gguf
+models/*.bin
+.env
+
+# OS and editor noise: the team works on Linux, macOS and Windows.
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.swp
+.idea/
+.vscode/
+
+# Benchmark artefacts: the summary tables are tracked, the raw per-image dumps are not.
+results/*.json

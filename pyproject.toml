@@ -1,0 +1,62 @@
+[project]
+name = "cvgai-6ed-group-4"
+version = "0.1.0"
+description = "Leitor inteligente de taloes e faturas simplificadas (CVGAI, 6a edicao, grupo 4)"
+readme = "README.md"
+# Deliberate ceiling: EasyOCR 1.7.2 drags torch/torchvision, whose cp314 wheels are still
+# irregular and EasyOCR has had no release since 2024. Python 3.12 is the combination with
+# the most road testing. Do not widen this range without re-running `uv add easyocr`.
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "numpy>=2.1",
+    # Headless, not contrib: EasyOCR hard-pins opencv-python-headless, and installing two
+    # distributions that both own the `cv2` module corrupts the installation. Verified that
+    # QRCodeDetector (and aruco) are present in the headless build on OpenCV 5.
+    "opencv-python-headless>=4.10",
+    "pillow>=11.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.7",
+    "pyright>=1.1.380",
+]
+
+[tool.uv]
+# The project is run as `python -m src.app` from the repository root, not installed as a
+# distribution. This keeps the import path identical to what the tests use.
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: tests that load a real OCR engine or model (deselected by default in CI)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RET"]
+ignore = [
+    # Docstring and comment lines are allowed to run long; code lines are not.
+    "E501",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert on purpose and are allowed to be explicit.
+"tests/*" = ["B011"]
+
+[tool.pyright]
+include = ["src", "tests"]
+exclude = [".venv", "class-material"]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"

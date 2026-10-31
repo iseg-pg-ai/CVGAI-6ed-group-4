@@ -1,0 +1,20 @@
+# Normalise line endings across Linux, macOS and Windows. Without this, a file edited on
+# Windows appears as a full-file rewrite on Linux and the diff becomes unreviewable.
+* text=auto eol=lf
+
+# Shell launchers must keep LF even on Windows, or bash refuses to run them.
+*.sh text eol=lf
+
+# PowerShell and batch launchers must keep CRLF.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets: never touch them.
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.pdf binary
+*.pptx binary
+*.gguf binary
+*.traineddata binary
