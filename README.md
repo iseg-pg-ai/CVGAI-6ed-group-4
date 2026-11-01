@@ -20,21 +20,50 @@ Campos extraídos de cada documento:
 Três métodos de extração correm em paralelo para comparação: expressões regulares
 (baseline), LLM local servido por `llama.cpp` e LLM na cloud (Gemini ou OpenAI).
 
+## Estado atual
+
+O pipeline está construído até à camada de evidência visual. O que já existe e pode ser
+inspecionado hoje, sem chaves de API e sem modelos descarregados (excepto o EasyOCR, que
+descarrega os pesos na primeira execução):
+
+| Módulo | Estado | Pré-visualização |
+| :--- | :--- | :--- |
+| `src/types.py` | Contratos de dados fechados | — |
+| `src/settings.py` | Configuração e caminhos a partir do `.env` | — |
+| `src/preprocessing.py` | Redimensionamento, orientação, recorte, sombras, CLAHE | `uv run python -m src.preprocessing` |
+| `src/ocr_engine.py` | EasyOCR com caixas delimitadoras e IDs de linha | `uv run python -m src.ocr_engine` |
+| `src/qr_reader.py` | Leitura do QR da AT para validação cruzada | `uv run python -m src.qr_reader` |
+| `src/evidence.py` | Destaque e recorte da região comprovativa | `uv run python -m src.evidence -l 1,2,3` |
+
+Cada comando abre uma janela sobre o primeiro talão de `data/receipts/`; a flag `--file`
+escolhe outro ficheiro e `--save` escreve o resultado em disco em vez de abrir a janela.
+
+Por construir: normalizadores, carregador do golden set, backend Tesseract, extrator por
+regex, cliente LLM, extrator por LLM, assistente de Q&A, pontuação, estatística do corpus,
+runner do benchmark e a aplicação Gradio. `uv run python -m src.app` ainda não arranca: é o
+WP-16 e só fica disponível depois de WP-08 a WP-12.
+
+O corpus também está incompleto: `data/receipts/` tem 9 imagens e `data/ground_truth.csv`
+só tem o cabeçalho. Sem a verdade de referência não há benchmark.
+
 ## Requisitos
 
 - Linux, macOS ou Windows. As três plataformas estão suportadas: o pipeline não usa
   binários específicos de um sistema e todos os caminhos são construídos com `pathlib`.
 - `uv` (gestor de pacotes e de versões de Python).
 - Python 3.12, obtido automaticamente pelo `uv` a partir de `.python-version`.
-- `tesseract-ocr` com o pacote de língua portuguesa, apenas para o motor OCR comparativo.
+- `tesseract-ocr` com o pacote de língua portuguesa, para o motor OCR comparativo e para a
+  sonda de orientação.
+- `zbar`, para a leitura alternativa de QR. Opcional: sem ela o OpenCV trata do QR.
 - `llama-server`, apenas para a extração por LLM local.
 
 ### Dependências de sistema
 
-O `uv` resolve o Python e os pacotes, mas o `tesseract` e o `llama-server` são binários do
-sistema e instalam-se à parte. Nenhum dos dois é necessário para correr a suite de testes.
+O `uv` resolve o Python e os pacotes, mas o `tesseract`, o `llama-server` e a `zbar` são
+componentes do sistema e instalam-se à parte. Nenhum deles é necessário para correr a suite de
+testes.
 
-#### Tesseract (motor OCR comparativo)
+#### Tesseract (motor OCR comparativo e deteção de orientação)
 
 `tesseract` não é um pacote de Python. Instalação por sistema:
 
@@ -65,6 +94,32 @@ Confirmar a instalação, em qualquer sistema:
 tesseract --version
 tesseract --list-langs     # tem de listar "por"
 ```
+
+O Tesseract também serve de sonda de orientação: `preprocessing.detect_orientation_osd` chama o
+binário em modo `--psm 0` para corrigir fotos de cabeça para baixo. Se o binário não existir, a
+sonda devolve `0` e o pipeline segue apenas com a heurística de proporção, sem falhar.
+
+#### zbar (leitura alternativa de QR)
+
+O `pyzbar` é a primeira tentativa de descodificação do QR da AT e precisa da biblioteca `zbar`
+do sistema:
+
+```bash
+# Debian, Ubuntu, Mint
+sudo apt install libzbar0
+
+# Fedora
+sudo dnf install zbar
+
+# Arch, Manjaro
+sudo pacman -S zbar
+
+# macOS (Homebrew)
+brew install zbar
+```
+
+Sem ela, o `pyzbar` não importa e o `src.qr_reader` recorre sozinho ao `cv2.QRCodeDetector`, que
+lê os QR do golden set. Nenhum teste depende do `pyzbar`.
 
 #### llama-server (LLM local)
 
@@ -107,7 +162,8 @@ backend Vulkan, em qualquer sistema, precisa do runtime Vulkan que vem com o dri
 No macOS, se o binário descarregado da Internet for bloqueado pelo Gatekeeper, remover a marca
 de quarentena uma vez: `xattr -d com.apple.quarantine llama-server`.
 
-Os pesos do modelo (`.gguf`) ficam em `models/`, que está no `.gitignore`.
+Os pesos do modelo (`.gguf`) ficam em `models/` e não são versionados: o `.gitignore` exclui
+`models/*.gguf` e `models/*.bin`.
 
 ## Instalação
 
@@ -171,16 +227,40 @@ winget install --id=astral-sh.uv -e
 
 ## Utilização
 
+### Pré-visualizações por módulo
+
+Enquanto a interface Gradio não existe (WP-16), cada fase já implementada tem uma entrada de
+linha de comando que abre uma janela com o resultado sobre o primeiro talão de
+`data/receipts/`:
+
+```bash
+uv run python -m src.preprocessing    # antes vs depois do OpenCV
+uv run python -m src.ocr_engine       # linhas numeradas prontas para o prompt
+uv run python -m src.qr_reader        # campos do QR da AT, quando o talão tiver um
+uv run python -m src.evidence         # caixas do OCR e destaque das linhas citadas
+```
+
+Flags comuns: `--file caminho/para/talao.jpg` escolhe a imagem e `--save saida.png` escreve o
+resultado em disco em vez de abrir a janela. O `src.evidence` acrescenta `--lines 1,2,3` para
+escolher as linhas a destacar e a recortar; sem a flag, usa até três linhas que contenham
+`TOTAL`, `NIF`, `NIPC` ou `CONTRIBUINTE` e, se não houver nenhuma, as duas primeiras. O
+`src.preprocessing` aceita `--rotate`, `--no-crop`, `--no-shadows` e `--no-osd`; o
+`src.ocr_engine` aceita `--gpu` e `--no-preprocess`; o `src.qr_reader` aceita
+`--no-preprocess`.
+
+### Aplicação Gradio
+
 ```bash
 uv run python -m src.app
 ```
 
-A aplicação abre no browser e expõe três separadores: extração de campos, inspeção das
-etapas de pré-processamento e perguntas sobre o documento.
+Ainda não está implementada. Quando estiver, abre no browser e expõe três separadores: extração
+de campos, inspeção das etapas de pré-processamento e perguntas sobre o documento.
 
 Na primeira execução o EasyOCR descarrega os pesos do modelo para `~/.EasyOCR` (no Windows,
-`C:\Users\<nome>\.EasyOCR`), o que exige rede. Correr a aplicação uma vez com rede antes de
-qualquer demonstração offline: a partir daí os pesos ficam em cache local.
+`C:\Users\<nome>\.EasyOCR`), o que exige rede. Correr uma vez com rede antes de qualquer
+demonstração offline: a partir daí os pesos ficam em cache local. Isto aplica-se às
+pré-visualizações de OCR e de evidência; a de pré-processamento só usa OpenCV.
 
 Para o LLM local, arrancar primeiro o servidor num terminal separado, a partir da raiz do
 repositório, com o binário no `PATH`. O `-ngl 99` descarrega as camadas para a GPU; usar
@@ -201,20 +281,31 @@ O endereço por omissão em `.env.example` já aponta para `http://127.0.0.1:808
 
 ## Testes
 
-A suite é offline, determinística e não carrega modelos nem motores OCR reais. Corre em
-segundos e os comandos são idênticos em Linux, macOS e Windows, porque passam todos pelo `uv`:
+A suite é offline, determinística e não carrega modelos nem motores OCR reais. Corre em menos
+de um segundo e os comandos são idênticos em Linux, macOS e Windows, porque passam todos pelo
+`uv`:
 
 ```bash
 uv run pytest
 ```
 
+O `pyproject.toml` deseleciona os testes marcados com `slow`, que são os únicos que carregam
+pesos reais. Para correr o teste ao vivo do EasyOCR (exige os pesos em cache):
+
+```bash
+uv run pytest -m slow
+```
+
 Comandos úteis:
 
 ```bash
-uv run pytest tests/test_normalizers.py -q          # um ficheiro
+uv run pytest tests/test_evidence.py -q             # um ficheiro
 uv run pytest -k "nif" -q                           # filtra por nome
 uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 ```
+
+Ficheiros atuais: `test_smoke.py` (ambiente e contratos), `test_settings.py`,
+`test_preprocessing.py`, `test_ocr_contract.py`, `test_qr_reader.py` e `test_evidence.py`.
 
 Qualidade de código:
 
@@ -231,9 +322,20 @@ do `pyright`.
 ## Estrutura
 
 ```text
-src/            pipeline (pré-processamento, OCR, extração, Q&A, interface)
-tests/          suite pytest
-data/           imagens do golden set e verdade de referência
-results/        saídas do benchmark citadas no relatório
-Docs/           planeamento e apresentação
+src/
+  types.py          contratos de dados partilhados (fonte de verdade)
+  settings.py       leitura do .env e resolução de caminhos
+  preprocessing.py  OpenCV: orientação, recorte, sombras, CLAHE
+  ocr_engine.py     EasyOCR com caixas delimitadoras e IDs de linha
+  qr_reader.py      leitura e validação cruzada do QR da AT
+  evidence.py       destaque e recorte da região comprovativa
+tests/              suite pytest, offline e determinística
+data/               imagens do golden set e verdade de referência
+results/            saídas do benchmark citadas no relatório
+Docs/               planeamento e apresentação
+models/             pesos .gguf do LLM local (não versionados)
 ```
+
+O plano de implementação, com os pacotes de trabalho e os respetivos donos, está em
+`Docs/Planning/implementation_plan.md`; as regras para agentes e colaboradores estão em
+`AGENTS.md`.

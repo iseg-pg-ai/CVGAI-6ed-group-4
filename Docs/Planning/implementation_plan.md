@@ -12,6 +12,12 @@ prazo real de submissão antes de partilhar.
 
 Equipa: Vitor (pipeline), José (camada de dados e métricas), Raquel (corpus e narrativa).
 
+**Estado em 2026-11-01.** WP-00, WP-01, WP-04, WP-05, WP-07 e WP-11 estão fechados e
+integrados em `master`. O `src/settings.py` foi acrescentado fora da numeração para
+centralizar o acesso ao ambiente e aos caminhos. O detalhe do que foi entregue, e do que
+diverge do plano original, está na secção 5.1. As restantes secções descrevem o alvo e
+continuam válidas para os pacotes por executar.
+
 ---
 
 ## 0. Princípios de Engenharia
@@ -48,12 +54,16 @@ Equipa: Vitor (pipeline), José (camada de dados e métricas), Raquel (corpus e 
 
 ### 1.1 Dependências de sistema (fora do `uv`)
 
-- `tesseract-ocr` e `tesseract-ocr-por` (pacotes do sistema, não do pip).
+- `tesseract-ocr` e `tesseract-ocr-por` (pacotes do sistema, não do pip). Servem o backend OCR
+  comparativo e a sonda de orientação do pré-processamento.
 - Binário `llama-server` compilado com backend Vulkan (funciona na GPU antiga do portátil e na
   RX 9070 XT) ou descarregado dos releases oficiais.
+- `zbar`, para o `pyzbar` que tenta a primeira descodificação do QR. É opcional: sem ela, o
+  `qr_reader` usa só o `cv2.QRCodeDetector`, que é suficiente para o corpus.
 
-Ambos têm de ficar documentados no `README.md` com os comandos de instalação por distribuição,
-porque o José precisa deles para correr a suite localmente.
+As três estão documentadas no `README.md` com os comandos de instalação por distribuição, porque
+o José precisa deles para correr o pipeline localmente. Nenhuma delas é necessária para a suite
+de testes, que corre offline e sem binários externos.
 
 **Nota sobre o OpenCV (validada no Dia 0).** O `easyocr` 1.7.2 fixa `opencv-python-headless`
 como dependência. Instalar em paralelo `opencv-contrib-python` deixa duas distribuições a
@@ -69,13 +79,13 @@ O `pytest` faz parte do projeto desde o primeiro commit. Não é opcional e não
 adiada: é a forma como o José valida o próprio trabalho antes de pedir revisão e como o
 professor confirma que o projeto funciona.
 
-**Configuração em `pyproject.toml` (criada no WP-00):**
+**Configuração em `pyproject.toml` (criada no WP-00, estado atual):**
 
 ```toml
 [project]
 name = "cvgai-6ed-group-4"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 
 [dependency-groups]
 dev = [
@@ -88,11 +98,25 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q --strict-markers"
+addopts = "-q --strict-markers -m 'not slow'"
+markers = [
+    "slow: tests that load a real OCR engine or model (deselected by default in CI)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.pyright]
+include = ["src", "tests"]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
 ```
 
 Notas sobre estas opções:
 
+- `requires-python = ">=3.12,<3.13"` fecha o teto superior: o EasyOCR 1.7.2 arrasta
+  `torch`/`torchvision` e não há wheels estáveis acima de 3.13.
 - `testpaths = ["tests"]` evita que o `pytest` ande a varrer `class-material/`, `data/` e
   `.venv/`. Sem isto, a recolha de testes tenta importar ficheiros que não são testes e a
   suite falha por motivos errados.
@@ -100,14 +124,19 @@ Notas sobre estas opções:
   possam fazer `from src.normalizers import parse_moeda` sem instalar o pacote.
 - `--strict-markers` faz falhar um teste que use um marcador não declarado. É a forma de
   impedir que um `@pytest.mark.skip` mal escrito passe silenciosamente.
+- `-m 'not slow'` mantém o teste ao vivo do EasyOCR fora da execução por omissão, para que a
+  suite continue offline e abaixo de um segundo. `uv run pytest -m slow` corre-o de propósito.
+- `ruff` e `pyright` são configurados no mesmo ficheiro; a linha de comando só repete a
+  `line-length` por hábito, o valor já vem da configuração.
 
 **Comandos do dia a dia:**
 
 ```bash
 uv sync                                  # instala dependências, incluindo o grupo dev
-uv run pytest                            # corre a suite toda
-uv run pytest tests/test_normalizers.py -q          # um ficheiro
+uv run pytest                            # corre a suite toda (exclui os testes 'slow')
+uv run pytest tests/test_evidence.py -q             # um ficheiro
 uv run pytest -k "nif" -q                           # filtra por nome
+uv run pytest -m slow                               # teste ao vivo do EasyOCR
 uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 ```
 
@@ -117,29 +146,43 @@ uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 2. Um teste nunca depende da ordem de execução nem do estado deixado por outro teste.
 3. Tudo o que é temporário vai para `tmp_path`; nada escreve dentro do repositório.
 4. Os testes de OCR não correm o EasyOCR real. Validam o contrato (`OcrDocument`, caixas
-   dentro dos limites da imagem) com imagens sintéticas e, quando muito, com o Tesseract.
+   dentro dos limites da imagem) com imagens sintéticas e um leitor injetado. O único teste
+   que carrega pesos reais está marcado com `slow` e é deselecionado por omissão.
 5. Um teste que falha tem de dizer o que se esperava e o que se obteve. `assert resultado ==
    esperado` sem contexto é uma perda de tempo para quem revê.
 
-**Fixtures partilhadas em `tests/conftest.py`:**
+**Fixtures partilhadas em `tests/conftest.py`** (estado atual):
 
 ```python
+@pytest.fixture
+def repo_root() -> Path:
+    """Caminho absoluto da raiz do repositório (o que contém o pyproject.toml)."""
+
 @pytest.fixture
 def receipts_tmp(tmp_path: Path) -> Path:
     """Cria um diretório de imagens com ficheiros vazios para validação do golden set."""
 
 @pytest.fixture
-def ground_truth_valido(tmp_path: Path, receipts_tmp: Path) -> Path:
+def ground_truth_valido(tmp_path: Path) -> Path:
     """Escreve um CSV mínimo mas válido, coerente com receipts_tmp."""
 
 @pytest.fixture
 def extracao_vazia() -> Extraction:
     """Extraction com os cinco campos em AUSENTE, para testes de pontuação."""
+
+@pytest.fixture
+def extracao_exemplo() -> Extraction:
+    """Extraction completa, com os cinco campos encontrados e line_id."""
+
+@pytest.fixture
+def imagem_branca() -> np.ndarray:
+    """Imagem BGR sintética, para os testes de visão nunca tocarem em data/receipts."""
 ```
 
-**Arranque verde:** o WP-00 inclui `tests/test_smoke.py` com um único teste que importa
-`src.types` e constrói um `BBox`. Serve para provar que o ambiente, a configuração do
-`pytest` e o caminho de importação estão corretos antes de existir lógica de negócio. Um
+**Arranque verde:** o WP-00 inclui `tests/test_smoke.py`, que importa `src.types`, constrói um
+`BBox`, verifica a imutabilidade dos contratos e a formatação do prompt. Serve para provar que o
+ambiente, a configuração do `pytest` e o caminho de importação estão corretos antes de existir
+lógica de negócio, e cresceu para oito testes sem deixar de ser a primeira coisa a correr. Um
 `pytest` que falha no Dia 0 é um problema de ambiente; um que falha no Dia 8 é um problema de
 código, e nessa altura já não há tempo para distinguir os dois.
 
@@ -156,42 +199,46 @@ CVGAI-6ed-group-4/
 │   ├── Planning/
 │   │   ├── PROJECT_PLAN.md
 │   │   └── implementation_plan.md
-│   └── Presentation/              # mini-apresentação da Raquel
+│   └── Presentation/              # mini-apresentação da Raquel (pendente)
 ├── data/
-│   ├── receipts/                  # imagens numeradas do golden set
+│   ├── receipts/                  # 9 imagens presentes; convenção de nomes pendente
 │   │   ├── 01_plano_pingo_doce.jpg
 │   │   ├── 02_amarrotado_pingo_doce_par.jpg
 │   │   └── ...
-│   └── ground_truth.csv           # verdade de referência (Raquel)
+│   └── ground_truth.csv           # verdade de referência; só cabeçalho por agora
 ├── models/                        # .gguf (git-ignored)
 ├── results/                       # saídas do benchmark (versionadas, pequenas)
 ├── src/
-│   ├── __init__.py
-│   ├── types.py                   # contratos de dados          [Vitor]
-│   ├── settings.py                # ambiente + caminhos         [Vitor]
-│   ├── normalizers.py             # funções puras               [José]
-│   ├── golden_set.py              # carregamento + validação    [José]
-│   ├── preprocessing.py           # OpenCV                      [Vitor]
-│   ├── ocr_engine.py              # Protocol + EasyOCR          [Vitor]
-│   ├── ocr_tesseract.py           # backend Tesseract           [José]
-│   ├── qr_reader.py               # QR da AT                    [Vitor]
-│   ├── extractor_regex.py         # baseline                    [Vitor]
-│   ├── llm_client.py              # local + cloud               [Vitor]
-│   ├── extractor_llm.py           # schema + prompt + parse     [Vitor]
-│   ├── qa_assistant.py            # Q&A com evidência           [Vitor]
-│   ├── evidence.py                # bbox -> recorte/destaque    [Vitor]
-│   ├── scoring.py                 # comparação e agregação      [José]
-│   ├── evaluate.py                # runner do benchmark         [Vitor]
-│   ├── dataset_stats.py           # estatística do corpus       [José]
-│   └── app.py                     # Gradio                      [Vitor]
+│   ├── __init__.py                # feito
+│   ├── types.py                   # contratos de dados          [Vitor]  feito
+│   ├── settings.py                # ambiente + caminhos         [Vitor]  feito
+│   ├── normalizers.py             # funções puras               [José]   pendente
+│   ├── golden_set.py              # carregamento + validação    [José]   pendente
+│   ├── preprocessing.py           # OpenCV                      [Vitor]  feito
+│   ├── ocr_engine.py              # Protocol + EasyOCR          [Vitor]  feito
+│   ├── ocr_tesseract.py           # backend Tesseract           [José]   pendente
+│   ├── qr_reader.py               # QR da AT                    [Vitor]  feito
+│   ├── extractor_regex.py         # baseline                    [Vitor]  pendente
+│   ├── llm_client.py              # local + cloud               [Vitor]  pendente
+│   ├── extractor_llm.py           # schema + prompt + parse     [Vitor]  pendente
+│   ├── qa_assistant.py            # Q&A com evidência           [Vitor]  pendente
+│   ├── evidence.py                # bbox -> recorte/destaque    [Vitor]  feito
+│   ├── scoring.py                 # comparação e agregação      [José]   pendente
+│   ├── evaluate.py                # runner do benchmark         [Vitor]  pendente
+│   ├── dataset_stats.py           # estatística do corpus       [José]   pendente
+│   └── app.py                     # Gradio                      [Vitor]  pendente
 ├── tests/
-│   ├── conftest.py                # fixtures partilhadas        [Vitor]
-│   ├── test_smoke.py              # arranque verde              [Vitor]
-│   ├── test_normalizers.py        [José]
-│   ├── test_golden_set.py         [José]
-│   ├── test_scoring.py            [José]
-│   └── test_ocr_contract.py       [Vitor]
-├── scripts/
+│   ├── conftest.py                # fixtures partilhadas        [Vitor]  feito
+│   ├── test_smoke.py              # arranque verde              [Vitor]  feito
+│   ├── test_settings.py           # settings e .env             [Vitor]  feito
+│   ├── test_preprocessing.py      # OpenCV e sonda OSD          [Vitor]  feito
+│   ├── test_ocr_contract.py       # contrato do OcrEngine       [Vitor]  feito
+│   ├── test_qr_reader.py          # QR sintético e parser       [Vitor]  feito
+│   ├── test_evidence.py           # destaque e recorte          [Vitor]  feito
+│   ├── test_normalizers.py        [José]   pendente
+│   ├── test_golden_set.py         [José]   pendente
+│   └── test_scoring.py            [José]   pendente
+├── scripts/                       # ainda não existe
 │   ├── check_golden_set.sh        # atalho de validação         [Vitor]
 │   └── run_llama_server.sh        # arranque do servidor        [Vitor]
 ├── .env.example
@@ -201,131 +248,61 @@ CVGAI-6ed-group-4/
 └── uv.lock
 ```
 
-### `.gitignore` mínimo
+`feito` significa integrado em `master` com testes a passar; `pendente`, não iniciado. A árvore
+está atualizada a 2026-11-01.
+
+### `.gitignore` (estado atual)
 
 ```text
 .venv/
 __pycache__/
+*.py[cod]
+*.egg-info/
 .ruff_cache/
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
-models/
-data/receipts/*.jpg   # opcional: ver o risco de RGPD na secção 11
-results/*.json
+models/*.gguf
+models/*.bin
 .env
+
+# Ruído de sistema e de editor: a equipa trabalha em Linux, macOS e Windows.
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.swp
+.idea/
+.vscode/
+
+# Artefactos do benchmark: as tabelas são versionadas, os dumps por imagem não.
+results/*.json
 ```
+
+As imagens de `data/receipts/` **são** versionadas, para que o corpus viaje com o repositório.
+Se o risco de RGPD da secção 11 passar a pesar mais do que a conveniência, a linha
+`data/receipts/*.jpg` pode ser acrescentada, mas nesse caso o corpus passa a ser distribuído
+por outro meio e o README tem de explicar como.
 
 ---
 
 ## 3. Contratos de Dados (`src/types.py`)
 
 Este ficheiro é a peça central da coordenação. É escrito pelo Vitor no Dia 0 e **não muda sem
-aviso à equipa**. Todos programam contra ele.
+aviso à equipa**. Todos programam contra ele. A fonte de verdade é o próprio ficheiro, que
+documenta cada campo; esta secção resume o que ele contém.
 
-```python
-"""Shared data contracts for the whole pipeline."""
+Os tipos são todos `@dataclass(frozen=True, slots=True)` (`OcrEngine` é um `Protocol`), os
+identificadores de linha começam em 1 e `status` é
+`Literal["ENCONTRADO", "AUSENTE", "INVALIDO"]`. A implementação acrescentou três membros
+derivados, sem alterar nenhum campo do rascunho original:
 
-from dataclasses import dataclass
-from datetime import date
-from decimal import Decimal
-from typing import Literal, Protocol
-
-import numpy as np
-
-Status = Literal["ENCONTRADO", "AUSENTE", "INVALIDO"]
-
-
-@dataclass(frozen=True, slots=True)
-class BBox:
-    """Bounding box in pixels, in the processed image reference frame."""
-    x1: int
-    y1: int
-    x2: int
-    y2: int
-
-
-@dataclass(frozen=True, slots=True)
-class OcrLine:
-    """Recognised text line with a stable identifier and its geometry."""
-    id: int                 # 1-based; the LLM cites this to ground an answer
-    text: str
-    confidence: float
-    bbox: BBox
-
-
-@dataclass(frozen=True, slots=True)
-class OcrDocument:
-    """Complete result of one OCR engine over one image."""
-    lines: list[OcrLine]
-    engine: str             # "easyocr" | "tesseract"
-    elapsed_ms: float
-    image_size: tuple[int, int]   # (width, height)
-
-
-class OcrEngine(Protocol):
-    """Interface every OCR engine must satisfy."""
-    name: str
-
-    def read(self, image: np.ndarray) -> OcrDocument: ...
-
-
-@dataclass(frozen=True, slots=True)
-class FieldValue:
-    """Extracted value for one field, with status and supporting evidence."""
-    value: str | None
-    status: Status
-    line_id: int | None = None
-    confidence: float | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class Extraction:
-    """The five fields required by the assignment, plus run metadata."""
-    entidade: FieldValue
-    nif_comerciante: FieldValue
-    nif_cliente: FieldValue
-    data: FieldValue
-    total: FieldValue
-    method: str             # "regex" | "llm_local" | "llm_gemini" | "llm_openai"
-    elapsed_ms: float
-    raw_response: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class GroundTruthRecord:
-    """One already validated and typed row of ground_truth.csv."""
-    filename: str
-    grupo: Literal["plano", "amarrotado"]
-    entidade: str | None
-    nif_comerciante: str | None
-    nif_cliente: str | None
-    data: date | None
-    total: Decimal | None
-
-
-@dataclass(frozen=True, slots=True)
-class MatchResult:
-    """Comparison outcome for one field between prediction and truth."""
-    filename: str
-    grupo: str
-    campo: str
-    esperado: str | None
-    obtido: str | None
-    acertou: bool
-    falso_positivo: bool     # invented a value where none existed
-    omissao: bool            # returned nothing where a value existed
-
-
-@dataclass(frozen=True, slots=True)
-class Answer:
-    """Assistant answer, with presence status and citable evidence."""
-    question: str
-    answer: str
-    status: Literal["ENCONTRADO", "AUSENTE NO DOCUMENTO"]
-    line_ids: list[int]
-    provider: str
-```
+| Tipo | Acrescento |
+| :--- | :--- |
+| `BBox` | propriedades `width` e `height` |
+| `OcrDocument` | `as_prompt_text()`, que numera as linhas como `[01] ...` para o prompt do LLM |
+| `Extraction` | propriedade `fields`, que devolve os cinco campos por nome de coluna |
 
 **Regra de ouro:** se um pacote de trabalho precisar de um campo novo nestes tipos, isso é uma
 alteração de contrato e é feita pelo Vitor, não pelo autor do pacote.
@@ -350,40 +327,78 @@ imagem (np.ndarray BGR)
    │
    ├─ qa_assistant.ask(question, OcrDocument) -> Answer
    │
-   └─ evidence.highlight(image, OcrDocument, line_ids) -> np.ndarray
-      evidence.crop(image, OcrDocument, line_ids)      -> np.ndarray
+   └─ evidence.draw_all_ocr_boxes(image, OcrDocument)               -> np.ndarray
+      evidence.highlight(image, OcrDocument, line_ids, alpha=0.25)  -> np.ndarray
+      evidence.crop(image, OcrDocument, line_ids, pad_px=16)        -> np.ndarray | None
 ```
 
 `PreprocessResult` e as respetivas opções vivem em `preprocessing.py`, não em `types.py`,
-porque só esse módulo as usa.
+porque só esse módulo as usa. `crop` devolve `None` quando nenhum dos `line_ids` existe no
+documento, para que a interface possa simplesmente esconder o painel de recorte.
 
 ---
 
 ## 5. Pacotes de Trabalho
 
-| ID | Título | Dono | Depende de | Tamanho | Ficheiros |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| WP-00 | Estrutura inicial do repositório | Vitor | — | 3 h | `pyproject.toml`, `.env.example`, `.gitignore`, `README.md`, `tests/conftest.py`, `tests/test_smoke.py` |
-| WP-01 | Contratos de dados | Vitor | WP-00 | 2 h | `src/types.py` |
-| WP-02 | Normalizadores puros + testes | **José** | WP-01 | 4 a 6 h | `src/normalizers.py`, `tests/test_normalizers.py` |
-| WP-03 | Carregador e validador do golden set | **José** | WP-01, WP-02 | 4 a 6 h | `src/golden_set.py`, `tests/test_golden_set.py` |
-| WP-04 | Pré-processamento OpenCV | Vitor | WP-01 | 8 h | `src/preprocessing.py` |
-| WP-05 | Motor OCR EasyOCR | Vitor | WP-01, WP-04 | 6 h | `src/ocr_engine.py` |
-| WP-06 | Backend Tesseract | **José** | WP-05 | 3 a 4 h | `src/ocr_tesseract.py` |
-| WP-07 | Leitor de QR da AT | Vitor | WP-04 | 3 h | `src/qr_reader.py` |
-| WP-08 | Cliente LLM unificado | Vitor | WP-01 | 6 h | `src/llm_client.py` |
-| WP-09 | Extrator por regex (baseline) | Vitor | WP-02, WP-05 | 5 h | `src/extractor_regex.py` |
-| WP-10 | Extrator por LLM | Vitor | WP-08, WP-09 | 6 h | `src/extractor_llm.py` |
-| WP-11 | Evidência visual | Vitor | WP-01 | 3 h | `src/evidence.py` |
-| WP-12 | Assistente de Q&A com evidência | Vitor | WP-08, WP-11 | 5 h | `src/qa_assistant.py` |
-| WP-13 | Pontuação e agregação | **José** | WP-02, WP-03 | 5 a 7 h | `src/scoring.py`, `tests/test_scoring.py` |
-| WP-14 | Estatística do corpus | **José** | WP-03 | 2 a 3 h | `src/dataset_stats.py` |
-| WP-15 | Runner do benchmark | Vitor | WP-13 | 5 h | `src/evaluate.py` |
-| WP-16 | Aplicação Gradio | Vitor | WP-04 a WP-12 | 10 h | `src/app.py` |
-| WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` |
-| WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` |
+| ID | Título | Dono | Depende de | Tamanho | Ficheiros | Estado |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| WP-00 | Estrutura inicial do repositório | Vitor | — | 3 h | `pyproject.toml`, `.env.example`, `.gitignore`, `README.md`, `tests/conftest.py`, `tests/test_smoke.py` | feito |
+| WP-01 | Contratos de dados | Vitor | WP-00 | 2 h | `src/types.py` | feito |
+| WP-02 | Normalizadores puros + testes | **José** | WP-01 | 4 a 6 h | `src/normalizers.py`, `tests/test_normalizers.py` | pendente |
+| WP-03 | Carregador e validador do golden set | **José** | WP-01, WP-02 | 4 a 6 h | `src/golden_set.py`, `tests/test_golden_set.py` | pendente |
+| WP-04 | Pré-processamento OpenCV | Vitor | WP-01 | 8 h | `src/preprocessing.py` | feito |
+| WP-05 | Motor OCR EasyOCR | Vitor | WP-01, WP-04 | 6 h | `src/ocr_engine.py` | feito |
+| WP-06 | Backend Tesseract | **José** | WP-05 | 3 a 4 h | `src/ocr_tesseract.py` | pendente |
+| WP-07 | Leitor de QR da AT | Vitor | WP-04 | 3 h | `src/qr_reader.py` | feito |
+| WP-08 | Cliente LLM unificado | Vitor | WP-01 | 6 h | `src/llm_client.py` | pendente |
+| WP-09 | Extrator por regex (baseline) | Vitor | WP-02, WP-05 | 5 h | `src/extractor_regex.py` | pendente |
+| WP-10 | Extrator por LLM | Vitor | WP-08, WP-09 | 6 h | `src/extractor_llm.py` | pendente |
+| WP-11 | Evidência visual | Vitor | WP-01 | 3 h | `src/evidence.py` | feito |
+| WP-12 | Assistente de Q&A com evidência | Vitor | WP-08, WP-11 | 5 h | `src/qa_assistant.py` | pendente |
+| WP-13 | Pontuação e agregação | **José** | WP-02, WP-03 | 5 a 7 h | `src/scoring.py`, `tests/test_scoring.py` | pendente |
+| WP-14 | Estatística do corpus | **José** | WP-03 | 2 a 3 h | `src/dataset_stats.py` | pendente |
+| WP-15 | Runner do benchmark | Vitor | WP-13 | 5 h | `src/evaluate.py` | pendente |
+| WP-16 | Aplicação Gradio | Vitor | WP-04 a WP-12 | 10 h | `src/app.py` | pendente |
+| WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` | em curso |
+| WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` | pendente |
 
 O caminho crítico é WP-00 → WP-01 → WP-04 → WP-05 → WP-10 → WP-16.
+
+### 5.1 Estado das entregas e desvios face ao plano
+
+Fechados e integrados em `master` a 2026-11-01: WP-00, WP-01, WP-04, WP-05, WP-07 e WP-11. A
+suite tem 63 testes offline que correm em cerca de 0,3 s, mais um teste `slow` com o EasyOCR
+real, deselecionado por omissão.
+
+Desvios que valem registo, porque afetam os pacotes seguintes:
+
+- **`src/settings.py` (fora da numeração).** Centraliza `os.getenv`, o carregamento do `.env` e
+  a resolução de todos os caminhos, para cumprir a regra "nenhuma leitura de ambiente fora de
+  `settings.py`". `load_settings(repo_root=...)` constrói um `Settings` isolado para um
+  diretório temporário, que é o que torna os testes de CLI possíveis sem escrever no
+  repositório; `get_settings()` é `lru_cache`ado e não deve ser usado em testes.
+- **Convenção de CLI.** Todos os módulos correm como `python -m src.<modulo>` e expõem
+  `main(argv=None, settings_override=None)`. Os imports pesados (Pillow, EasyOCR, `settings`)
+  ficam adiados para `main` ou para o construtor do motor. Isso mantém o import barato e é o
+  que permite correr a suite em 0,3 s.
+- **Validação de imagens.** Todas as funções públicas que recebem uma imagem levantam
+  `ValueError("Input image must not be empty or zero-sized.")` e devolvem sempre uma cópia, sem
+  mutar a entrada. Os testes de `evidence.py` verificam a não-destrutividade.
+- **WP-04:** além da heurística de proporção, entrou uma sonda de orientação por Tesseract OSD
+  (`--psm 0`, timeout de 5 s, devolve `0` em qualquer falha) e o recorte passou a fazer warp de
+  perspetiva sobre o maior quadrilátero. Ambas são desligáveis em `PreprocessOptions`.
+- **WP-05:** `EasyOCREngine` aceita `reader=` para injetar um leitor falso nos testes e ordena
+  as linhas por `(y1, x1)` antes de as numerar.
+- **WP-07:** a descodificação tem cinco estágios, incluindo a procura de blobs quadrados com
+  reparação das riscas verticais deixadas por cabeças térmicas avariadas. O parser mantém as
+  chaves cruas da AT e acrescenta as alias usadas pelo resto do pipeline.
+- **WP-11:** a API ficou `draw_all_ocr_boxes`, `highlight` e `crop`, com `crop` a devolver
+  `None` quando nenhum `line_id` existe. `highlight` desenha as linhas não citadas em cinza
+  esbatido, para que a evidência ativa salte à vista.
+
+Continua em aberto e bloqueia o benchmark: o golden set (WP-17) tem 9 imagens em
+`data/receipts/` e um `data/ground_truth.csv` só com cabeçalho. Sem verdade de referência não
+há `scoring.py` nem `evaluate.py` que produzam números citáveis.
 
 ---
 
@@ -622,29 +637,43 @@ amarrotado     8         7         8       5       8      8
 
 ## 7. Especificação dos Pacotes da pipeline
 
-**WP-04 `preprocessing.py`**
+**WP-04 `preprocessing.py`** (implementado)
 
 - `resize_max_side(img, 1280)` antes de tudo.
-- Rotação: heurística por `w > h` para talões verticais, mais sobreposições 0/90/180/270.
-- Recorte: escala de cinzentos → desfoque gaussiano → Canny → contornos → maior quadrilátero
-  com área superior a 20 % da imagem; recurso alternativo à imagem inteira.
+- Orientação em dois estágios: heurística por proporção (um talão vertical fotografado na
+  horizontal roda 90° no sentido horário) e, já depois do filtro, uma sonda Tesseract OSD
+  (`--psm 0`, timeout de 5 s). A sonda corrige fotos de cabeça para baixo que a proporção não
+  deteta e nunca quebra o pipeline: qualquer erro ou ausência do binário devolve 0.
+- Recorte: escala de cinzentos → desfoque gaussiano → Canny → dilatação → contornos → maior
+  quadrilátero com área superior a 20 % da imagem, seguido de warp de perspetiva; recurso
+  alternativo à imagem inteira.
 - Normalização de iluminação: `gray / close(gray, kernel=25x25) * 255`.
-- CLAHE com `clipLimit=2.0`, `tileGridSize=(8, 8)`.
-- `steps` devolve todas as imagens intermédias para o segundo separador.
+- CLAHE com `clipLimit=2.0`, `tileGridSize=(8, 8)`; ambos configuráveis em `PreprocessOptions`,
+  a par de `auto_crop`, `remove_shadows` e `auto_orient_osd`.
+- `steps` devolve as imagens intermédias `"bruta"`, `"rodada"`, `"recortada"` e `"filtrada"`
+  para o segundo separador.
 
-**WP-05 `ocr_engine.py`**
+**WP-05 `ocr_engine.py`** (implementado)
 
-- `EasyOCREngine(langs=("pt", "en"), gpu=False)`.
+- `EasyOCREngine(langs=("pt", "en"), gpu=False, warmup=True, reader=None)`; o `reader` é o
+  ponto de injeção usado pelos testes, que assim nunca carregam pesos.
 - Pré-aquecimento com uma imagem sintética no arranque, para que a primeira inferência real
   não pague o custo de carregar os pesos.
-- Mapear `readtext(detail=1)` para `OcrLine` com `id` sequencial.
+- Mapear `readtext(detail=1)` para `OcrLine` com `id` sequencial: caixas clampadas à imagem,
+  texto vazio e caixas de área nula descartados, e ordenação por `(y1, x1)` antes de numerar.
 
-**WP-07 `qr_reader.py`**
+**WP-07 `qr_reader.py`** (implementado)
 
-- `cv2.QRCodeDetector().detectAndDecode` e, em alternativa, `pyzbar.decode`.
-- Interpretar o conteúdo da AT: pares `CHAVE:VALOR` separados por `*`.
-- Devolver um dicionário com, no mínimo: `A` (NIF emitente), `B` (NIF adquirente), `F` (data
-  `AAAAMMDD`), `H` (ATCUD), `O` (total).
+- `cv2.QRCodeDetector().detectAndDecode` e, em alternativa, `pyzbar.decode`. O `pyzbar` é
+  tentado primeiro mas é opcional: sem a biblioteca de sistema `zbar`, o import falha em
+  silêncio e o OpenCV assume.
+- Cinco estágios de descodificação: imagem direta, cinzentos, limiar adaptativo, procura de
+  blobs quadrados com reparação das riscas verticais deixadas por cabeças térmicas avariadas,
+  e nova tentativa sobre a imagem bruta na resolução original.
+- Interpretar o conteúdo da AT: pares `CHAVE:VALOR` separados por `*`. O dicionário devolvido
+  mantém as chaves cruas (`A`, `B`, `F`, `H`, `O`, ...) e acrescenta as alias
+  `nif_comerciante`, `nif_cliente`, `data`, `total`, `atcud` e `tipo_doc`.
+- `B = 999999990` é o código de consumidor final e mapeia para `nif_cliente` vazio.
 - Uso: validação cruzada e coluna extra na interface. **Nunca** substitui o OCR, porque os
   talões de terminal de pagamento não têm QR.
 
@@ -675,9 +704,24 @@ def build_client(provider: str) -> LLMClient: ...
 - Pós-processamento: validar o JSON, mapear `line_id` para `FieldValue` e correr `validar_nif`
   para rebaixar NIFs inválidos a `INVALIDO`.
 
-**WP-16 `app.py`**
+**WP-11 `evidence.py`** (implementado)
+
+- `draw_all_ocr_boxes(image, doc) -> np.ndarray`: desenha todas as caixas com uma etiqueta
+  `[id]`, para o mapa de deteções do segundo separador.
+- `highlight(image, doc, line_ids, alpha=0.25) -> np.ndarray`: linhas não citadas a cinza
+  esbatido e linhas citadas com preenchimento semitransparente, bordo sólido e etiqueta. É o
+  que transforma um `line_id` numa prova visível.
+- `crop(image, doc, line_ids, pad_px=16) -> np.ndarray | None`: recorte da união das caixas com
+  margem, para a caixa de detalhe do primeiro separador. Devolve `None` quando nenhum `line_id`
+  existe, e a interface esconde o painel.
+- Nenhuma das funções altera a imagem de entrada: todas devolvem uma cópia BGR, convertendo
+  imagens em escala de cinzentos quando necessário.
+
+**WP-16 `app.py`** (pendente)
 
 - `gr.Blocks` com os três separadores já especificados no `PROJECT_PLAN.md`.
+- O mapa de deteções usa `evidence.draw_all_ocr_boxes`; a prova visual usa
+  `evidence.highlight` e `evidence.crop`.
 - Cache de OCR por `sha256(bytes) + opções de pré-processamento`, para o Q&A não repetir a fase
   mais cara.
 - `demo.queue().launch(share=False)`.
@@ -707,6 +751,13 @@ NN_estado_comerciante_par.jpg
 ```
 
 Exemplos: `01_plano_pingo_doce.jpg`, `02_amarrotado_pingo_doce_par.jpg`.
+
+**Estado a 2026-11-01:** `data/receipts/` tem 9 imagens com nomes numéricos
+(`5990024681546780813.jpg`, ...), ainda fora desta convenção, e `data/ground_truth.csv` só tem
+o cabeçalho. Renomear as imagens e preencher a verdade de referência são passos do WP-17; até
+lá, o benchmark e a pontuação não podem produzir resultados. O validador do WP-03 só exige que
+o `filename` do CSV exista na pasta, por isso a convenção não bloqueia código, apenas a
+legibilidade do corpus para o relatório.
 
 ### 8.3 Protocolo de captura
 

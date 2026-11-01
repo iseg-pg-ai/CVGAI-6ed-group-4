@@ -158,7 +158,7 @@ A aplicação será organizada em três separadores claros para facilitar quer a
 
 ### Responsabilidades dos Colegas (Dados, Validação, Relatório e Apresentação)
 1. **Recolha e Catalogação do Dataset (Dias 1 a 3)**:
-   - Obter 12 a 16 fotos adicionais de talões/faturas de lojas variadas, combinando com as 4 já existentes para totalizar 16 a 20 imagens.
+   - Obter 7 a 11 fotos adicionais de talões/faturas de lojas variadas, combinando com as 9 já recolhidas para totalizar 16 a 20 imagens.
    - **Composição recomendada**:
      - ~10 a 12 talões normais/planos.
      - ~5 a 8 talões propositadamente amarrotados e desdobrados (para testar os limites do sistema e enriquecer a secção de análise de erros).
