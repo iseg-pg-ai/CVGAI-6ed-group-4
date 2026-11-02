@@ -17,6 +17,7 @@ dependencies = [
     "openai>=3.42.0",
     "opencv-python-headless>=4.10",
     "pillow>=11.0",
+    "pytesseract>=0.3.13",
     "python-dotenv>=1.2.4",
     "pyzbar>=0.1.9",
 ]
