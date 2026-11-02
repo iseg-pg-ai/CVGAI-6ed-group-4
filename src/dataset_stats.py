@@ -1,12 +1,21 @@
-"""Summarize the receipt corpus by image group, merchant, and field presence."""
+"""Summarize the receipt corpus by image group, merchant, and field presence.
+
+Ref: Docs/Planning/implementation_plan.md, section 6, WP-14.
+"""
 
 from __future__ import annotations
 
+import argparse
+import sys
 from collections import Counter
+from collections.abc import Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING
 
-from src.golden_set import carregar_ground_truth
-from src.settings import get_settings
 from src.types import GroundTruthRecord
+
+if TYPE_CHECKING:
+    from src.settings import Settings
 
 _GROUPS = ("plano", "amarrotado")
 _FIELDS = ("entidade", "nif_comerciante", "nif_cliente", "data", "total")
@@ -65,21 +74,27 @@ def imprimir_resumo(registos: list[GroundTruthRecord]) -> None:
     assert isinstance(group_counts, dict)
     assert isinstance(merchant_counts, dict)
 
-    field_order = _FIELDS
-    headers = ("Grupo", "N", *(_FIELD_LABELS[field] for field in field_order))
+    headers = ("Grupo", "N", *(_FIELD_LABELS[field] for field in _FIELDS))
     rows = [
         (
             group,
             group_counts[group]["n"],
-            *(group_counts[group][field] for field in field_order),
+            *(group_counts[group][field] for field in _FIELDS),
         )
         for group in _GROUPS
     ]
-    widths = tuple(max(len(header), *(len(str(row[index])) for row in rows)) for index, header in enumerate(headers))
+    widths = tuple(max(len(header), *(len(str(row[idx])) for row in rows)) for idx, header in enumerate(headers))
 
-    print(" ".join(header.ljust(widths[index]) for index, header in enumerate(headers)))
+    header_line = "  ".join(
+        header.ljust(widths[i]) if i == 0 else header.rjust(widths[i]) for i, header in enumerate(headers)
+    )
+    print(header_line)
+
     for row in rows:
-        print(" ".join(str(value).ljust(widths[index]) for index, value in enumerate(row)))
+        row_line = "  ".join(
+            str(val).ljust(widths[i]) if i == 0 else str(val).rjust(widths[i]) for i, val in enumerate(row)
+        )
+        print(row_line)
 
     print("\nPor comerciante:")
     if not merchant_counts:
@@ -89,10 +104,38 @@ def imprimir_resumo(registos: list[GroundTruthRecord]) -> None:
         print(f"{merchant}: {count}")
 
 
-def main() -> None:
-    """Load the configured ground-truth CSV and print corpus statistics."""
-    settings = get_settings()
-    imprimir_resumo(carregar_ground_truth(settings.ground_truth_path))
+def main(
+    argv: Sequence[str] | None = None,
+    settings_override: Settings | None = None,
+) -> None:
+    """Load the configured ground-truth CSV and print corpus statistics.
+
+    Args:
+        argv: Optional CLI arguments. Defaults to sys.argv[1:].
+        settings_override: Optional custom settings instance.
+    """
+    from src.golden_set import GoldenSetError, carregar_ground_truth
+    from src.settings import get_settings
+
+    settings = settings_override or get_settings()
+    parser = argparse.ArgumentParser(description="Summarize receipt corpus statistics")
+    parser.add_argument(
+        "--csv",
+        type=Path,
+        default=settings.ground_truth_path,
+        help="Path to the ground-truth CSV file",
+    )
+    effective_argv = list(argv) if argv is not None else (sys.argv[1:] if __name__ == "__main__" else [])
+    args = parser.parse_args(effective_argv)
+
+    try:
+        records = carregar_ground_truth(args.csv)
+    except GoldenSetError as exc:
+        for err in exc.args[0]:
+            print(err)
+        return
+
+    imprimir_resumo(records)
 
 
 if __name__ == "__main__":

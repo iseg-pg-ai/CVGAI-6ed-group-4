@@ -221,12 +221,12 @@ CVGAI-6ed-group-4/
 │   ├── extractor_regex.py         # baseline                    [Vitor]  feito
 │   ├── llm_client.py              # local + cloud               [Vitor]  feito
 │   ├── extractor_llm.py           # schema + prompt + parse     [Vitor]  feito
-│   ├── qa_assistant.py            # Q&A com evidência           [Vitor]  pendente
+│   ├── qa_assistant.py            # Q&A com evidência           [Vitor]  feito
 │   ├── evidence.py                # bbox -> recorte/destaque    [Vitor]  feito
-│   ├── scoring.py                 # comparação e agregação      [José]   pendente
+│   ├── scoring.py                 # comparação e agregação      [José]   feito
 │   ├── evaluate.py                # runner do benchmark         [Vitor]  pendente
-│   ├── dataset_stats.py           # estatística do corpus       [José]   pendente
-│   └── app.py                     # Gradio                      [Vitor]  pendente
+│   ├── dataset_stats.py           # estatística do corpus       [José]   feito
+│   └── app.py                     # Gradio                      [Vitor]  feito
 ├── tests/
 │   ├── conftest.py                # fixtures partilhadas        [Vitor]  feito
 │   ├── test_smoke.py              # arranque verde              [Vitor]  feito
@@ -236,7 +236,7 @@ CVGAI-6ed-group-4/
 │   ├── test_qr_reader.py          # QR sintético e parser       [Vitor]  feito
 │   ├── test_evidence.py           # destaque e recorte          [Vitor]  feito
 │   ├── test_normalizers.py        [José]   feito
-│   ├── test_golden_set.py         [José]   pendente
+│   ├── test_golden_set.py         [José]   feito
 │   ├── test_scoring.py            [José]   pendente
 │   ├── test_ocr_tesseract.py      [José]   feito
 │   ├── test_llm_client.py         [Vitor]  feito
@@ -350,7 +350,7 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | WP-00 | Estrutura inicial do repositório | Vitor | — | 3 h | `pyproject.toml`, `.env.example`, `.gitignore`, `README.md`, `tests/conftest.py`, `tests/test_smoke.py` | feito |
 | WP-01 | Contratos de dados | Vitor | WP-00 | 2 h | `src/types.py` | feito |
 | WP-02 | Normalizadores puros + testes | **José** | WP-01 | 4 a 6 h | `src/normalizers.py`, `tests/test_normalizers.py` | feito |
-| WP-03 | Carregador e validador do golden set | **José** | WP-01, WP-02 | 4 a 6 h | `src/golden_set.py`, `tests/test_golden_set.py` | pendente |
+| WP-03 | Carregador e validador do golden set | **José** | WP-01, WP-02 | 4 a 6 h | `src/golden_set.py`, `tests/test_golden_set.py` | feito |
 | WP-04 | Pré-processamento OpenCV | Vitor | WP-01 | 8 h | `src/preprocessing.py` | feito |
 | WP-05 | Motor OCR EasyOCR | Vitor | WP-01, WP-04 | 6 h | `src/ocr_engine.py` | feito |
 | WP-06 | Backend Tesseract | **José** | WP-05 | 3 a 4 h | `src/ocr_tesseract.py` | feito |
@@ -359,11 +359,11 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | WP-09 | Extrator por regex (baseline) | Vitor | WP-02, WP-05 | 5 h | `src/extractor_regex.py`, `tests/test_extractor_regex.py` | feito |
 | WP-10 | Extrator por LLM | Vitor | WP-08, WP-09 | 6 h | `src/extractor_llm.py`, `tests/test_extractor_llm.py` | feito |
 | WP-11 | Evidência visual | Vitor | WP-01 | 3 h | `src/evidence.py` | feito |
-| WP-12 | Assistente de Q&A com evidência | Vitor | WP-08, WP-11 | 5 h | `src/qa_assistant.py` | pendente |
-| WP-13 | Pontuação e agregação | **José** | WP-02, WP-03 | 5 a 7 h | `src/scoring.py`, `tests/test_scoring.py` | pendente |
-| WP-14 | Estatística do corpus | **José** | WP-03 | 2 a 3 h | `src/dataset_stats.py` | pendente |
+| WP-12 | Assistente de Q&A com evidência | Vitor | WP-08, WP-11 | 5 h | `src/qa_assistant.py` | feito |
+| WP-13 | Pontuação e agregação | **José** | WP-02, WP-03 | 5 a 7 h | `src/scoring.py`, `tests/test_scoring.py` | feito |
+| WP-14 | Estatística do corpus | **José** | WP-03 | 2 a 3 h | `src/dataset_stats.py` | feito |
 | WP-15 | Runner do benchmark | Vitor | WP-13 | 5 h | `src/evaluate.py` | pendente |
-| WP-16 | Aplicação Gradio | Vitor | WP-04 a WP-12 | 10 h | `src/app.py` | pendente |
+| WP-16 | Aplicação Gradio | Vitor | WP-04 a WP-12 | 10 h | `src/app.py` | feito |
 | WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` | em curso |
 | WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` | pendente |
 

@@ -1,10 +1,17 @@
 """Tests for corpus statistics."""
 
+from __future__ import annotations
+
+from dataclasses import replace
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Literal
 
-from src.dataset_stats import imprimir_resumo, resumo
+import pytest
+
+from src.dataset_stats import imprimir_resumo, main, resumo
+from src.settings import get_settings
 from src.types import GroundTruthRecord
 
 
@@ -117,7 +124,7 @@ def test_resumo_includes_both_groups_for_empty_corpus() -> None:
     }
 
 
-def test_imprimir_resumo_formats_groups_and_merchants(capsys) -> None:
+def test_imprimir_resumo_formats_groups_and_merchants(capsys: pytest.CaptureFixture[str]) -> None:
     records = [
         _record("flat.jpg", "plano", "Loja", nif_comerciante="500100144"),
         _record("crumpled.jpg", "amarrotado", None),
@@ -133,3 +140,45 @@ def test_imprimir_resumo_formats_groups_and_merchants(capsys) -> None:
     assert "amarrotado" in output
     assert "Loja: 1" in output
     assert "(sem entidade): 1" in output
+
+
+def test_main_cli_execution_with_custom_csv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    receipts_dir = tmp_path / "receipts"
+    receipts_dir.mkdir()
+    (receipts_dir / "flat.jpg").touch()
+
+    csv_path = tmp_path / "truth.csv"
+    csv_path.write_text(
+        "filename,grupo,entidade,nif_comerciante,nif_cliente,data,total\n"
+        "flat.jpg,plano,SuperLoja,500100144,,2026-10-24,15.50\n",
+        encoding="utf-8",
+    )
+
+    settings = replace(get_settings(), receipts_dir=receipts_dir, ground_truth_path=csv_path)
+    monkeypatch.setattr("src.golden_set.get_settings", lambda: settings)
+
+    main(argv=["--csv", str(csv_path)], settings_override=settings)
+
+    captured = capsys.readouterr().out
+    assert "Grupo" in captured
+    assert "SuperLoja: 1" in captured
+
+
+def test_main_cli_handles_invalid_csv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    receipts_dir = tmp_path / "receipts"
+    receipts_dir.mkdir()
+
+    csv_path = tmp_path / "truth_bad.csv"
+    csv_path.write_text("bad_header\n", encoding="utf-8")
+
+    settings = replace(get_settings(), receipts_dir=receipts_dir, ground_truth_path=csv_path)
+    monkeypatch.setattr("src.golden_set.get_settings", lambda: settings)
+
+    main(argv=["--csv", str(csv_path)], settings_override=settings)
+
+    captured = capsys.readouterr().out
+    assert "cabeçalho inválido" in captured.lower() or "esperado" in captured.lower()
