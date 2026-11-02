@@ -37,14 +37,16 @@ EasyOCR, que descarrega os pesos na primeira execução):
 | `src/normalizers.py` | Normalização e comparação de campos | — |
 | `src/llm_client.py` | Clientes local, Gemini e OpenAI com failover | `uv run python -m src.llm_client` |
 | `src/extractor_regex.py` | Extrator por regex (baseline) | `uv run python -m src.extractor_regex` |
+| `src/extractor_llm.py` | Extrator por LLM, local ou cloud, com JSON validado | `uv run python -m src.extractor_llm --provider llm_local` |
 | `src/evidence.py` | Destaque e recorte da região comprovativa | `uv run python -m src.evidence -l 1,2,3` |
 
 Cada módulo abre uma janela sobre o primeiro talão de `data/receipts/`; a flag `--file`
 escolhe outro ficheiro e `--save` escreve o resultado em disco em vez de abrir a janela.
 
-Por construir: carregador do golden set, extrator por LLM, assistente de Q&A, pontuação,
-estatística do corpus, runner do benchmark e a aplicação Gradio. `uv run python -m src.app`
-ainda não arranca: é o WP-16 e só fica disponível depois de WP-10 e WP-12.
+Por construir: carregador do golden set, assistente de Q&A, pontuação, estatística do corpus,
+runner do benchmark e a aplicação Gradio. `uv run python -m src.app` ainda não arranca: é o
+WP-16 e só fica disponível depois de WP-12. O extrator por LLM precisa de um `llama-server`
+a correr (`scripts/run_llama_server.sh`) ou de uma chave de API no `.env`.
 
 O corpus também está incompleto: `data/receipts/` tem 9 imagens e `data/ground_truth.csv`
 só tem o cabeçalho. Sem a verdade de referência não há benchmark.
@@ -266,21 +268,27 @@ demonstração offline: a partir daí os pesos ficam em cache local. Isto aplica
 pré-visualizações de OCR e de evidência; a de pré-processamento só usa OpenCV.
 
 Para o LLM local, arrancar primeiro o servidor num terminal separado, a partir da raiz do
-repositório, com o binário no `PATH`. O `-ngl 99` descarrega as camadas para a GPU; usar
-`-ngl 0` para correr só em CPU.
+repositório, com `llama-server` no `PATH`. O script de arranque usa por omissão o
+`models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` e `-ngl 0` (seguro para CPU, que corre
+confortavelmente o modelo 3B e evita erros de alocação de VRAM em placas pequenas):
 
 ```bash
-llama-server -m models/modelo.gguf --port 8080 -ngl 99 -c 8192
+bash scripts/run_llama_server.sh
 ```
 
-Em Windows o comando é o mesmo, com `llama-server.exe`:
+Em Windows, correr `.\scripts\run_llama_server.ps1` ou `scripts\run_llama_server.bat`. Com uma
+GPU com pelo menos 3 GB livres, passar `NGL=99` para descarregar as camadas:
 
-```powershell
-llama-server.exe -m models\modelo.gguf --port 8080 -ngl 99 -c 8192
+```bash
+NGL=99 bash scripts/run_llama_server.sh
 ```
+
+O `models/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf` também corre no servidor como modelo de texto,
+mas a entrada de imagens falha sem o ficheiro `mmproj` correspondente (`llama.cpp` precisa do
+projetor multimodal para processar imagens).
 
 O endereço por omissão em `.env.example` já aponta para `http://127.0.0.1:8080/v1`; se a porta
-8080 estiver ocupada, mudar `--port` e `LLAMA_BASE_URL` em conjunto.
+8080 estiver ocupada, mudar `PORT` e `LLAMA_BASE_URL` em conjunto.
 
 ## Testes
 

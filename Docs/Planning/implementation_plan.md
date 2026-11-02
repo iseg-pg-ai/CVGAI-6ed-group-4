@@ -220,7 +220,7 @@ CVGAI-6ed-group-4/
 │   ├── qr_reader.py               # QR da AT                    [Vitor]  feito
 │   ├── extractor_regex.py         # baseline                    [Vitor]  feito
 │   ├── llm_client.py              # local + cloud               [Vitor]  feito
-│   ├── extractor_llm.py           # schema + prompt + parse     [Vitor]  pendente
+│   ├── extractor_llm.py           # schema + prompt + parse     [Vitor]  feito
 │   ├── qa_assistant.py            # Q&A com evidência           [Vitor]  pendente
 │   ├── evidence.py                # bbox -> recorte/destaque    [Vitor]  feito
 │   ├── scoring.py                 # comparação e agregação      [José]   pendente
@@ -240,7 +240,8 @@ CVGAI-6ed-group-4/
 │   ├── test_scoring.py            [José]   pendente
 │   ├── test_ocr_tesseract.py      [José]   feito
 │   ├── test_llm_client.py         [Vitor]  feito
-│   └── test_extractor_regex.py    [Vitor]  feito
+│   ├── test_extractor_regex.py    [Vitor]  feito
+│   └── test_extractor_llm.py      [Vitor]  feito
 ├── scripts/                       # atalhos de arranque
 │   ├── check_golden_set.sh        # atalho de validação         [Vitor]  pendente
 │   └── run_llama_server.sh        # arranque do servidor        [Vitor]  feito
@@ -356,7 +357,7 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | WP-07 | Leitor de QR da AT | Vitor | WP-04 | 3 h | `src/qr_reader.py` | feito |
 | WP-08 | Cliente LLM unificado | Vitor | WP-01 | 6 h | `src/llm_client.py` | feito |
 | WP-09 | Extrator por regex (baseline) | Vitor | WP-02, WP-05 | 5 h | `src/extractor_regex.py`, `tests/test_extractor_regex.py` | feito |
-| WP-10 | Extrator por LLM | Vitor | WP-08, WP-09 | 6 h | `src/extractor_llm.py` | pendente |
+| WP-10 | Extrator por LLM | Vitor | WP-08, WP-09 | 6 h | `src/extractor_llm.py`, `tests/test_extractor_llm.py` | feito |
 | WP-11 | Evidência visual | Vitor | WP-01 | 3 h | `src/evidence.py` | feito |
 | WP-12 | Assistente de Q&A com evidência | Vitor | WP-08, WP-11 | 5 h | `src/qa_assistant.py` | pendente |
 | WP-13 | Pontuação e agregação | **José** | WP-02, WP-03 | 5 a 7 h | `src/scoring.py`, `tests/test_scoring.py` | pendente |
@@ -366,15 +367,17 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` | em curso |
 | WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` | pendente |
 
-O caminho crítico é WP-00 → WP-01 → WP-04 → WP-05 → WP-09 → WP-10 → WP-16. WP-09 não
+O caminho crítico é WP-00 → WP-01 → WP-04 → WP-05 → WP-09 → WP-10 → WP-12 → WP-16. WP-09 não
 figurava na versão original desta linha, mas o WP-10 depende dele desde a primeira tabela: o
-extrator por LLM reutiliza o contrato e os casos de teste do baseline.
+extrator por LLM reutiliza o contrato e os casos de teste do baseline. WP-12 entra agora porque
+o WP-16 depende de WP-04 a WP-12 e é o único pacote em falta nesse intervalo. Com WP-09 e WP-10
+fechados, o próximo trabalho do caminho crítico é o WP-12.
 
 ### 5.1 Estado das entregas e desvios face ao plano
 
 Fechados e integrados em `master` a 2026-11-02: WP-00, WP-01, WP-02, WP-04, WP-05, WP-06,
-WP-07, WP-08, WP-09 e WP-11. A suite tem 172 testes offline que correm em cerca de 2 s, mais um
-teste `slow` com o EasyOCR real, deselecionado por omissão.
+WP-07, WP-08, WP-09, WP-10 e WP-11. A suite tem 220 testes offline que correm em cerca de 2 s,
+mais um teste `slow` com o EasyOCR real, deselecionado por omissão.
 
 Desvios que valem registo, porque afetam os pacotes seguintes:
 
@@ -413,12 +416,30 @@ Desvios que valem registo, porque afetam os pacotes seguintes:
   para os testes nunca tocarem na rede.
 - **WP-09:** ver a secção 6, WP-09, para as regras do baseline e as três armadilhas que o
   pacote fecha (sentinela do consumidor final, NIF duplicado e total com quantidade à frente).
+- **WP-10:** `extract` aceita um `client` injetável e, sem ele, constrói o provedor a partir do
+  ambiente. O `method` vem de `last_effective_provider`, para que uma resposta obtida por
+  failover fique registada como local e não como o provedor que falhou. Uma resposta malformada
+  levanta `LLMResponseError` em vez de degradar para cinco `AUSENTE`, porque um resultado vazio
+  silencioso é indistinguível de um modelo que não leu nada e seria pontuado como cinco
+  omissões. O resultado do modelo nunca é confiado nas partes verificáveis: NIFs passam pelo
+  dígito de controlo, datas e totais são reprocessados pelos normalizadores puros, e um
+  `line_id` inventado ou `0` é re-ancorado deterministicamente por `_locate_line` no texto do
+  OCR (contar linhas não é tarefa semântica; o modelo real devolveu `0` para quatro de cinco
+  campos num talão longo). O prompt proíbe expressamente somas e cálculos: contra o modelo 3B
+  real, um talão sem total impresso resultou na soma aritmética dos artigos (0,80 + 2,40 = 3,20)
+  com `presente=true`, o que seria um falso positivo indetetável por pós-processamento.
+- **Arranque do `llama-server` (`scripts/run_llama_server.*`).** O modelo por omissão foi
+  atualizado para `models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` (o que existe no repositório),
+  o `MODEL` passou a aceitar variável de ambiente e o `NGL` passou a ter omissão `0` (seguro
+  para CPU; o anterior `99` falha alocação em GPUs pequenas como a MX150 de 2 GB). O modelo
+  `Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf` também corre no servidor como modelo de texto, mas a
+  entrada de imagem falha com erro 500 sem o ficheiro `mmproj` correspondente.
 
 Continua em aberto e bloqueia o benchmark: o golden set (WP-17) tem 9 imagens em
 `data/receipts/` e um `data/ground_truth.csv` só com cabeçalho. Sem verdade de referência não
-há `scoring.py` nem `evaluate.py` que produzam números citáveis. O WP-09, já fechado, foi
-validado à custa de documentos de OCR sintéticos: a precisão do baseline sobre o corpus real só
-pode ser medida depois de o WP-17 entregar a verdade de referência.
+há `scoring.py` nem `evaluate.py` que produzam números citáveis. WP-09 e WP-10, já fechados,
+foram validados à custa de documentos de OCR sintéticos e de clientes falsos: a precisão de
+ambos sobre o corpus real só pode ser medida depois de o WP-17 entregar a verdade de referência.
 
 ---
 
@@ -770,17 +791,70 @@ def build_client(provider: str) -> LLMClient: ...
 - Failover: em erro de rede, erro de quota ou timeout, cai para o cliente local e marca o
   `provider` efetivo na resposta.
 
-**WP-10 `extractor_llm.py`**
+**WP-10 `extractor_llm.py`** (implementado)
 
-- Prompt com o texto indexado linha a linha (`[01] ...`), tal como planeado.
-- Schema plano, sem uniões de tipo (o conversor `json-schema-to-grammar` do `llama.cpp` só
-  suporta um subconjunto): todos os campos são `string`, com `""` para ausente, mais um objeto
-  `presente` com booleanos.
+**Assinatura:**
+
+```python
+def extract(
+    doc: OcrDocument,
+    qr: dict[str, str] | None = None,
+    client: LLMClient | None = None,
+) -> Extraction:
+    """Extraction com method=<provedor que respondeu>, elapsed_ms medido e raw_response."""
+
+def main(argv: Sequence[str] | None = None, settings_override: Settings | None = None) -> None:
+    """Pré-visualização: --file, --engine, --provider, --no-preprocess, --show-raw."""
+```
+
+- Prompt de sistema em português, com o texto indexado linha a linha (`[01] ...`) como mensagem
+  do utilizador. O `documento.as_prompt_text()` é a única fonte de texto: o QR é aceite na
+  assinatura e ignorado, tal como no baseline.
+- Schema plano, sem uniões de tipo: os cinco campos são `string`, a ausência é `""`, e há dois
+  objetos fechados, `presente` (booleanos) e `linhas` (inteiros). **Todos** os objetos levam
+  `additionalProperties: false`: é obrigatório no modo `strict` da OpenAI e foi verificado que
+  `google.genai.types.GenerateContentConfig` o aceita, portanto um único schema serve os três
+  backends.
 - **Ponto confirmado:** o schema em `response_format` **não é injetado no prompt** pelo
-  `llama-server`. A estrutura tem de ser descrita em texto no prompt, caso contrário o modelo
+  `llama-server`. A estrutura está descrita em texto no próprio prompt, caso contrário o modelo
   produz JSON válido com as chaves erradas.
-- Pós-processamento: validar o JSON, mapear `line_id` para `FieldValue` e correr `validar_nif`
-  para rebaixar NIFs inválidos a `INVALIDO`.
+- Recuperação do JSON: tolera bloco de código cercado e uma frase de prosa antes ou depois do
+  objeto. Sem objeto descodificável, ou com uma chave obrigatória em falta, levanta
+  `LLMResponseError`. Chaves desconhecidas são registadas em `logger.warning` e ignoradas.
+- `presente` é autoritativo. Um modelo que devolve texto com a flag a `false` está a
+  contradizer-se, e a leitura segura de uma contradição é a ausência: é isto que impede um
+  falso positivo num talão sem NIF de cliente.
+- Pós-processamento, sempre a desconfiar do modelo: `parse_nif` + `validar_nif` para os NIF (com
+  o sentinela do consumidor final a resultar em `AUSENTE`), `parse_data` para a data (com
+  rejeição de datas futuras), `parse_moeda` para o total (com rejeição de zero ou negativo). O
+  que não sobrevive fica `INVALIDO` e conserva o texto, para a pontuação contar como erro e não
+  como omissão.
+- O prompt proíbe expressamente somas e cálculos (regra 2 do sistema). Sem isto, o modelo local
+  real somou duas linhas de artigos (0,80 + 2,40 = 3,20) e marcou o total como presente num talão
+  que não tinha total impresso.
+- Ancoragem determinística (`_locate_line`): um `line_id` inventado ou devolvido como `0` é
+  procurado diretamente nas linhas do OCR através do normalizador próprio de cada campo. Contar
+  linhas não é tarefa semântica e delegá-la ao modelo 3B falhou em documentos longos (o modelo
+  devolveu `0` em quatro de cinco campos num talão de 11 linhas, embora os valores estivessem
+  certos).
+- Um identificador que não exista no documento é descartado e re-ancorado; se o valor não
+  existir de todo no texto, fica sem linha.
+- Documento sem linhas não gera pedido ao modelo: devolve cinco `AUSENTE` e não custa uma
+  chamada nem é pontuado como falha do modelo.
+
+**Limitação conhecida:** `parse_data` não reconhece meses escritos por extenso, pelo que um
+modelo que responda `27 de outubro de 2026` produz `INVALIDO`. O prompt pede `AAAA-MM-DD`, e
+alargar o normalizador é uma alteração do WP-02, não deste pacote. O comportamento está fixado
+por teste em vez de ficar implícito.
+
+**Critério de aceitação:** os testes em `tests/test_extractor_llm.py` (47 testes) injetam sempre
+um cliente falso; nenhum pedido sai do processo. Cobrem os cinco campos, a contradição
+`presente`/valor, o sentinela do consumidor final, NIF inválido, data impossível e data futura,
+total zero, JSON cercado com prosa, resposta sem JSON, resposta com chave em falta, as regras do
+prompt (proibição de cálculos e exigência de linhas), substituição de `line_id` inventado ou
+zero pela linha real localizada, valor inventado sem linha atribuída, documento vazio e as três
+saídas de erro da linha de comando (modelo indisponível, resposta inutilizável, ficheiro
+ausente).
 
 **WP-11 `evidence.py`** (implementado)
 
