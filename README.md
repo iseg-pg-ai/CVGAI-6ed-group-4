@@ -22,9 +22,9 @@ Três métodos de extração correm em paralelo para comparação: expressões r
 
 ## Estado atual
 
-O pipeline está construído até à camada de evidência visual. O que já existe e pode ser
-inspecionado hoje, sem chaves de API e sem modelos descarregados (excepto o EasyOCR, que
-descarrega os pesos na primeira execução):
+O pipeline está construído até ao extrator por regex, que é o baseline da comparação. O que já
+existe e pode ser inspecionado hoje, sem chaves de API e sem modelos descarregados (excepto o
+EasyOCR, que descarrega os pesos na primeira execução):
 
 | Módulo | Estado | Pré-visualização |
 | :--- | :--- | :--- |
@@ -32,16 +32,19 @@ descarrega os pesos na primeira execução):
 | `src/settings.py` | Configuração e caminhos a partir do `.env` | — |
 | `src/preprocessing.py` | Redimensionamento, orientação, recorte, sombras, CLAHE | `uv run python -m src.preprocessing` |
 | `src/ocr_engine.py` | EasyOCR com caixas delimitadoras e IDs de linha | `uv run python -m src.ocr_engine` |
+| `src/ocr_tesseract.py` | Motor OCR comparativo, com agregação de palavras em linhas | `uv run python -m src.ocr_tesseract` |
 | `src/qr_reader.py` | Leitura do QR da AT para validação cruzada | `uv run python -m src.qr_reader` |
+| `src/normalizers.py` | Normalização e comparação de campos | — |
+| `src/llm_client.py` | Clientes local, Gemini e OpenAI com failover | `uv run python -m src.llm_client` |
+| `src/extractor_regex.py` | Extrator por regex (baseline) | `uv run python -m src.extractor_regex` |
 | `src/evidence.py` | Destaque e recorte da região comprovativa | `uv run python -m src.evidence -l 1,2,3` |
 
-Cada comando abre uma janela sobre o primeiro talão de `data/receipts/`; a flag `--file`
+Cada módulo abre uma janela sobre o primeiro talão de `data/receipts/`; a flag `--file`
 escolhe outro ficheiro e `--save` escreve o resultado em disco em vez de abrir a janela.
 
-Por construir: normalizadores, carregador do golden set, backend Tesseract, extrator por
-regex, cliente LLM, extrator por LLM, assistente de Q&A, pontuação, estatística do corpus,
-runner do benchmark e a aplicação Gradio. `uv run python -m src.app` ainda não arranca: é o
-WP-16 e só fica disponível depois de WP-08 a WP-12.
+Por construir: carregador do golden set, extrator por LLM, assistente de Q&A, pontuação,
+estatística do corpus, runner do benchmark e a aplicação Gradio. `uv run python -m src.app`
+ainda não arranca: é o WP-16 e só fica disponível depois de WP-10 e WP-12.
 
 O corpus também está incompleto: `data/receipts/` tem 9 imagens e `data/ground_truth.csv`
 só tem o cabeçalho. Sem a verdade de referência não há benchmark.

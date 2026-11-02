@@ -12,10 +12,10 @@ prazo real de submissão antes de partilhar.
 
 Equipa: Vitor (pipeline), José (camada de dados e métricas), Raquel (corpus e narrativa).
 
-**Estado em 2026-11-01.** WP-00, WP-01, WP-04, WP-05, WP-07 e WP-11 estão fechados e
-integrados em `master`. O `src/settings.py` foi acrescentado fora da numeração para
-centralizar o acesso ao ambiente e aos caminhos. O detalhe do que foi entregue, e do que
-diverge do plano original, está na secção 5.1. As restantes secções descrevem o alvo e
+**Estado em 2026-11-02.** WP-00, WP-01, WP-02, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09 e
+WP-11 estão fechados e integrados em `master`. O `src/settings.py` foi acrescentado fora da
+numeração para centralizar o acesso ao ambiente e aos caminhos. O detalhe do que foi entregue,
+e do que diverge do plano original, está na secção 5.1. As restantes secções descrevem o alvo e
 continuam válidas para os pacotes por executar.
 
 ---
@@ -212,14 +212,14 @@ CVGAI-6ed-group-4/
 │   ├── __init__.py                # feito
 │   ├── types.py                   # contratos de dados          [Vitor]  feito
 │   ├── settings.py                # ambiente + caminhos         [Vitor]  feito
-│   ├── normalizers.py             # funções puras               [José]   pendente
+│   ├── normalizers.py             # funções puras               [José]   feito
 │   ├── golden_set.py              # carregamento + validação    [José]   pendente
 │   ├── preprocessing.py           # OpenCV                      [Vitor]  feito
 │   ├── ocr_engine.py              # Protocol + EasyOCR          [Vitor]  feito
-│   ├── ocr_tesseract.py           # backend Tesseract           [José]   pendente
+│   ├── ocr_tesseract.py           # backend Tesseract           [José]   feito
 │   ├── qr_reader.py               # QR da AT                    [Vitor]  feito
-│   ├── extractor_regex.py         # baseline                    [Vitor]  pendente
-│   ├── llm_client.py              # local + cloud               [Vitor]  pendente
+│   ├── extractor_regex.py         # baseline                    [Vitor]  feito
+│   ├── llm_client.py              # local + cloud               [Vitor]  feito
 │   ├── extractor_llm.py           # schema + prompt + parse     [Vitor]  pendente
 │   ├── qa_assistant.py            # Q&A com evidência           [Vitor]  pendente
 │   ├── evidence.py                # bbox -> recorte/destaque    [Vitor]  feito
@@ -235,12 +235,15 @@ CVGAI-6ed-group-4/
 │   ├── test_ocr_contract.py       # contrato do OcrEngine       [Vitor]  feito
 │   ├── test_qr_reader.py          # QR sintético e parser       [Vitor]  feito
 │   ├── test_evidence.py           # destaque e recorte          [Vitor]  feito
-│   ├── test_normalizers.py        [José]   pendente
+│   ├── test_normalizers.py        [José]   feito
 │   ├── test_golden_set.py         [José]   pendente
-│   └── test_scoring.py            [José]   pendente
-├── scripts/                       # ainda não existe
-│   ├── check_golden_set.sh        # atalho de validação         [Vitor]
-│   └── run_llama_server.sh        # arranque do servidor        [Vitor]
+│   ├── test_scoring.py            [José]   pendente
+│   ├── test_ocr_tesseract.py      [José]   feito
+│   ├── test_llm_client.py         [Vitor]  feito
+│   └── test_extractor_regex.py    [Vitor]  feito
+├── scripts/                       # atalhos de arranque
+│   ├── check_golden_set.sh        # atalho de validação         [Vitor]  pendente
+│   └── run_llama_server.sh        # arranque do servidor        [Vitor]  feito
 ├── .env.example
 ├── .gitignore
 ├── pyproject.toml
@@ -249,7 +252,8 @@ CVGAI-6ed-group-4/
 ```
 
 `feito` significa integrado em `master` com testes a passar; `pendente`, não iniciado. A árvore
-está atualizada a 2026-11-01.
+está atualizada a 2026-11-02. O `run_llama_server` existe também em `.ps1` e `.bat`, porque a
+equipa trabalha em três sistemas.
 
 ### `.gitignore` (estado atual)
 
@@ -344,14 +348,14 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | WP-00 | Estrutura inicial do repositório | Vitor | — | 3 h | `pyproject.toml`, `.env.example`, `.gitignore`, `README.md`, `tests/conftest.py`, `tests/test_smoke.py` | feito |
 | WP-01 | Contratos de dados | Vitor | WP-00 | 2 h | `src/types.py` | feito |
-| WP-02 | Normalizadores puros + testes | **José** | WP-01 | 4 a 6 h | `src/normalizers.py`, `tests/test_normalizers.py` | pendente |
+| WP-02 | Normalizadores puros + testes | **José** | WP-01 | 4 a 6 h | `src/normalizers.py`, `tests/test_normalizers.py` | feito |
 | WP-03 | Carregador e validador do golden set | **José** | WP-01, WP-02 | 4 a 6 h | `src/golden_set.py`, `tests/test_golden_set.py` | pendente |
 | WP-04 | Pré-processamento OpenCV | Vitor | WP-01 | 8 h | `src/preprocessing.py` | feito |
 | WP-05 | Motor OCR EasyOCR | Vitor | WP-01, WP-04 | 6 h | `src/ocr_engine.py` | feito |
-| WP-06 | Backend Tesseract | **José** | WP-05 | 3 a 4 h | `src/ocr_tesseract.py` | pendente |
+| WP-06 | Backend Tesseract | **José** | WP-05 | 3 a 4 h | `src/ocr_tesseract.py` | feito |
 | WP-07 | Leitor de QR da AT | Vitor | WP-04 | 3 h | `src/qr_reader.py` | feito |
-| WP-08 | Cliente LLM unificado | Vitor | WP-01 | 6 h | `src/llm_client.py` | pendente |
-| WP-09 | Extrator por regex (baseline) | Vitor | WP-02, WP-05 | 5 h | `src/extractor_regex.py` | pendente |
+| WP-08 | Cliente LLM unificado | Vitor | WP-01 | 6 h | `src/llm_client.py` | feito |
+| WP-09 | Extrator por regex (baseline) | Vitor | WP-02, WP-05 | 5 h | `src/extractor_regex.py`, `tests/test_extractor_regex.py` | feito |
 | WP-10 | Extrator por LLM | Vitor | WP-08, WP-09 | 6 h | `src/extractor_llm.py` | pendente |
 | WP-11 | Evidência visual | Vitor | WP-01 | 3 h | `src/evidence.py` | feito |
 | WP-12 | Assistente de Q&A com evidência | Vitor | WP-08, WP-11 | 5 h | `src/qa_assistant.py` | pendente |
@@ -362,13 +366,15 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` | em curso |
 | WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` | pendente |
 
-O caminho crítico é WP-00 → WP-01 → WP-04 → WP-05 → WP-10 → WP-16.
+O caminho crítico é WP-00 → WP-01 → WP-04 → WP-05 → WP-09 → WP-10 → WP-16. WP-09 não
+figurava na versão original desta linha, mas o WP-10 depende dele desde a primeira tabela: o
+extrator por LLM reutiliza o contrato e os casos de teste do baseline.
 
 ### 5.1 Estado das entregas e desvios face ao plano
 
-Fechados e integrados em `master` a 2026-11-01: WP-00, WP-01, WP-04, WP-05, WP-07 e WP-11. A
-suite tem 63 testes offline que correm em cerca de 0,3 s, mais um teste `slow` com o EasyOCR
-real, deselecionado por omissão.
+Fechados e integrados em `master` a 2026-11-02: WP-00, WP-01, WP-02, WP-04, WP-05, WP-06,
+WP-07, WP-08, WP-09 e WP-11. A suite tem 172 testes offline que correm em cerca de 2 s, mais um
+teste `slow` com o EasyOCR real, deselecionado por omissão.
 
 Desvios que valem registo, porque afetam os pacotes seguintes:
 
@@ -395,10 +401,24 @@ Desvios que valem registo, porque afetam os pacotes seguintes:
 - **WP-11:** a API ficou `draw_all_ocr_boxes`, `highlight` e `crop`, com `crop` a devolver
   `None` quando nenhum `line_id` existe. `highlight` desenha as linhas não citadas em cinza
   esbatido, para que a evidência ativa salte à vista.
+- **WP-02:** os normalizadores são puros e não leem ficheiros, ambiente nem desenham nada.
+  `parse_data` lê datas com hífen como `YY-MM-DD`, o que resolve o corpus mas cria ambiguidade
+  com `DD-MM-YY`; `parse_moeda` devolve o **primeiro** número da string, não o último.
+- **WP-06:** `TesseractEngine` agrega caixas de palavra por `(block_num, par_num, line_num)`,
+  descarta `conf < 0` e restaura o `pytesseract.pytesseract.tesseract_cmd` global no fim, para
+  não deixar estado entre testes.
+- **WP-08:** `llm_client` expõe `OpenAICompatibleClient` (que serve o `llama-server` e a OpenAI
+  com o mesmo caminho de código), `GeminiClient` e `FailoverLLMClient`. O failover marca o
+  provedor efetivo em `last_effective_provider`, e `build_client` aceita clientes injetados
+  para os testes nunca tocarem na rede.
+- **WP-09:** ver a secção 6, WP-09, para as regras do baseline e as três armadilhas que o
+  pacote fecha (sentinela do consumidor final, NIF duplicado e total com quantidade à frente).
 
 Continua em aberto e bloqueia o benchmark: o golden set (WP-17) tem 9 imagens em
 `data/receipts/` e um `data/ground_truth.csv` só com cabeçalho. Sem verdade de referência não
-há `scoring.py` nem `evaluate.py` que produzam números citáveis.
+há `scoring.py` nem `evaluate.py` que produzam números citáveis. O WP-09, já fechado, foi
+validado à custa de documentos de OCR sintéticos: a precisão do baseline sobre o corpus real só
+pode ser medida depois de o WP-17 entregar a verdade de referência.
 
 ---
 
@@ -567,6 +587,64 @@ class TesseractEngine:
 
 **Critério de aceitação:** correr sobre `data/receipts/01_*.jpg` e obter mais de 10 linhas,
 todas com `bbox` dentro dos limites da imagem e `id` sequencial sem falhas.
+
+---
+
+### WP-09 — Extrator por regex (`src/extractor_regex.py`)
+
+Este pacote não tinha especificação detalhada na primeira versão do plano, só a linha da
+tabela da secção 5. As regras abaixo são as que ficaram implementadas e testadas, e passam a
+ser o contrato do baseline.
+
+**Assinatura:**
+
+```python
+def extract(doc: OcrDocument, qr: dict[str, str] | None = None) -> Extraction:
+    """Extraction com method='regex', elapsed_ms medido e raw_response=None."""
+
+def main(argv: Sequence[str] | None = None, settings_override: Settings | None = None) -> None:
+    """Pré-visualização: --file, --engine {easyocr,tesseract}, --no-preprocess."""
+```
+
+**Regras de extração, por campo:**
+
+- `entidade` — primeira linha que pareça um nome: pelo menos 3 letras, mais de metade dos
+  caracteres visíveis alfabéticos, sem palavras de cabeçalho/rodapé (`fatura`, `recibo`,
+  `contribuinte`, `nif`, `atcud`, `cliente`, `total`, `iva`, `tel`, `www`, ...) e com duas
+  palavras ou uma palavra de 5 letras ou mais. Vale a primeira linha plausível, não a mais
+  plausível: o emitente é impresso antes da morada.
+- `nif_comerciante` — primeiro NIF de uma linha com rótulo de emitente (`NIF`, `NIPC`,
+  `CONTRIBUINTE`, `EMITENTE`); na falta dele, primeiro NIF sem rótulo dentro da faixa de topo
+  (40 % superiores da imagem).
+- `nif_cliente` — **último** NIF de uma linha com rótulo de cliente (`CLIENTE`, `ADQUIRENTE`,
+  `CONSUMIDOR`). O último é o que faz funcionar uma linha única do tipo
+  `NIF: 500100144 NIF CLIENTE: 123456789`.
+- `data` — primeira data plausível em ordem de leitura, em ISO 8601. Datas posteriores a hoje
+  são descartadas: como as datas com hífen são lidas como `YY-MM-DD`, uma leitura errada de um
+  talão `DD-MM-YY` cai na década seguinte, e uma data de emissão no futuro é impossível.
+- `total` — **última** linha que case com rótulo de total seguido do valor no fim da linha
+  (`TOTAL`, `TOTAL A PAGAR`, `VALOR TOTAL`), com separador de milhares suportado. O valor
+  fica com duas casas decimais e ponto (`16.10`). Totais zero ou negativos são `INVALIDO`.
+
+**Três armadilhas que este pacote fecha, e que os pacotes seguintes herdam:**
+
+1. `999999990` é o código de consumidor final da AT e **passa** o dígito de controlo do NIF.
+   É rejeitado por uma constante explícita (`CONSUMIDOR_FINAL_NIF`), não por `validar_nif`, e
+   resulta em `AUSENTE`. Sem isto o sistema reportaria um NIF de cliente inventado.
+2. Um NIF de cliente igual ao do comerciante é descartado: um talão identifica sempre o
+   emitente, por isso quando só existe um número ele pertence ao comerciante.
+3. `parse_moeda` devolve o **primeiro** número da string, pelo que aplicá-la à linha inteira
+   leria `TOTAL 2 UN 16,10` como `2`. O total é lido com o padrão próprio do módulo, que exige
+   duas casas decimais e o valor no fim da linha, e uma linha com ruído entre o rótulo e o
+   valor é descartada em vez de mal lida.
+
+**Regra de ouro:** o payload do QR é aceite na assinatura por paridade com o extrator por LLM
+e com a aplicação, mas **nunca** preenche um campo. O baseline tem de ser medido só sobre o
+texto do OCR, e os talões de terminal de pagamento não têm QR.
+
+**Critério de aceitação:** os testes em `tests/test_extractor_regex.py` cobrem os cinco campos,
+as três armadilhas acima, ausência de todos os campos num documento vazio e a pré-visualização
+de linha de comando com um motor injetado. Nenhum teste descodifica uma imagem real.
 
 ---
 
