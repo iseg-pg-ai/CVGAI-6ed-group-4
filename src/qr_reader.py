@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import numpy as np
 
+from src.types import CONSUMIDOR_FINAL_NIF, IMAGE_EXTENSIONS
+
 if TYPE_CHECKING:
     from src.settings import Settings
 
@@ -62,7 +64,7 @@ def parse_at_qr_payload(payload: str) -> dict[str, str] | None:
     if "B" in data:
         client_nif = data["B"]
         # In Portugal, '999999990' denotes Final Consumer (no customer taxpayer number)
-        if client_nif == "999999990" or not client_nif:
+        if client_nif == CONSUMIDOR_FINAL_NIF or not client_nif:
             data["nif_cliente"] = ""
         else:
             data["nif_cliente"] = client_nif
@@ -257,11 +259,7 @@ def main(
             print(f"Receipts directory not found: {settings.receipts_dir}")
             return
         receipt_files = sorted(
-            [
-                p
-                for p in settings.receipts_dir.iterdir()
-                if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png"}
-            ]
+            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
         )
         if not receipt_files:
             print(f"No receipt images found in {settings.receipts_dir}")

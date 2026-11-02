@@ -36,7 +36,6 @@ from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from src.extractor_regex import CONSUMIDOR_FINAL_NIF, EARLIEST_PLAUSIBLE_DATE
 from src.normalizers import (
     limpar_texto,
     normalizar_entidade,
@@ -45,16 +44,22 @@ from src.normalizers import (
     parse_nif,
     validar_nif,
 )
-from src.types import Extraction, FieldValue, OcrDocument, OcrLine
+from src.types import (
+    CONSUMIDOR_FINAL_NIF,
+    EARLIEST_PLAUSIBLE_DATE,
+    FIELD_NAMES,
+    IMAGE_EXTENSIONS,
+    Extraction,
+    FieldValue,
+    OcrDocument,
+    OcrLine,
+)
 
 if TYPE_CHECKING:
     from src.llm_client import LLMClient
     from src.settings import Settings
 
 logger = logging.getLogger(__name__)
-
-#: The five required fields, in canonical order.
-FIELD_NAMES = ("entidade", "nif_comerciante", "nif_cliente", "data", "total")
 
 #: System prompt.
 #:
@@ -535,11 +540,7 @@ def main(
             print(f"Receipts directory not found: {settings.receipts_dir}")
             return
         receipt_files = sorted(
-            [
-                p
-                for p in settings.receipts_dir.iterdir()
-                if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png"}
-            ]
+            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
         )
         if not receipt_files:
             print(f"No receipt images found in {settings.receipts_dir}")

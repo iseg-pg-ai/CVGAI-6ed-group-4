@@ -13,20 +13,15 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Literal
 
 from src.normalizers import validar_nif
 from src.settings import Settings, get_settings
-from src.types import GroundTruthRecord
+from src.types import FIELD_NAMES, GROUPS, GroundTruthRecord, GroupName
 
 _CSV_COLUMNS = (
     "filename",
     "grupo",
-    "entidade",
-    "nif_comerciante",
-    "nif_cliente",
-    "data",
-    "total",
+    *FIELD_NAMES,
 )
 
 
@@ -111,13 +106,10 @@ def _validate_csv(path: Path, receipts_dir: Path) -> tuple[list[GroundTruthRecor
             if filename_is_safe and not (receipts_dir / filename).is_file():
                 row_errors.append(f"ficheiro não encontrado em '{receipts_dir}': {filename!r}")
 
-        group_value: Literal["direito", "amarrotado"] | None
-        if group == "direito":
-            group_value = "direito"
-        elif group == "amarrotado":
-            group_value = "amarrotado"
+        group_value: GroupName | None = None
+        if group in GROUPS:
+            group_value = group  # type: ignore[assignment]
         else:
-            group_value = None
             row_errors.append(f"grupo inválido: {group!r}")
 
         for field_name, nif in (
