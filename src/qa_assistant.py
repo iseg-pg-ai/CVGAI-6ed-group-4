@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from src.types import Answer, OcrDocument, OcrLine
+from src.types import IMAGE_EXTENSIONS, Answer, OcrDocument, OcrLine
 
 if TYPE_CHECKING:
     from src.llm_client import LLMClient
@@ -253,11 +253,7 @@ def main(
             print(f"Receipts directory not found: {settings.receipts_dir}")
             return
         receipt_files = sorted(
-            [
-                p
-                for p in settings.receipts_dir.iterdir()
-                if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png"}
-            ]
+            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
         )
         if not receipt_files:
             print(f"No receipt images found in {settings.receipts_dir}")

@@ -10,10 +10,8 @@ from pathlib import Path
 from typing import TypedDict
 
 from src.normalizers import valores_equivalentes
-from src.types import Extraction, GroundTruthRecord, MatchResult
+from src.types import FIELD_NAMES, GROUPS, Extraction, GroundTruthRecord, MatchResult
 
-_FIELDS = ("entidade", "nif_comerciante", "nif_cliente", "data", "total")
-_GROUPS = ("direito", "amarrotado")
 _RESULT_COLUMNS = (
     "filename",
     "grupo",
@@ -73,7 +71,7 @@ def pontuar_registo(verdade: GroundTruthRecord, extracao: Extraction) -> list[Ma
     }
 
     results: list[MatchResult] = []
-    for field in _FIELDS:
+    for field in FIELD_NAMES:
         expected = _as_text(expected_values[field])
         obtained = extracao.fields[field].value
         results.append(
@@ -122,8 +120,8 @@ def agregar(resultados: list[MatchResult]) -> AggregatedMetrics:
         ``por_campo`` and ``por_grupo`` map each field/group to the three rates;
         ``global`` contains the rates over all results.
     """
-    fields = (*_FIELDS, *sorted({result.campo for result in resultados} - set(_FIELDS)))
-    groups = (*_GROUPS, *sorted({result.grupo for result in resultados} - set(_GROUPS)))
+    fields = (*FIELD_NAMES, *sorted({result.campo for result in resultados} - set(FIELD_NAMES)))
+    groups = (*GROUPS, *sorted({result.grupo for result in resultados} - set(GROUPS)))
     return {
         "por_campo": {field: _metricas(result for result in resultados if result.campo == field) for field in fields},
         "por_grupo": {group: _metricas(result for result in resultados if result.grupo == group) for group in groups},

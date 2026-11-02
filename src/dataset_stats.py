@@ -12,13 +12,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.types import GroundTruthRecord
+from src.types import FIELD_NAMES, GROUPS, GroundTruthRecord
 
 if TYPE_CHECKING:
     from src.settings import Settings
 
-_GROUPS = ("direito", "amarrotado")
-_FIELDS = ("entidade", "nif_comerciante", "nif_cliente", "data", "total")
 _FIELD_LABELS = {
     "entidade": "entidade",
     "nif_comerciante": "nif_com",
@@ -42,14 +40,14 @@ def resumo(registos: list[GroundTruthRecord]) -> dict[str, object]:
     Returns:
         A summary dictionary. Both known groups are included, even when empty.
     """
-    group_counts: dict[str, dict[str, int]] = {group: {"n": 0, **dict.fromkeys(_FIELDS, 0)} for group in _GROUPS}
+    group_counts: dict[str, dict[str, int]] = {group: {"n": 0, **dict.fromkeys(FIELD_NAMES, 0)} for group in GROUPS}
     merchant_counts: Counter[str] = Counter()
-    field_counts = dict.fromkeys(_FIELDS, 0)
+    field_counts = dict.fromkeys(FIELD_NAMES, 0)
 
     for record in registos:
         group_counts[record.grupo]["n"] += 1
         merchant_counts[record.entidade or "(sem entidade)"] += 1
-        for field in _FIELDS:
+        for field in FIELD_NAMES:
             if getattr(record, field) is not None:
                 group_counts[record.grupo][field] += 1
                 field_counts[field] += 1
@@ -74,14 +72,14 @@ def imprimir_resumo(registos: list[GroundTruthRecord]) -> None:
     assert isinstance(group_counts, dict)
     assert isinstance(merchant_counts, dict)
 
-    headers = ("Grupo", "N", *(_FIELD_LABELS[field] for field in _FIELDS))
+    headers = ("Grupo", "N", *(_FIELD_LABELS[field] for field in FIELD_NAMES))
     rows = [
         (
             group,
             group_counts[group]["n"],
-            *(group_counts[group][field] for field in _FIELDS),
+            *(group_counts[group][field] for field in FIELD_NAMES),
         )
-        for group in _GROUPS
+        for group in GROUPS
     ]
     widths = tuple(max(len(header), *(len(str(row[idx])) for row in rows)) for idx, header in enumerate(headers))
 

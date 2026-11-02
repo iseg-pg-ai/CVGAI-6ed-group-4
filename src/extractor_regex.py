@@ -33,20 +33,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from src.normalizers import limpar_texto, normalizar_entidade, parse_data, parse_moeda, parse_nif, validar_nif
-from src.types import Extraction, FieldValue, OcrDocument, OcrLine
+from src.types import (
+    CONSUMIDOR_FINAL_NIF,
+    EARLIEST_PLAUSIBLE_DATE,
+    IMAGE_EXTENSIONS,
+    Extraction,
+    FieldValue,
+    OcrDocument,
+    OcrLine,
+)
 
 if TYPE_CHECKING:
     from src.settings import Settings
-
-#: AT sentinel printed in the ``B`` field of a final-consumer invoice.
-#:
-#: It satisfies the NIF check digit, so validation alone cannot reject it. Kept local instead
-#: of imported from ``qr_reader`` because that module imports OpenCV at load time and this one
-#: must stay importable in milliseconds. The same value is handled there in the QR parser.
-CONSUMIDOR_FINAL_NIF = "999999990"
-
-#: Earliest issue date considered plausible. Anything older is OCR debris, not a receipt.
-EARLIEST_PLAUSIBLE_DATE = date(2000, 1, 1)
 
 #: Nine digits with optional single spaces or tabs between them.
 #:
@@ -424,11 +422,7 @@ def main(
             print(f"Receipts directory not found: {settings.receipts_dir}")
             return
         receipt_files = sorted(
-            [
-                p
-                for p in settings.receipts_dir.iterdir()
-                if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png"}
-            ]
+            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
         )
         if not receipt_files:
             print(f"No receipt images found in {settings.receipts_dir}")

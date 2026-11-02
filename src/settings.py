@@ -12,11 +12,12 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
 
 from dotenv import load_dotenv
 
-OcrEngineType = Literal["easyocr", "tesseract"]
+from src.types import OcrEngineName
+
+OcrEngineType = OcrEngineName
 
 
 @dataclass(frozen=True, slots=True)

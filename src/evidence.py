@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from src.types import OcrDocument, OcrLine
+from src.types import IMAGE_EXTENSIONS, OcrDocument, OcrLine
 
 if TYPE_CHECKING:
     from src.settings import Settings
@@ -252,11 +252,7 @@ def main(
             print(f"Receipts directory not found: {settings.receipts_dir}")
             return
         receipt_files = sorted(
-            [
-                p
-                for p in settings.receipts_dir.iterdir()
-                if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png"}
-            ]
+            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
         )
         if not receipt_files:
             print(f"No receipt images found in {settings.receipts_dir}")

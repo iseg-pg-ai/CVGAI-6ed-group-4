@@ -31,7 +31,7 @@ from src.preprocessing import PreprocessOptions, PreprocessResult, preprocess
 from src.qa_assistant import ask as ask_qa
 from src.qr_reader import read as read_qr
 from src.settings import get_settings
-from src.types import Extraction, OcrDocument, OcrEngine
+from src.types import IMAGE_EXTENSIONS, Extraction, OcrDocument, OcrEngine
 
 if TYPE_CHECKING:
     from src.settings import Settings
@@ -372,11 +372,7 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
     example_files: list[list[Any]] = []
     if settings.receipts_dir.is_dir():
         found = sorted(
-            [
-                str(p)
-                for p in settings.receipts_dir.iterdir()
-                if p.is_file() and p.suffix.lower() in {".jpg", ".jpeg", ".png"}
-            ]
+            [str(p) for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
         )
         example_files = [[p] for p in found[:6]]
 

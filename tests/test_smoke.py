@@ -15,7 +15,24 @@ import numpy as np
 import pytest
 
 import src
-from src.types import Answer, BBox, Extraction, FieldValue, GroundTruthRecord, MatchResult, OcrDocument, OcrLine
+from src.types import (
+    CONSUMIDOR_FINAL_NIF,
+    EARLIEST_PLAUSIBLE_DATE,
+    EXTRACTION_METHODS,
+    FIELD_NAMES,
+    GROUPS,
+    IMAGE_EXTENSIONS,
+    LLM_PROVIDERS,
+    OCR_ENGINES,
+    Answer,
+    BBox,
+    Extraction,
+    FieldValue,
+    GroundTruthRecord,
+    MatchResult,
+    OcrDocument,
+    OcrLine,
+)
 
 
 def test_package_is_importable() -> None:
@@ -114,3 +131,15 @@ def test_repository_layout(repo_root: Path) -> None:
     assert (repo_root / "pyproject.toml").is_file()
     assert (repo_root / "src" / "types.py").is_file()
     assert (repo_root / "data" / "ground_truth.csv").is_file()
+
+
+def test_shared_contract_constants() -> None:
+    """Core domain constants are defined with correct types and values."""
+    assert FIELD_NAMES == ("entidade", "nif_comerciante", "nif_cliente", "data", "total")
+    assert GROUPS == ("direito", "amarrotado")
+    assert OCR_ENGINES == ("easyocr", "tesseract")
+    assert LLM_PROVIDERS == ("llm_local", "llm_gemini", "llm_openai")
+    assert EXTRACTION_METHODS == ("regex", "llm_local", "llm_gemini", "llm_openai")
+    assert CONSUMIDOR_FINAL_NIF == "999999990"
+    assert date(2000, 1, 1) == EARLIEST_PLAUSIBLE_DATE
+    assert IMAGE_EXTENSIONS == (".jpg", ".jpeg", ".png")

@@ -17,6 +17,41 @@ import numpy as np
 #: Outcome of trying to read one field from a document.
 Status = Literal["ENCONTRADO", "AUSENTE", "INVALIDO"]
 
+#: Canonical extraction field names and their runtime order.
+FieldName = Literal["entidade", "nif_comerciante", "nif_cliente", "data", "total"]
+FIELD_NAMES: tuple[FieldName, ...] = (
+    "entidade",
+    "nif_comerciante",
+    "nif_cliente",
+    "data",
+    "total",
+)
+
+#: Receipt physical condition groups in the corpus.
+GroupName = Literal["direito", "amarrotado"]
+GROUPS: tuple[GroupName, ...] = ("direito", "amarrotado")
+
+#: Supported OCR engine names.
+OcrEngineName = Literal["easyocr", "tesseract"]
+OCR_ENGINES: tuple[OcrEngineName, ...] = ("easyocr", "tesseract")
+
+#: Supported LLM provider backend identifiers.
+ProviderName = Literal["llm_local", "llm_gemini", "llm_openai"]
+LLM_PROVIDERS: tuple[ProviderName, ...] = ("llm_local", "llm_gemini", "llm_openai")
+
+#: Supported extraction method identifiers.
+MethodName = Literal["regex", "llm_local", "llm_gemini", "llm_openai"]
+EXTRACTION_METHODS: tuple[MethodName, ...] = ("regex", "llm_local", "llm_gemini", "llm_openai")
+
+#: AT sentinel printed in the B field of a final-consumer invoice (passes NIF check digit).
+CONSUMIDOR_FINAL_NIF = "999999990"
+
+#: Earliest issue date considered plausible on a receipt.
+EARLIEST_PLAUSIBLE_DATE = date(2000, 1, 1)
+
+#: Supported image file extensions when scanning receipt directories.
+IMAGE_EXTENSIONS: tuple[str, ...] = (".jpg", ".jpeg", ".png")
+
 
 @dataclass(frozen=True, slots=True)
 class BBox:
@@ -187,7 +222,7 @@ class GroundTruthRecord:
     """
 
     filename: str
-    grupo: Literal["direito", "amarrotado"]
+    grupo: GroupName
     entidade: str | None
     nif_comerciante: str | None
     nif_cliente: str | None
