@@ -1,13 +1,15 @@
 """Offline contract tests for the Tesseract OCR backend."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
+import cv2
 import numpy as np
 import pytest
 
-from src.ocr_tesseract import TesseractEngine
-from src.types import OcrDocument, OcrEngine
+from src.ocr_tesseract import TesseractEngine, main
+from src.types import BBox, OcrDocument, OcrEngine, OcrLine
 
 
 def _tesseract_data(
@@ -141,6 +143,70 @@ def test_read_uses_custom_executable_and_restores_global_setting(
 def test_constructor_rejects_invalid_configuration(lang: str, psm: int) -> None:
     with pytest.raises(ValueError):
         TesseractEngine(lang=lang, psm=psm)
+
+
+def test_constructor_falls_back_to_settings_tesseract_cmd(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Omitting tesseract_cmd must use the executable configured in TESSERACT_CMD."""
+    configured = tmp_path / "tesseract.exe"
+    monkeypatch.setattr("src.settings.get_settings", lambda: SimpleNamespace(tesseract_cmd=configured))
+
+    engine = TesseractEngine()
+
+    assert engine.tesseract_cmd == str(configured)
+
+
+def test_main_cli_missing_receipts_dir(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """main prints an error when the receipts directory is missing."""
+    from src.settings import load_settings
+
+    settings = load_settings(repo_root=tmp_path)
+    main(argv=[], settings_override=settings)
+
+    assert "Receipts directory not found" in capsys.readouterr().out
+
+
+def test_main_cli_file_not_found(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """main prints an error when the requested file does not exist."""
+    main(argv=["--file", str(tmp_path / "nonexistent.jpg")])
+
+    assert "Specified file not found" in capsys.readouterr().out
+
+
+def test_main_cli_execution_with_mock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """main runs end-to-end when the Tesseract engine is replaced by a fake."""
+    from src import ocr_tesseract
+
+    img_path = tmp_path / "receipt.jpg"
+    cv2.imwrite(str(img_path), np.full((60, 120, 3), 200, dtype=np.uint8))
+
+    class FakeEngine:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def read(self, image: np.ndarray) -> OcrDocument:
+            lines = [OcrLine(id=1, text="TOTAL 16,10", confidence=0.9, bbox=BBox(0, 0, 10, 10))]
+            return OcrDocument(lines=lines, engine="tesseract", elapsed_ms=1.0, image_size=(120, 60))
+
+    monkeypatch.setattr(ocr_tesseract, "TesseractEngine", FakeEngine)
+
+    main(argv=["--file", str(img_path), "--no-preprocess"])
+
+    captured = capsys.readouterr().out
+    assert "TOTAL 16,10" in captured
+    assert "Lines found: 1" in captured
 
 
 @pytest.mark.parametrize(
