@@ -4,13 +4,13 @@ Smart reader for Portuguese purchase receipts and simplified invoices. Hybrid pi
 
 ## Current State
 
-Closed work packages: WP-00 (skeleton), WP-01 (data contracts), WP-02 (pure normalizers), WP-04 (preprocessing), WP-05 (EasyOCR), WP-06 (Tesseract), WP-07 (AT QR reader), WP-08 (LLM client), WP-09 (regex baseline), WP-11 (visual evidence). `src/settings.py` was added outside the numbering as the single environment and path layer.
+Closed work packages: WP-00 (skeleton), WP-01 (data contracts), WP-02 (pure normalizers), WP-04 (preprocessing), WP-05 (EasyOCR), WP-06 (Tesseract), WP-07 (AT QR reader), WP-08 (LLM client), WP-09 (regex baseline), WP-10 (LLM extractor), WP-11 (visual evidence). `src/settings.py` was added outside the numbering as the single environment and path layer.
 
-- Implemented: `src/types.py`, `src/settings.py`, `src/normalizers.py`, `src/preprocessing.py`, `src/ocr_engine.py`, `src/ocr_tesseract.py`, `src/qr_reader.py`, `src/llm_client.py`, `src/extractor_regex.py`, `src/evidence.py`, `scripts/run_llama_server.{sh,ps1,bat}`.
-- Not implemented yet: `golden_set.py`, `extractor_llm.py`, `qa_assistant.py`, `scoring.py`, `evaluate.py`, `dataset_stats.py`, `app.py`, `scripts/check_golden_set.sh`. Do not describe them as available, in docs or in code.
+- Implemented: `src/types.py`, `src/settings.py`, `src/normalizers.py`, `src/preprocessing.py`, `src/ocr_engine.py`, `src/ocr_tesseract.py`, `src/qr_reader.py`, `src/llm_client.py`, `src/extractor_regex.py`, `src/extractor_llm.py`, `src/evidence.py`, `scripts/run_llama_server.{sh,ps1,bat}`.
+- Not implemented yet: `golden_set.py`, `qa_assistant.py`, `scoring.py`, `evaluate.py`, `dataset_stats.py`, `app.py`, `scripts/check_golden_set.sh`. Do not describe them as available, in docs or in code.
 - `python -m src.app` does not run yet (Gradio is WP-16). Only the per-module CLI previews exist.
 - Corpus: `data/receipts/` holds 9 images; `data/ground_truth.csv` has only the header (WP-17 is open).
-- Suite: 172 tests, offline, about 2 s. One `@pytest.mark.slow` live-EasyOCR test is deselected by default.
+- Suite: 220 tests, offline, about 2 s. One `@pytest.mark.slow` live-EasyOCR test is deselected by default.
 
 Each module docstring carries a `Ref:` line pointing at the section of `Docs/Planning/implementation_plan.md` that specifies it. Keep that convention for new modules.
 
@@ -74,8 +74,10 @@ uv run pytest --cov=src --cov-report=term-missing
 - **Tesseract (`src/ocr_tesseract.py`)**: `TesseractEngine(lang="por", psm=6)`, aggregates word boxes by `(block_num, par_num, line_num)` and discards `conf < 0`.
 - **LLM client (`src/llm_client.py`)**: `build_client(provider, settings=None, primary_client=None, fallback_client=None) -> LLMClient` with `provider` in `llm_local`, `llm_gemini`, `llm_openai`. `complete(system, user, schema)` returns raw text; failover records the provider that actually answered in `last_effective_provider`. Clients are injectable, so tests never touch the network.
 - **Regex baseline (`src/extractor_regex.py`)**: `extract(doc, qr=None) -> Extraction` with `method="regex"`. The QR payload is accepted for interface parity and never fills a field. `999999990` (final consumer) is rejected by the explicit `CONSUMIDOR_FINAL_NIF` constant, because it passes the NIF check digit. An `INVALIDO` NIF keeps its digits so scoring counts it as wrong rather than as an omission.
+- **LLM extractor (`src/extractor_llm.py`)**: `extract(doc, qr=None, client=None) -> Extraction`; without a client it builds the configured provider from the environment, so tests always inject a double. Returns `method=client.last_effective_provider` and keeps `raw_response`. Raises `LLMResponseError` on malformed output instead of returning five `AUSENTE`. The model is never trusted on machine-checkable parts: NIFs, dates and totals are re-parsed with the pure normalisers, the `presente` flag overrides any contradictory text, and any `line_id` that is missing, zero, or does not exist is re-grounded deterministically by `_locate_line` in the OCR text (the live 3B model returned `0` for four fields on a long receipt while extracting values correctly). The prompt explicitly forbids calculating totals; without that, the live model summed article lines into a false-positive total on a receipt with no printed total. `SCHEMA` sets `additionalProperties: false` on every object, which OpenAI strict mode requires and Gemini accepts.
 - **QR Code Reader usage**: Cross-validation and an extra interface column only; never the primary source, because payment terminal slips have no QR.
 - **LLM Prompting Gotcha**: `llama-server` does not inject `response_format` schemas into the prompt text automatically. Prompts must explicitly describe the expected JSON schema. Keep schemas flat without union types to avoid breaking `llama.cpp`'s `json-schema-to-grammar`.
+- **Local Model Serving (`scripts/run_llama_server.*`)**: Defaults to `models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` on port 8080 with `NGL=0`. `NGL=0` runs safely on CPU; passing `NGL=99` on small GPUs (e.g. 2 GB MX150) fails allocation instead of falling back. `Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf` can also serve as text, but image inputs fail with HTTP 500 because llama.cpp requires a companion `mmproj` GGUF file for vision.
 
 ## Testing Rules
 
