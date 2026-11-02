@@ -1,4 +1,4 @@
-# direito de Implementação — Leitor Inteligente de Documentos Visuais
+# Plano de Implementação — Leitor Inteligente de Documentos Visuais
 
 Documento de engenharia que transforma o `PROJECT_PLAN.md` em trabalho executável. Define a
 arquitetura de código, os contratos de dados, a divisão de trabalho, o protocolo de revisão e
@@ -12,11 +12,11 @@ prazo real de submissão antes de partilhar.
 
 Equipa: Vitor (pipeline), José (camada de dados e métricas), Raquel (corpus e narrativa).
 
-**Estado em 2026-11-02.** WP-00, WP-01, WP-02, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09 e
-WP-11 estão fechados e integrados em `master`. O `src/settings.py` foi acrescentado fora da
-numeração para centralizar o acesso ao ambiente e aos caminhos. O detalhe do que foi entregue,
-e do que diverge do direito original, está na secção 5.1. As restantes secções descrevem o alvo e
-continuam válidas para os pacotes por executar.
+**Estado em 2026-11-02.** WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09,
+WP-10, WP-11, WP-12, WP-13, WP-14 e WP-16 estão fechados e integrados em `master`. O `src/settings.py`
+foi acrescentado fora da numeração para centralizar o acesso ao ambiente e aos caminhos. O detalhe
+do que foi entregue, e do que diverge do plano original, está na secção 5.1. As restantes secções descrevem
+o alvo e continuam válidas para os pacotes por executar (WP-15, WP-17, WP-18).
 
 ---
 
@@ -218,7 +218,7 @@ CVGAI-6ed-group-4/
 │   ├── types.py                   # contratos de dados          [Vitor]  feito
 │   ├── settings.py                # ambiente + caminhos         [Vitor]  feito
 │   ├── normalizers.py             # funções puras               [José]   feito
-│   ├── golden_set.py              # carregamento + validação    [José]   pendente
+│   ├── golden_set.py              # carregamento + validação    [José]   feito
 │   ├── preprocessing.py           # OpenCV                      [Vitor]  feito
 │   ├── ocr_engine.py              # Protocol + EasyOCR          [Vitor]  feito
 │   ├── ocr_tesseract.py           # backend Tesseract           [José]   feito
@@ -229,7 +229,7 @@ CVGAI-6ed-group-4/
 │   ├── qa_assistant.py            # Q&A com evidência           [Vitor]  feito
 │   ├── evidence.py                # bbox -> recorte/destaque    [Vitor]  feito
 │   ├── scoring.py                 # comparação e agregação      [José]   feito
-│   ├── evaluate.py                # runner do benchmark         [Vitor]  pendente
+│   ├── evaluate.py                # runner do benchmark         [José]   pendente
 │   ├── dataset_stats.py           # estatística do corpus       [José]   feito
 │   └── app.py                     # Gradio                      [Vitor]  feito
 ├── tests/
@@ -242,11 +242,14 @@ CVGAI-6ed-group-4/
 │   ├── test_evidence.py           # destaque e recorte          [Vitor]  feito
 │   ├── test_normalizers.py        [José]   feito
 │   ├── test_golden_set.py         [José]   feito
-│   ├── test_scoring.py            [José]   pendente
+│   ├── test_scoring.py            [José]   feito
 │   ├── test_ocr_tesseract.py      [José]   feito
 │   ├── test_llm_client.py         [Vitor]  feito
 │   ├── test_extractor_regex.py    [Vitor]  feito
-│   └── test_extractor_llm.py      [Vitor]  feito
+│   ├── test_extractor_llm.py      [Vitor]  feito
+│   ├── test_qa_assistant.py       [Vitor]  feito
+│   ├── test_dataset_stats.py      [José]   feito
+│   └── test_app.py                [Vitor]  feito
 ├── scripts/                       # atalhos de arranque
 │   ├── check_golden_set.sh        # atalho de validação         [Vitor]  pendente
 │   └── run_llama_server.sh        # arranque do servidor        [Vitor]  feito
@@ -367,7 +370,7 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | WP-12 | Assistente de Q&A com evidência | Vitor | WP-08, WP-11 | 5 h | `src/qa_assistant.py` | feito |
 | WP-13 | Pontuação e agregação | **José** | WP-02, WP-03 | 5 a 7 h | `src/scoring.py`, `tests/test_scoring.py` | feito |
 | WP-14 | Estatística do corpus | **José** | WP-03 | 2 a 3 h | `src/dataset_stats.py` | feito |
-| WP-15 | Runner do benchmark | Vitor | WP-13 | 5 h | `src/evaluate.py` | pendente |
+| WP-15 | Runner do benchmark | **José** | WP-13 | 4 a 5 h | `src/evaluate.py`, `tests/test_evaluate.py` | pendente |
 | WP-16 | Aplicação Gradio | Vitor | WP-04 a WP-12 | 10 h | `src/app.py` | feito |
 | WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` | em curso |
 | WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` | pendente |
@@ -378,11 +381,11 @@ extrator por LLM reutiliza o contrato e os casos de teste do baseline. WP-12 ent
 o WP-16 depende de WP-04 a WP-12 e é o único pacote em falta nesse intervalo. Com WP-09 e WP-10
 fechados, o próximo trabalho do caminho crítico é o WP-12.
 
-### 5.1 Estado das entregas e desvios face ao direito
+### 5.1 Estado das entregas e desvios face ao plano
 
-Fechados e integrados em `master` a 2026-11-02: WP-00, WP-01, WP-02, WP-04, WP-05, WP-06,
-WP-07, WP-08, WP-09, WP-10 e WP-11. A suite tem 220 testes offline que correm em cerca de 2 s,
-mais um teste `slow` com o EasyOCR real, deselecionado por omissão.
+Fechados e integrados em `master` a 2026-11-02: WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06,
+WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14 e WP-16. A suite tem 263 testes offline que correm
+em cerca de 4,5 s, mais um teste `slow` com o EasyOCR real, deselecionado por omissão.
 
 Desvios que valem registo, porque afetam os pacotes seguintes:
 
@@ -751,6 +754,151 @@ amarrotado     8         7         8       5       8      8
 
 ---
 
+### WP-15 — Runner do benchmark (`src/evaluate.py`, `tests/test_evaluate.py`)
+
+**Dono:** **José** | **Branch:** `feat/wp-15-evaluate` | **Depende de:** WP-03, WP-09, WP-10, WP-13
+
+**Objetivo:**
+Orquestrar a avaliação fim a fim do pipeline sobre todos os documentos do golden set
+(`data/ground_truth.csv`), pontuando cada extração contra a verdade de referência com
+`pontuar_registo` e gravando os artefactos finais em `results/metrics.csv` e `results/metrics.md`
+(que são lidos diretamente pelo separador 3 da aplicação Gradio e citados no relatório).
+
+**Convenções obrigatórias do repositório (verificar antes de abrir MR):**
+1. **Docstring de topo com referência:** incluir `Ref: Docs/Planning/implementation_plan.md, section 6, WP-15.`
+2. **Imports pesados adiados:** no topo do ficheiro importar apenas tipos leves (`src.types`, `pathlib`, `collections.abc`, `argparse`). Adiar `cv2`, `EasyOCREngine`, `TesseractEngine`, `build_client`, `get_settings` para dentro de `main()` ou das funções quando os objetos injetáveis forem `None`.
+3. **Sem `print` em funções de biblioteca:** `avaliar_corpus` não faz `print`; toda a saída de consola vive em `main()`.
+4. **Sem leitura direta de variáveis de ambiente:** usar exclusivamente `settings_override or get_settings()`.
+
+**Assinaturas a implementar em `src/evaluate.py`:**
+
+```python
+MethodName = Literal["regex", "llm_local", "llm_gemini", "llm_openai"]
+
+
+def avaliar_registo(
+    registo: GroundTruthRecord,
+    receipts_dir: Path,
+    ocr_engine: OcrEngine,
+    *,
+    method: MethodName = "regex",
+    llm_client: LLMClient | None = None,
+    preprocess_opts: PreprocessOptions | None = None,
+) -> tuple[Extraction, list[MatchResult]]:
+    """Run preprocessing, OCR, QR reading, extraction, and scoring for a single receipt.
+
+    Args:
+        registo: Ground-truth reference record for one receipt.
+        receipts_dir: Directory containing the receipt image files.
+        ocr_engine: Initialised OCR engine instance (EasyOCR or Tesseract).
+        method: Extraction method ('regex', 'llm_local', 'llm_gemini', or 'llm_openai').
+        llm_client: Optional injected LLM client (used when method != 'regex').
+        preprocess_opts: Optional OpenCV preprocessing options. When None, default options apply.
+
+    Returns:
+        Tuple of (Extraction, list of 5 MatchResult objects).
+
+    Raises:
+        FileNotFoundError: If the image file ``receipts_dir / registo.filename`` does not exist.
+        ValueError: If ``cv2.imread`` fails to decode the image.
+    """
+
+
+def avaliar_corpus(
+    registos: Sequence[GroundTruthRecord],
+    receipts_dir: Path,
+    ocr_engine: OcrEngine,
+    *,
+    method: MethodName = "regex",
+    llm_client: LLMClient | None = None,
+    preprocess_opts: PreprocessOptions | None = None,
+    destino_resultados: Path | None = None,
+) -> list[MatchResult]:
+    """Evaluate a sequence of ground-truth records and optionally write report tables.
+
+    Args:
+        registos: Validated ground-truth records to evaluate.
+        receipts_dir: Directory containing the receipt images.
+        ocr_engine: Initialised OCR engine instance, reused across all receipts.
+        method: Extraction method to benchmark.
+        llm_client: Optional injected LLM client.
+        preprocess_opts: Optional OpenCV preprocessing options.
+        destino_resultados: When provided, calls ``escrever_tabelas(resultados, destino_resultados)``
+            to generate ``metrics.csv`` and ``metrics.md``.
+
+    Returns:
+        Combined list of ``MatchResult`` objects across all evaluated receipts (5 per receipt).
+    """
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    settings_override: Settings | None = None,
+) -> None:
+    """CLI entry point to run the benchmark and write metrics to results/."""
+```
+
+**Fluxo passo a passo dentro de `avaliar_registo`:**
+
+1. Construir o caminho da imagem: `image_path = receipts_dir / registo.filename`. Se não existir (`not image_path.is_file()`), levantar `FileNotFoundError(f"Receipt image not found: {image_path}")`.
+2. Ler a imagem com `cv2.imread(str(image_path))`. Se devolver `None`, levantar `ValueError(f"Unable to decode receipt image: {image_path}")`.
+3. Pré-processar a imagem: `prep = preprocess(raw_image, preprocess_opts or PreprocessOptions())`.
+4. Correr o OCR sobre a imagem pré-processada: `doc = ocr_engine.read(prep.image)`.
+5. Ler o QR Code (para paridade de assinatura): `qr_data = read_qr(prep.image, raw_image=raw_image)`.
+6. Extrair os 5 campos estruturados:
+   - Se `method == "regex"`: chamar `extract_regex(doc, qr=qr_data)`.
+   - Caso contrário (`"llm_local"`, `"llm_gemini"`, `"llm_openai"`): se `llm_client` for `None`, construir com `build_client(method)`; chamar `extract_llm(doc, qr=qr_data, client=llm_client)`.
+7. Pontuar contra a verdade de referência: `matches = pontuar_registo(registo, extraction)`.
+8. Devolver `(extraction, matches)`.
+
+**Fluxo passo a passo dentro de `avaliar_corpus`:**
+
+1. Se `method != "regex"` e `llm_client is None`, instanciar um único `llm_client = build_client(method)` antes do ciclo para o reutilizar em todos os recibos.
+2. Iterar por cada `registo` em `registos`, acumular os 5 `MatchResult` devolvidos por `avaliar_registo` numa lista `todos_resultados: list[MatchResult]`.
+3. Se `destino_resultados is not None`, chamar `escrever_tabelas(todos_resultados, destino_resultados)` (função já implementada pelo José em `src/scoring.py`).
+4. Devolver `todos_resultados`.
+
+**Argumentos de linha de comando em `main()`:**
+
+Usar `argparse.ArgumentParser` com as seguintes flags:
+- `--csv` (`type=Path`, `default=settings.ground_truth_path`): caminho para o ficheiro `ground_truth.csv`.
+- `--receipts-dir` (`type=Path`, `default=settings.receipts_dir`): pasta das imagens.
+- `--output-dir` (`type=Path`, `default=settings.results_dir`): diretoria onde serão escritos `metrics.csv` e `metrics.md`.
+- `--engine` (`choices=("easyocr", "tesseract")`, `default=settings.ocr_engine`): motor OCR a utilizar.
+- `--method` (`choices=("regex", "llm_local", "llm_gemini", "llm_openai")`, `default="regex"`): método de extração a avaliar.
+- `--no-preprocess` (`action="store_true"`): quando ativo, passa `PreprocessOptions(rotation_deg=0, auto_crop=False, remove_shadows=False, clahe_clip_limit=0.0, auto_orient_osd=False)`.
+
+Comportamento de `main()`:
+1. Carregar os registos com `carregar_ground_truth(args.csv)`. Se levantar `GoldenSetError`, imprimir os erros e sair sem exceção não tratada (tal como em `dataset_stats.py`).
+2. Instanciar o motor OCR escolhido uma única vez (`TesseractEngine(tesseract_cmd=settings.tesseract_cmd)` ou `EasyOCREngine(langs=settings.easyocr_langs)`).
+3. Chamar `avaliar_corpus(..., destino_resultados=args.output_dir)`.
+4. Calcular o resumo agregado com `agregar(resultados)` e imprimir no terminal a taxa de acerto global (`taxa_acerto`), a taxa de falsos positivos (`taxa_falso_positivo`), a taxa de omissão (`taxa_omissao`) e o caminho onde `metrics.csv` e `metrics.md` foram gravados.
+
+**Casos de teste obrigatórios em `tests/test_evaluate.py` (100 % offline):**
+
+1. **`test_avaliar_registo_regex_pipeline_completo`:**
+   - Criar uma imagem sintética em `tmp_path` (ex. `cv2.imwrite` de uma matriz branca `np.full((80, 80, 3), 255, dtype=np.uint8)`).
+   - Criar um `FakeOcrEngine` que devolve um `OcrDocument` fixo com linhas conhecidas (`PINGO DOCE`, `NIF: 500100144`, `DATA: 2026-10-24`, `TOTAL: 16,10`).
+   - Passar um `GroundTruthRecord` correspondente e verificar que `avaliar_registo` devolve `Extraction` com `method="regex"` e 5 `MatchResult` com `acertou=True`.
+2. **`test_avaliar_registo_llm_com_cliente_injetado`:**
+   - Usar o mesmo `FakeOcrEngine` e injetar um `FakeLLMClient` que devolve um JSON válido.
+   - Verificar que `avaliar_registo(..., method="llm_local", llm_client=fake_client)` usa o extrator por LLM e pontua os 5 campos.
+3. **`test_avaliar_registo_ficheiro_inexistente_levanta_erro`:**
+   - Verificar que um `GroundTruthRecord` cujo `filename` não existe em `tmp_path` levanta `FileNotFoundError`.
+4. **`test_avaliar_corpus_escreve_metrics_csv_e_md`:**
+   - Passar dois `GroundTruthRecord` (um `"direito"` e um `"amarrotado"`) e `destino_resultados=tmp_path / "results"`.
+   - Verificar que `avaliar_corpus` devolve 10 `MatchResult` e cria `metrics.csv` e `metrics.md` dentro de `tmp_path / "results"`.
+5. **`test_main_cli_executa_offline_com_doubles`:**
+   - Criar um CSV válido de 1 linha e 1 imagem sintética em `tmp_path`.
+   - Usar `monkeypatch` para substituir `EasyOCREngine` pelo motor falso.
+   - Chamar `main(argv=["--csv", str(csv_path), "--receipts-dir", str(receipts_dir), "--output-dir", str(out_dir), "--no-preprocess"], settings_override=settings)`.
+   - Verificar com `capsys` que imprime as métricas finais e que `out_dir / "metrics.md"` foi criado.
+
+**Critério de aceitação:**
+Todos os testes em `tests/test_evaluate.py` passam offline em menos de 1 segundo, sem carregar o EasyOCR real, sem chamar o `tesseract` e sem aceder à rede. `ruff format`, `ruff check` e `pyright` passam com zero erros.
+
+---
+
 ## 7. Especificação dos Pacotes da pipeline
 
 **WP-04 `preprocessing.py`** (implementado)
@@ -889,7 +1037,7 @@ ausente).
 - Nenhuma das funções altera a imagem de entrada: todas devolvem uma cópia BGR, convertendo
   imagens em escala de cinzentos quando necessário.
 
-**WP-16 `app.py`** (pendente)
+**WP-16 `app.py`** (implementado)
 
 - `gr.Blocks` com os três separadores já especificados no `PROJECT_PLAN.md`.
 - O mapa de deteções usa `evidence.draw_all_ocr_boxes`; a prova visual usa
@@ -924,12 +1072,10 @@ NN_estado_comerciante_par.jpg
 
 Exemplos: `01_direito_pingo_doce.jpg`, `02_amarrotado_pingo_doce_par.jpg`.
 
-**Estado a 2026-11-01:** `data/receipts/` tem 9 imagens com nomes numéricos
-(`5990024681546780813.jpg`, ...), ainda fora desta convenção, e `data/ground_truth.csv` só tem
-o cabeçalho. Renomear as imagens e preencher a verdade de referência são passos do WP-17; até
-lá, o benchmark e a pontuação não podem produzir resultados. O validador do WP-03 só exige que
-o `filename` do CSV exista na pasta, por isso a convenção não bloqueia código, apenas a
-legibilidade do corpus para o relatório.
+**Estado a 2026-11-02:** `data/receipts/` tem 27 imagens recolhidas seguindo a convenção
+(`01_direito_controlauto.jpg`, `02_amachucado_tiendaanimal.jpg`, ...) e `data/ground_truth.csv`
+contém os 27 registos em curso de validação com o validador do WP-03. Quando o WP-17 fechar,
+o benchmark (WP-15) pode ser executado.
 
 ### 8.3 Protocolo de captura
 
@@ -1020,8 +1166,8 @@ uma asserção para a suite ficar verde.
 | 4 | WP-08 cliente LLM | WP-06 Tesseract | Mini-apresentação |
 | 5 | WP-10 extrator LLM | WP-13 pontuação | Revisão da apresentação |
 | 6 | WP-11 evidência, WP-12 Q&A | WP-13 testes, WP-14 estatística | Disponível para apoio |
-| 7 | WP-16 Gradio (separadores 1 e 2) | Buffer / correções | Disponível para apoio |
-| 8 | WP-16 separador 3, WP-15 runner | Buffer / correções | Disponível para apoio |
+| 7 | WP-16 Gradio (separadores 1 a 3) | WP-15 runner do benchmark | Disponível para apoio |
+| 8 | Revisão de código e integração | WP-15 testes e execução | Disponível para apoio |
 | 9 | Integração e benchmark completo | Apoio ao benchmark | Apoio ao benchmark |
 | 10 | Congelamento do código | Revisão final dos testes | Fecho dos slides |
 

@@ -8,8 +8,8 @@ Closed work packages: WP-00 (skeleton), WP-01 (data contracts), WP-02 (pure norm
 
 - Implemented: `src/types.py`, `src/settings.py`, `src/normalizers.py`, `src/golden_set.py`, `src/preprocessing.py`, `src/ocr_engine.py`, `src/ocr_tesseract.py`, `src/qr_reader.py`, `src/llm_client.py`, `src/extractor_regex.py`, `src/extractor_llm.py`, `src/evidence.py`, `src/qa_assistant.py`, `src/scoring.py`, `src/dataset_stats.py`, `src/app.py`, `scripts/run_llama_server.{sh,ps1,bat}`.
 - Not implemented yet: `evaluate.py`, `scripts/check_golden_set.sh`. Do not describe them as available, in docs or in code.
-- Corpus: `data/receipts/` holds 9 images; `data/ground_truth.csv` has only the header (WP-17 is open).
-- Suite: 263 tests, offline, about 4 s. One `@pytest.mark.slow` live-EasyOCR test is deselected by default.
+- Corpus: `data/receipts/` holds 27 images (`01_...` to `27_...`); `data/ground_truth.csv` has 27 records (WP-17 in progress).
+- Suite: 263 tests, offline, about 4.5 s. One `@pytest.mark.slow` live-EasyOCR test is deselected by default.
 
 Each module docstring carries a `Ref:` line pointing at the section of `Docs/Planning/implementation_plan.md` that specifies it. Keep that convention for new modules.
 

@@ -22,34 +22,39 @@ Três métodos de extração correm em paralelo para comparação: expressões r
 
 ## Estado atual
 
-O pipeline está construído até ao extrator por regex, que é o baseline da comparação. O que já
-existe e pode ser inspecionado hoje, sem chaves de API e sem modelos descarregados (excepto o
+O pipeline está construído de ponta a ponta, desde a aquisição e pré-processamento até à
+extração estruturada, assistente verificável de Q&A e interface interativa Gradio. O que já
+existe e pode ser inspecionado hoje, sem chaves de API e sem modelos descarregados (exceto o
 EasyOCR, que descarrega os pesos na primeira execução):
 
 | Módulo | Estado | Pré-visualização |
 | :--- | :--- | :--- |
 | `src/types.py` | Contratos de dados fechados | — |
 | `src/settings.py` | Configuração e caminhos a partir do `.env` | — |
+| `src/normalizers.py` | Normalização e comparação de campos | — |
+| `src/golden_set.py` | Validação e carregamento do golden set | `uv run python -m src.golden_set` |
 | `src/preprocessing.py` | Redimensionamento, orientação, recorte, sombras, CLAHE | `uv run python -m src.preprocessing` |
 | `src/ocr_engine.py` | EasyOCR com caixas delimitadoras e IDs de linha | `uv run python -m src.ocr_engine` |
 | `src/ocr_tesseract.py` | Motor OCR comparativo, com agregação de palavras em linhas | `uv run python -m src.ocr_tesseract` |
 | `src/qr_reader.py` | Leitura do QR da AT para validação cruzada | `uv run python -m src.qr_reader` |
-| `src/normalizers.py` | Normalização e comparação de campos | — |
 | `src/llm_client.py` | Clientes local, Gemini e OpenAI com failover | `uv run python -m src.llm_client` |
 | `src/extractor_regex.py` | Extrator por regex (baseline) | `uv run python -m src.extractor_regex` |
 | `src/extractor_llm.py` | Extrator por LLM, local ou cloud, com JSON validado | `uv run python -m src.extractor_llm --provider llm_local` |
 | `src/evidence.py` | Destaque e recorte da região comprovativa | `uv run python -m src.evidence -l 1,2,3` |
+| `src/qa_assistant.py` | Assistente de Q&A com fundamentação em linhas citadas | `uv run python -m src.qa_assistant` |
+| `src/scoring.py` | Pontuação contra a verdade de referência e agregação de métricas | — |
+| `src/dataset_stats.py` | Estatísticas do corpus por grupo, comerciante e campo | `uv run python -m src.dataset_stats` |
+| `src/app.py` | Aplicação interativa Gradio (3 separadores) | `uv run python -m src.app` |
 
-Cada módulo abre uma janela sobre o primeiro talão de `data/receipts/`; a flag `--file`
+Cada módulo CLI opera sobre o primeiro talão de `data/receipts/`; a flag `--file`
 escolhe outro ficheiro e `--save` escreve o resultado em disco em vez de abrir a janela.
 
-Por construir: carregador do golden set, assistente de Q&A, pontuação, estatística do corpus,
-runner do benchmark e a aplicação Gradio. `uv run python -m src.app` ainda não arranca: é o
-WP-16 e só fica disponível depois de WP-12. O extrator por LLM precisa de um `llama-server`
-a correr (`scripts/run_llama_server.sh`) ou de uma chave de API no `.env`.
+Por construir: runner do benchmark oficial (`src/evaluate.py`, WP-15) e mini-apresentação (WP-18).
+O extrator por LLM e o assistente de Q&A podem correr contra um `llama-server` local
+(`scripts/run_llama_server.sh`) ou contra chaves de API (`GEMINI_API_KEY` ou `OPENAI_API_KEY`) no `.env`.
 
-O corpus também está incompleto: `data/receipts/` tem 9 imagens e `data/ground_truth.csv`
-só tem o cabeçalho. Sem a verdade de referência não há benchmark.
+O corpus conta com 27 imagens recolhidas em `data/receipts/` (`01_...` a `27_...`) e
+`data/ground_truth.csv` contém os registos correspondentes (WP-17 em curso de validação).
 
 ## Requisitos
 
@@ -259,8 +264,10 @@ escolher as linhas a destacar e a recortar; sem a flag, usa até três linhas qu
 uv run python -m src.app
 ```
 
-Ainda não está implementada. Quando estiver, abre no browser e expõe três separadores: extração
-de campos, inspeção das etapas de pré-processamento e perguntas sobre o documento.
+Arranca o servidor Gradio local (por omissão em `http://127.0.0.1:7860`) e expõe três separadores:
+1. **Leitor e Assistente de Documentos**: extração dos cinco campos estruturados com destaque visual e assistente de Q&A verificável.
+2. **Pipeline Passo a Passo**: inspeção visual das quatro fases de Visão Computacional (bruta, alinhada/recortada, filtrada e caixas delimitadoras de OCR).
+3. **Validação e Benchmark**: dashboard com resumo das métricas e relatório do golden set.
 
 Na primeira execução o EasyOCR descarrega os pesos do modelo para `~/.EasyOCR` (no Windows,
 `C:\Users\<nome>\.EasyOCR`), o que exige rede. Correr uma vez com rede antes de qualquer
@@ -292,8 +299,8 @@ O endereço por omissão em `.env.example` já aponta para `http://127.0.0.1:808
 
 ## Testes
 
-A suite é offline, determinística e não carrega modelos nem motores OCR reais. Corre em menos
-de um segundo e os comandos são idênticos em Linux, macOS e Windows, porque passam todos pelo
+A suite é offline, determinística e não carrega modelos nem motores OCR reais. Corre em cerca
+de 4,5 segundos e os comandos são idênticos em Linux, macOS e Windows, porque passam todos pelo
 `uv`:
 
 ```bash
@@ -315,8 +322,11 @@ uv run pytest -k "nif" -q                           # filtra por nome
 uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 ```
 
-Ficheiros atuais: `test_smoke.py` (ambiente e contratos), `test_settings.py`,
-`test_preprocessing.py`, `test_ocr_contract.py`, `test_qr_reader.py` e `test_evidence.py`.
+Ficheiros atuais da suite (263 testes offline): `test_smoke.py`, `test_settings.py`,
+`test_normalizers.py`, `test_golden_set.py`, `test_preprocessing.py`, `test_ocr_contract.py`,
+`test_ocr_tesseract.py`, `test_qr_reader.py`, `test_evidence.py`, `test_llm_client.py`,
+`test_extractor_regex.py`, `test_extractor_llm.py`, `test_qa_assistant.py`, `test_scoring.py`,
+`test_dataset_stats.py` e `test_app.py`.
 
 Qualidade de código:
 
@@ -336,15 +346,26 @@ do `pyright`.
 src/
   types.py          contratos de dados partilhados (fonte de verdade)
   settings.py       leitura do .env e resolução de caminhos
+  normalizers.py    normalização pura de texto, moeda, datas e NIF
+  golden_set.py     carregamento e validação estrita do CSV de referência
   preprocessing.py  OpenCV: orientação, recorte, sombras, CLAHE
   ocr_engine.py     EasyOCR com caixas delimitadoras e IDs de linha
+  ocr_tesseract.py  backend Tesseract OCR com agregação de palavras
   qr_reader.py      leitura e validação cruzada do QR da AT
+  llm_client.py     clientes LLM (local, Gemini, OpenAI) com failover
+  extractor_regex.py baseline de extração estruturada por expressões regulares
+  extractor_llm.py  extrator por LLM com ancoragem determinística de evidência
   evidence.py       destaque e recorte da região comprovativa
-tests/              suite pytest, offline e determinística
+  qa_assistant.py   assistente verificável de perguntas e respostas
+  scoring.py        cálculo de taxas de acerto, falsos positivos e omissões
+  dataset_stats.py  estatísticas do corpus por grupo, emitente e presença de campos
+  app.py            aplicação interativa Gradio com 3 separadores
+tests/              suite pytest com 263 testes, offline e determinística
 data/               imagens do golden set e verdade de referência
 results/            saídas do benchmark citadas no relatório
 Docs/               planeamento e apresentação
 models/             pesos .gguf do LLM local (não versionados)
+scripts/            scripts de arranque do llama-server (.sh, .ps1, .bat)
 ```
 
 O plano de implementação, com os pacotes de trabalho e os respetivos donos, está em
