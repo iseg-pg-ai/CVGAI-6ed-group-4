@@ -172,7 +172,7 @@ def _validate_csv(path: Path, receipts_dir: Path) -> tuple[list[GroundTruthRecor
 
 def carregar_ground_truth(path: Path) -> list[GroundTruthRecord]:
     """Read and validate the CSV. Raise GoldenSetError with every failure found."""
-    
+
     records, errors = _validate_csv(path, get_settings().receipts_dir)
     if errors:
         raise GoldenSetError(tuple(errors))
