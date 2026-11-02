@@ -10,6 +10,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "easyocr>=1.7.2",
     "google-genai>=2.34.0",
+    "gradio>=6.31.0",
     "numpy>=2.1",
     # Headless, not contrib: EasyOCR hard-pins opencv-python-headless, and installing two
     # distributions that both own the `cv2` module corrupts the installation. Verified that
