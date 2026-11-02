@@ -58,7 +58,7 @@ def test_valid_rows_are_converted_to_typed_records(tmp_path: Path, monkeypatch: 
 
 def test_optional_empty_fields_become_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Empty optional fields represent absence rather than placeholder values."""
-    
+
     receipts_dir = tmp_path / "receipts"
     receipts_dir.mkdir()
     (receipts_dir / "receipt.jpg").touch()

@@ -1,5 +1,4 @@
-"""Score extraction results against the receipt ground truth.
-"""
+"""Score extraction results against the receipt ground truth."""
 
 from __future__ import annotations
 
