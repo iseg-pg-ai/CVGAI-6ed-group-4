@@ -15,7 +15,7 @@ def _record(*, customer_nif: str | None = None) -> GroundTruthRecord:
     """Build a representative validated ground-truth row."""
     return GroundTruthRecord(
         filename="receipt.jpg",
-        grupo="plano",
+        grupo="direito",
         entidade="Pingo Doce",
         nif_comerciante="500100144",
         nif_cliente=customer_nif,
@@ -105,7 +105,7 @@ def test_agregar_uses_the_defined_denominators_for_each_rate() -> None:
         "taxa_falso_positivo": 1.0,
         "taxa_omissao": 0.0,
     }
-    assert metrics["por_grupo"]["plano"] == metrics["global"]
+    assert metrics["por_grupo"]["direito"] == metrics["global"]
     assert metrics["por_grupo"]["amarrotado"]["taxa_acerto"] == 0.0
 
 

@@ -13,7 +13,7 @@ from src.normalizers import valores_equivalentes
 from src.types import Extraction, GroundTruthRecord, MatchResult
 
 _FIELDS = ("entidade", "nif_comerciante", "nif_cliente", "data", "total")
-_GROUPS = ("plano", "amarrotado")
+_GROUPS = ("direito", "amarrotado")
 _RESULT_COLUMNS = (
     "filename",
     "grupo",

@@ -67,8 +67,8 @@ def test_extraction_exposes_the_five_fields_in_order() -> None:
 def test_ground_truth_record_keeps_absent_fields_as_none() -> None:
     """An absent field is ``None``, never a zero or a placeholder string."""
     record = GroundTruthRecord(
-        filename="01_plano_pingo_doce.jpg",
-        grupo="plano",
+        filename="01_direito_pingo_doce.jpg",
+        grupo="direito",
         entidade="Pingo Doce",
         nif_comerciante="500100144",
         nif_cliente=None,
@@ -83,8 +83,8 @@ def test_ground_truth_record_keeps_absent_fields_as_none() -> None:
 def test_match_result_and_answer_are_constructible() -> None:
     """The remaining contracts are constructible with their documented shapes."""
     match = MatchResult(
-        filename="01_plano_pingo_doce.jpg",
-        grupo="plano",
+        filename="01_direito_pingo_doce.jpg",
+        grupo="direito",
         campo="total",
         esperado="16.10",
         obtido="16.10",

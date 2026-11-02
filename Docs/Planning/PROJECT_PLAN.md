@@ -1,4 +1,4 @@
-# Plano de Projeto: Leitor Inteligente de Documentos Visuais
+# direito de Projeto: Leitor Inteligente de Documentos Visuais
 Pós-Graduação em Inteligência Artificial — Computer Vision & IA Generativa
 Ano Letivo 2026/2027 — Proposta 03
 
@@ -114,7 +114,7 @@ A aplicação será organizada em três separadores claros para facilitar quer a
 
 ### Separador 1: Leitor e Assistente de Documentos (Demonstração Principal)
 - **Painel Esquerdo (Entrada e Controlos de Imagem)**:
-  - Carregamento de imagem (Upload) ou seleção rápida a partir de galeria de exemplos (incluindo talões planos e talões amarrotados).
+  - Carregamento de imagem (Upload) ou seleção rápida a partir de galeria de exemplos (incluindo talões direitos e talões amarrotados).
   - Controlos interativos de OpenCV: seletor de rotação (0 graus, 90 graus, 180 graus, 270 graus), botão de recorte automático, slider de intensidade de contraste CLAHE e alternador de atenuação de vincos.
   - Seletor do motor OCR (`EasyOCR [Padrão]` vs. `Tesseract`).
   - Seletor do fornecedor de inteligência:
@@ -142,7 +142,7 @@ A aplicação será organizada em três separadores claros para facilitar quer a
 ### Separador 3: Validação e Benchmark (15 a 20 Documentos)
 - Apresentação de tabela e gráficos de precisão:
   - Percentagem de sucesso na extração por campo (`Entidade`, `NIF Comerciante`, `NIF Cliente`, `Data`, `Total`).
-  - Desagregação de desempenho: **Grupo A (Talões Planos)** vs. **Grupo B (Talões Amarrotados/Desdobrados)**.
+  - Desagregação de desempenho: **Grupo A (Talões direitos)** vs. **Grupo B (Talões Amarrotados/Desdobrados)**.
   - Comparação de tempo médio de execução e de precisão entre **Local (`llama.cpp`)** e **Cloud (`Gemini` / `OpenAI`)**.
   - Matriz de erros frequentes observados no dataset de teste (ex.: corte de caracteres em vincos, confusão entre NIF emitente/cliente pelo Regex, recuperação bem-sucedida pelo LLM).
 
@@ -160,17 +160,17 @@ A aplicação será organizada em três separadores claros para facilitar quer a
 1. **Recolha e Catalogação do Dataset (Dias 1 a 3)**:
    - Obter 7 a 11 fotos adicionais de talões/faturas de lojas variadas, combinando com as 9 já recolhidas para totalizar 16 a 20 imagens.
    - **Composição recomendada**:
-     - ~10 a 12 talões normais/planos.
+     - ~10 a 12 talões normais/direitos.
      - ~5 a 8 talões propositadamente amarrotados e desdobrados (para testar os limites do sistema e enriquecer a secção de análise de erros).
      - Pelo menos 2 a 3 talões com dados ausentes (ex.: sem NIF de cliente ou sem contacto).
-   - Preencher o ficheiro de validação (`ground_truth.csv`) com os valores reais corretos de cada talão nas colunas: `ficheiro`, `grupo` (plano/amarrotado), `entidade`, `nif_comerciante`, `nif_cliente`, `data`, `total`.
+   - Preencher o ficheiro de validação (`ground_truth.csv`) com os valores reais corretos de cada talão nas colunas: `ficheiro`, `grupo` (direito/amarrotado), `entidade`, `nif_comerciante`, `nif_cliente`, `data`, `total`.
 
 2. **Estruturação do Relatório Escrito (Dias 4 a 10)**:
    - Secção 1: Introdução, problema de negócio e contextualização legal do documento fiscal português.
    - Secção 2: Pipeline de Visão Computacional (OpenCV): justificação das técnicas de rotação, binarização adaptativa e CLAHE (com base nas imagens do Separador 2 da app).
    - Secção 3: Avaliação Comparativa de Motores OCR (EasyOCR vs. Tesseract).
    - Secção 4: Comparação de Inteligência e Paradigmas (Regex vs. LLM Local vs. LLM Cloud): discussão de privacidade (RGPD), custos de infraestrutura e latência.
-   - Secção 5: Resultados Experimentais e Análise de Erros: comparação direta do desempenho em talões planos vs. amarrotados.
+   - Secção 5: Resultados Experimentais e Análise de Erros: comparação direta do desempenho em talões direitos vs. amarrotados.
    - Secção 6: Conclusão e desenvolvimentos futuros.
 
 3. **Construção do PowerPoint de Apresentação (Dias 10 a 13)**:
@@ -195,6 +195,6 @@ A aplicação será organizada em três separadores claros para facilitar quer a
 | **Marco 1: Reunião e Alinhamento** | Dia 1 | Aprovação da arquitetura e início da recolha de dados |
 | **Marco 2: Dataset e Ground Truth** | Dias 2 a 4 | Pasta `data/receipts/` com 16 a 20 fotos (planas e amarrotadas) e `ground_truth.csv` |
 | **Marco 3: Código Funcional e Gradio** | Dias 5 a 8 | Interface operacional com pré-processamento, OCR, extração e Q&A |
-| **Marco 4: Avaliação e Benchmark** | Dias 9 a 10 | Métricas, gráficos e tabelas de análise de erros planos vs. amarrotados e Local vs. Cloud |
+| **Marco 4: Avaliação e Benchmark** | Dias 9 a 10 | Métricas, gráficos e tabelas de análise de erros direitos vs. amarrotados e Local vs. Cloud |
 | **Marco 5: Relatório e Slides** | Dias 11 a 13 | Documento final e apresentação PowerPoint finalizados |
 | **Marco 6: Ensaio de Demonstração** | Dia 14 | Teste geral da apresentação e submissão |

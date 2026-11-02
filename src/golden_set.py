@@ -111,9 +111,9 @@ def _validate_csv(path: Path, receipts_dir: Path) -> tuple[list[GroundTruthRecor
             if filename_is_safe and not (receipts_dir / filename).is_file():
                 row_errors.append(f"ficheiro não encontrado em '{receipts_dir}': {filename!r}")
 
-        group_value: Literal["plano", "amarrotado"] | None
-        if group == "plano":
-            group_value = "plano"
+        group_value: Literal["direito", "amarrotado"] | None
+        if group == "direito":
+            group_value = "direito"
         elif group == "amarrotado":
             group_value = "amarrotado"
         else:

@@ -150,6 +150,24 @@ class OpenAICompatibleClient:
         return content or ""
 
 
+def _sanitize_gemini_schema(schema: Any) -> Any:
+    """Recursively strip fields unsupported by Google Gemini's Schema API.
+
+    OpenAI strict mode mandates 'additionalProperties: false', but Google Gemini's
+    Schema API does not support 'additionalProperties' and rejects requests with
+    HTTP 400 INVALID_ARGUMENT.
+    """
+    if isinstance(schema, dict):
+        return {
+            k: _sanitize_gemini_schema(v)
+            for k, v in schema.items()
+            if k not in ("additionalProperties", "additional_properties")
+        }
+    if isinstance(schema, list):
+        return [_sanitize_gemini_schema(item) for item in schema]
+    return schema
+
+
 class GeminiClient:
     """Client for Google Gemini models using the google-genai SDK."""
 
@@ -194,7 +212,7 @@ class GeminiClient:
 
         if schema is not None:
             config_kwargs["response_mime_type"] = "application/json"
-            config_kwargs["response_schema"] = schema
+            config_kwargs["response_schema"] = _sanitize_gemini_schema(schema)
 
         config = types.GenerateContentConfig(**config_kwargs)
 

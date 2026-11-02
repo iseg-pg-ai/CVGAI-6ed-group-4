@@ -1,7 +1,7 @@
 # CVGAI 6ª Edição — Grupo 4
 
 Leitor inteligente de talões e faturas simplificadas portuguesas. O sistema recebe a
-fotografia de um documento (plano ou amarrotado), aplica pré-processamento com OpenCV,
+fotografia de um documento (direito ou amarrotado), aplica pré-processamento com OpenCV,
 reconhece o texto por OCR, extrai os cinco campos obrigatórios e responde a perguntas em
 linguagem natural com evidência visual citada.
 

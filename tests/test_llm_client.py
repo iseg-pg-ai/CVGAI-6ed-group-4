@@ -347,3 +347,42 @@ def test_main_cli_handles_connection_error_gracefully(
     captured = capsys.readouterr()
     assert "Connection Error: Could not connect to llm_local" in captured.err
     assert "run_llama_server.sh" in captured.err
+
+
+def test_gemini_client_sanitizes_additional_properties_from_schema() -> None:
+    """GeminiClient recursively removes additionalProperties to avoid HTTP 400."""
+    captured_config: Any = None
+
+    class FakeModels:
+        def generate_content(self, model: str, contents: str, config: Any) -> Any:
+            nonlocal captured_config
+            captured_config = config
+            mock_res = MagicMock()
+            mock_res.text = '{"status": "ok"}'
+            return mock_res
+
+    fake_client = MagicMock()
+    fake_client.models = FakeModels()
+
+    client = GeminiClient(api_key="test-key", client=fake_client)
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "nested": {
+                "type": "object",
+                "properties": {"count": {"type": "integer"}},
+                "additionalProperties": False,
+            },
+        },
+        "additionalProperties": False,
+    }
+
+    client.complete(system="test", user="test", schema=input_schema)
+
+    assert captured_config is not None
+    schema_dict = captured_config.response_schema
+    assert "additionalProperties" not in schema_dict
+    assert "additional_properties" not in schema_dict
+    assert "additionalProperties" not in schema_dict["properties"]["nested"]
+    assert "additional_properties" not in schema_dict["properties"]["nested"]

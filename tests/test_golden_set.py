@@ -15,7 +15,7 @@ from src.settings import get_settings
 from src.types import GroundTruthRecord
 
 CSV_COLUMNS = ["filename", "grupo", "entidade", "nif_comerciante", "nif_cliente", "data", "total"]
-VALID_ROW = ["receipt.jpg", "plano", "Pingo Doce", "500100144", "123456789", "2026-10-24", "16.10"]
+VALID_ROW = ["receipt.jpg", "direito", "Pingo Doce", "500100144", "123456789", "2026-10-24", "16.10"]
 
 
 def write_csv(path: Path, rows: list[list[str]], header: list[str] | None = None) -> None:
@@ -46,7 +46,7 @@ def test_valid_rows_are_converted_to_typed_records(tmp_path: Path, monkeypatch: 
     assert records == [
         GroundTruthRecord(
             filename="receipt.jpg",
-            grupo="plano",
+            grupo="direito",
             entidade="Pingo Doce",
             nif_comerciante="500100144",
             nif_cliente="123456789",
@@ -82,8 +82,8 @@ def test_validation_reports_missing_file_invalid_nif_future_date_duplicate_and_m
     receipts_dir = tmp_path / "receipts"
     receipts_dir.mkdir()
     csv_path = tmp_path / "truth.csv"
-    invalid_row = ["missing.jpg", "plano", "Loja", "123456780", "", "2999-01-01", "16.10"]
-    duplicate_row = ["missing.jpg", "plano", "Loja", "", "", "", "16.10"]
+    invalid_row = ["missing.jpg", "direito", "Loja", "123456780", "", "2999-01-01", "16.10"]
+    duplicate_row = ["missing.jpg", "direito", "Loja", "", "", "", "16.10"]
     write_csv(csv_path, [invalid_row, duplicate_row])
 
     problems = validar_ground_truth(csv_path, receipts_dir)
@@ -103,12 +103,12 @@ def test_validation_reports_missing_file_invalid_nif_future_date_duplicate_and_m
     ("row", "expected_error"),
     [
         (["receipt.jpg", "inclinado", "", "", "", "", ""], "grupo inválido"),
-        (["receipt.jpg", "plano", "", "500100145", "", "", ""], "nif_comerciante inválido"),
-        (["receipt.jpg", "plano", "", "", "123456780", "", ""], "nif_cliente inválido"),
-        (["receipt.jpg", "plano", "", "", "", "31-02-2026", ""], "formato esperado AAAA-MM-DD"),
-        (["receipt.jpg", "plano", "", "", "", "2026-02-30", ""], "data inválida"),
-        (["receipt.jpg", "plano", "", "", "", "", "0"], "maior que zero"),
-        (["receipt.jpg", "plano", "", "", "", "", "1,20"], "formato decimal com ponto esperado"),
+        (["receipt.jpg", "direito", "", "500100145", "", "", ""], "nif_comerciante inválido"),
+        (["receipt.jpg", "direito", "", "", "123456780", "", ""], "nif_cliente inválido"),
+        (["receipt.jpg", "direito", "", "", "", "31-02-2026", ""], "formato esperado AAAA-MM-DD"),
+        (["receipt.jpg", "direito", "", "", "", "2026-02-30", ""], "data inválida"),
+        (["receipt.jpg", "direito", "", "", "", "", "0"], "maior que zero"),
+        (["receipt.jpg", "direito", "", "", "", "", "1,20"], "formato decimal com ponto esperado"),
     ],
 )
 def test_validation_reports_invalid_field_values(
@@ -142,7 +142,7 @@ def test_validation_reports_bad_header_blank_row_extra_column_and_unsafe_filenam
     csv_path.write_text(",".join(CSV_COLUMNS) + "\n\n", encoding="utf-8")
     assert any("linha totalmente vazia" in problem for problem in validar_ground_truth(csv_path, receipts_dir))
 
-    write_csv(csv_path, [["..\\outside.jpg", "plano", "", "", "", "", ""]])
+    write_csv(csv_path, [["..\\outside.jpg", "direito", "", "", "", "", ""]])
     assert any("nome de ficheiro simples" in problem for problem in validar_ground_truth(csv_path, receipts_dir))
 
 

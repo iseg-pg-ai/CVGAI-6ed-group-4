@@ -178,7 +178,7 @@ class GroundTruthRecord:
 
     Attributes:
         filename: Image file name inside ``data/receipts/``, including the extension.
-        grupo: ``"plano"`` for a flat receipt, ``"amarrotado"`` for a crumpled one.
+        grupo: ``"direito"`` for a flat receipt, ``"amarrotado"`` for a crumpled one.
         entidade: Trading name as printed, or ``None`` when absent.
         nif_comerciante: Nine-digit merchant NIF, or ``None`` when absent.
         nif_cliente: Nine-digit customer NIF, or ``None`` when absent.
@@ -187,7 +187,7 @@ class GroundTruthRecord:
     """
 
     filename: str
-    grupo: Literal["plano", "amarrotado"]
+    grupo: Literal["direito", "amarrotado"]
     entidade: str | None
     nif_comerciante: str | None
     nif_cliente: str | None
@@ -201,7 +201,7 @@ class MatchResult:
 
     Attributes:
         filename: Image the result refers to.
-        grupo: ``"plano"`` or ``"amarrotado"``.
+        grupo: ``"direito"`` or ``"amarrotado"``.
         campo: Field name, matching the CSV column.
         esperado: Reference value, already normalised to a comparable string.
         obtido: Predicted value, already normalised to a comparable string.

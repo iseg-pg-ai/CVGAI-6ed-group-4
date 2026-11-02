@@ -343,7 +343,7 @@ def load_benchmark_report(settings: Settings | None = None) -> tuple[str, list[s
             "```bash\n"
             "uv run python -m src.evaluate\n"
             "```\n\n"
-            "Os resultados discriminados por metodo (Regex vs LLM) e por grupo (Plano vs Amarrotado) "
+            "Os resultados discriminados por metodo (Regex vs LLM) e por grupo (direito vs Amarrotado) "
             "serao gerados em `results/metrics.md` e `results/metrics.csv`."
         )
 

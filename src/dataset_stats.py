@@ -17,7 +17,7 @@ from src.types import GroundTruthRecord
 if TYPE_CHECKING:
     from src.settings import Settings
 
-_GROUPS = ("plano", "amarrotado")
+_GROUPS = ("direito", "amarrotado")
 _FIELDS = ("entidade", "nif_comerciante", "nif_cliente", "data", "total")
 _FIELD_LABELS = {
     "entidade": "entidade",

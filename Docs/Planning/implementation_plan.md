@@ -1,4 +1,4 @@
-# Plano de Implementação — Leitor Inteligente de Documentos Visuais
+# direito de Implementação — Leitor Inteligente de Documentos Visuais
 
 Documento de engenharia que transforma o `PROJECT_PLAN.md` em trabalho executável. Define a
 arquitetura de código, os contratos de dados, a divisão de trabalho, o protocolo de revisão e
@@ -15,7 +15,7 @@ Equipa: Vitor (pipeline), José (camada de dados e métricas), Raquel (corpus e 
 **Estado em 2026-11-02.** WP-00, WP-01, WP-02, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09 e
 WP-11 estão fechados e integrados em `master`. O `src/settings.py` foi acrescentado fora da
 numeração para centralizar o acesso ao ambiente e aos caminhos. O detalhe do que foi entregue,
-e do que diverge do plano original, está na secção 5.1. As restantes secções descrevem o alvo e
+e do que diverge do direito original, está na secção 5.1. As restantes secções descrevem o alvo e
 continuam válidas para os pacotes por executar.
 
 ---
@@ -158,21 +158,26 @@ uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 def repo_root() -> Path:
     """Caminho absoluto da raiz do repositório (o que contém o pyproject.toml)."""
 
+
 @pytest.fixture
 def receipts_tmp(tmp_path: Path) -> Path:
     """Cria um diretório de imagens com ficheiros vazios para validação do golden set."""
+
 
 @pytest.fixture
 def ground_truth_valido(tmp_path: Path) -> Path:
     """Escreve um CSV mínimo mas válido, coerente com receipts_tmp."""
 
+
 @pytest.fixture
 def extracao_vazia() -> Extraction:
     """Extraction com os cinco campos em AUSENTE, para testes de pontuação."""
 
+
 @pytest.fixture
 def extracao_exemplo() -> Extraction:
     """Extraction completa, com os cinco campos encontrados e line_id."""
+
 
 @pytest.fixture
 def imagem_branca() -> np.ndarray:
@@ -202,7 +207,7 @@ CVGAI-6ed-group-4/
 │   └── Presentation/              # mini-apresentação da Raquel (pendente)
 ├── data/
 │   ├── receipts/                  # 9 imagens presentes; convenção de nomes pendente
-│   │   ├── 01_plano_pingo_doce.jpg
+│   │   ├── 01_direito_pingo_doce.jpg
 │   │   ├── 02_amarrotado_pingo_doce_par.jpg
 │   │   └── ...
 │   └── ground_truth.csv           # verdade de referência; só cabeçalho por agora
@@ -373,7 +378,7 @@ extrator por LLM reutiliza o contrato e os casos de teste do baseline. WP-12 ent
 o WP-16 depende de WP-04 a WP-12 e é o único pacote em falta nesse intervalo. Com WP-09 e WP-10
 fechados, o próximo trabalho do caminho crítico é o WP-12.
 
-### 5.1 Estado das entregas e desvios face ao plano
+### 5.1 Estado das entregas e desvios face ao direito
 
 Fechados e integrados em `master` a 2026-11-02: WP-00, WP-01, WP-02, WP-04, WP-05, WP-06,
 WP-07, WP-08, WP-09, WP-10 e WP-11. A suite tem 220 testes offline que correm em cerca de 2 s,
@@ -471,6 +476,7 @@ Regras gerais, válidas para todos os pacotes abaixo:
 def limpar_texto(raw: str) -> str:
     """Collapse whitespace, drop control characters and trim the ends."""
 
+
 def parse_moeda(raw: str) -> Decimal | None:
     """Convert '16,10 EUR', '11.57', '5,86€', ' 1 234,56 ' into Decimal.
 
@@ -478,21 +484,26 @@ def parse_moeda(raw: str) -> Decimal | None:
     Treats '.' as a thousands separator when followed by exactly three digits.
     """
 
+
 def parse_data(raw: str) -> date | None:
     """Recognise '2026-10-24', '26-10-27', '26-10-27 13:45:42', '20261027'.
 
     Assumes the 2000s century for two-digit years.
     """
 
+
 def parse_nif(raw: str) -> str | None:
     """Extract nine digits from 'NIF: 518396894', 'NIF 518 396 894', '518396894'."""
+
 
 def validar_nif(nif: str) -> bool:
     """Validate the modulo-11 check digit and the permitted first digit."""
 
+
 def normalizar_entidade(raw: str) -> str:
     """Canonical form for comparison: lowercase, no accents, no punctuation,
     no corporate suffixes (lda, sa, unipessoal), whitespace collapsed."""
+
 
 def valores_equivalentes(campo: str, esperado: str | None, obtido: str | None) -> bool:
     """Compare two already-converted values using the per-field rule.
@@ -541,7 +552,7 @@ filename,grupo,entidade,nif_comerciante,nif_cliente,data,total
 ```
 
 - `filename` — nome do ficheiro dentro de `data/receipts/`, com extensão.
-- `grupo` — `plano` ou `amarrotado`.
+- `grupo` — `direito` ou `amarrotado`.
 - `entidade` — designação como aparece no talão; vazio se ilegível.
 - `nif_comerciante` — nove dígitos; vazio apenas se ausente no documento.
 - `nif_cliente` — nove dígitos; vazio quando o talão não tem contribuinte.
@@ -554,8 +565,10 @@ filename,grupo,entidade,nif_comerciante,nif_cliente,data,total
 def carregar_ground_truth(path: Path) -> list[GroundTruthRecord]:
     """Read and validate the CSV. Raise GoldenSetError with every failure found."""
 
+
 def validar_ground_truth(path: Path, receipts_dir: Path) -> list[str]:
     """Return the list of problems found; an empty list means valid."""
+
 
 @dataclass(frozen=True, slots=True)
 class GoldenSetError(Exception):
@@ -566,7 +579,7 @@ class GoldenSetError(Exception):
 
 1. Cabeçalho exatamente com as sete colunas esperadas, pela ordem indicada.
 2. `filename` não vazio, sem duplicados e existente em `receipts_dir`.
-3. `grupo` em `{"plano", "amarrotado"}`.
+3. `grupo` em `{"direito", "amarrotado"}`.
 4. `nif_comerciante` e `nif_cliente`, quando preenchidos, têm nove dígitos e passam
    `validar_nif`.
 5. `data`, quando preenchida, é interpretável e não está no futuro.
@@ -613,7 +626,7 @@ todas com `bbox` dentro dos limites da imagem e `id` sequencial sem falhas.
 
 ### WP-09 — Extrator por regex (`src/extractor_regex.py`)
 
-Este pacote não tinha especificação detalhada na primeira versão do plano, só a linha da
+Este pacote não tinha especificação detalhada na primeira versão do direito, só a linha da
 tabela da secção 5. As regras abaixo são as que ficaram implementadas e testadas, e passam a
 ser o contrato do baseline.
 
@@ -622,6 +635,7 @@ ser o contrato do baseline.
 ```python
 def extract(doc: OcrDocument, qr: dict[str, str] | None = None) -> Extraction:
     """Extraction com method='regex', elapsed_ms medido e raw_response=None."""
+
 
 def main(argv: Sequence[str] | None = None, settings_override: Settings | None = None) -> None:
     """Pré-visualização: --file, --engine {easyocr,tesseract}, --no-preprocess."""
@@ -680,11 +694,13 @@ def pontuar_registo(
 ) -> list[MatchResult]:
     """Compare the five fields and return one MatchResult per field."""
 
+
 def agregar(resultados: list[MatchResult]) -> dict[str, dict[str, float]]:
     """Aggregate by field and by group.
 
     Structure: {"por_campo": {...}, "por_grupo": {...}, "global": {...}}
     """
+
 
 def escrever_tabelas(resultados: list[MatchResult], destino: Path) -> None:
     """Write results/metrics.csv and results/metrics.md (table for the report)."""
@@ -720,6 +736,7 @@ o caso em que o sistema inventa um NIF de cliente num talão que não tem contri
 def resumo(registos: list[GroundTruthRecord]) -> dict[str, object]:
     """Counts by group, by merchant and by presence of each field."""
 
+
 def imprimir_resumo(registos: list[GroundTruthRecord]) -> None:
     """Format the summary as a text table for the terminal."""
 ```
@@ -728,7 +745,7 @@ Saída esperada:
 
 ```text
 Grupo          N   entidade  nif_com  nif_cli   data  total
-plano         12        12        12       7      12     12
+direito         12        12        12       7      12     12
 amarrotado     8         7         8       5       8      8
 ```
 
@@ -781,7 +798,9 @@ amarrotado     8         7         8       5       8      8
 ```python
 class LLMClient(Protocol):
     provider: str
+
     def complete(self, system: str, user: str, schema: dict | None) -> str: ...
+
 
 def build_client(provider: str) -> LLMClient: ...
 ```
@@ -803,6 +822,7 @@ def extract(
 ) -> Extraction:
     """Extraction com method=<provedor que respondeu>, elapsed_ms medido e raw_response."""
 
+
 def main(argv: Sequence[str] | None = None, settings_override: Settings | None = None) -> None:
     """Pré-visualização: --file, --engine, --provider, --no-preprocess, --show-raw."""
 ```
@@ -810,7 +830,7 @@ def main(argv: Sequence[str] | None = None, settings_override: Settings | None =
 - Prompt de sistema em português, com o texto indexado linha a linha (`[01] ...`) como mensagem
   do utilizador. O `documento.as_prompt_text()` é a única fonte de texto: o QR é aceite na
   assinatura e ignorado, tal como no baseline.
-- Schema plano, sem uniões de tipo: os cinco campos são `string`, a ausência é `""`, e há dois
+- Schema direito, sem uniões de tipo: os cinco campos são `string`, a ausência é `""`, e há dois
   objetos fechados, `presente` (booleanos) e `linhas` (inteiros). **Todos** os objetos levam
   `additionalProperties: false`: é obrigatório no modo `strict` da OpenAI e foi verificado que
   `google.genai.types.GenerateContentConfig` o aceita, portanto um único schema serve os três
@@ -885,7 +905,7 @@ ausente).
 ### 8.1 Composição
 
 - **20 documentos**, dos quais:
-  - 12 planos.
+  - 12 direitos.
   - 8 amarrotados e desdobrados.
   - Pelo menos 6 **pares** do mesmo talão em ambos os estados. É isto que isola o efeito do
     vinco em vez de o confundir com a diferença entre comerciantes.
@@ -902,7 +922,7 @@ NN_estado_comerciante.jpg
 NN_estado_comerciante_par.jpg
 ```
 
-Exemplos: `01_plano_pingo_doce.jpg`, `02_amarrotado_pingo_doce_par.jpg`.
+Exemplos: `01_direito_pingo_doce.jpg`, `02_amarrotado_pingo_doce_par.jpg`.
 
 **Estado a 2026-11-01:** `data/receipts/` tem 9 imagens com nomes numéricos
 (`5990024681546780813.jpg`, ...), ainda fora desta convenção, e `data/ground_truth.csv` só tem
@@ -917,7 +937,7 @@ legibilidade do corpus para o relatório.
 - Luz difusa; evitar flash direto (cria reflexo especular no papel térmico).
 - Encher pelo menos 70 % do enquadramento com o talão.
 - Incluir sempre a zona do QR e a linha do total.
-- Para os pares: fotografar primeiro o talão plano, depois amarrotar, desdobrar e fotografar de
+- Para os pares: fotografar primeiro o talão direito, depois amarrotar, desdobrar e fotografar de
   novo, mantendo um enquadramento semelhante.
 
 ### 8.4 `data/ground_truth.csv`
@@ -939,7 +959,7 @@ verdade de referência errada invalida todas as métricas do relatório.
 ### 8.6 Mini-apresentação (5 a 7 slides)
 
 1. Porque 20 documentos e não um só.
-2. Critérios de estratificação (plano/amarrotado, comerciante, campos ausentes).
+2. Critérios de estratificação (direito/amarrotado, comerciante, campos ausentes).
 3. Protocolo de captura e porque é que a luz difusa importa.
 4. Como foi construída a verdade de referência e como foi verificada.
 5. Estatísticas do corpus (geradas por `python -m src.dataset_stats`).
@@ -993,7 +1013,7 @@ uma asserção para a suite ficar verde.
 
 | Dia | Vitor | José | Raquel |
 | :--- | :--- | :--- | :--- |
-| 0 | WP-00 estrutura, WP-01 contratos | Ler o plano, preparar o ambiente | Arrancar a recolha de imagens |
+| 0 | WP-00 estrutura, WP-01 contratos | Ler o direito, preparar o ambiente | Arrancar a recolha de imagens |
 | 1 | WP-04 pré-processamento | WP-02 normalizadores (sessão em par, 1 h) | Recolha + `ground_truth.csv` |
 | 2 | WP-05 EasyOCR | WP-02 testes e correções | Recolha + `ground_truth.csv` |
 | 3 | WP-07 QR, WP-09 regex | WP-03 carregador do golden set | Validação do CSV |
@@ -1043,7 +1063,7 @@ O projeto está concluído quando, cumulativamente:
 3. O assistente responde a perguntas, distingue `ENCONTRADO` de `AUSENTE NO DOCUMENTO` e
    destaca a região da imagem que sustenta a resposta.
 4. O benchmark corre sobre os 20 documentos e produz `results/metrics.csv` e
-   `results/metrics.md` com a desagregação plano/amarrotado e por método.
+   `results/metrics.md` com a desagregação direito/amarrotado e por método.
 5. `uv run pytest`, `ruff` e `pyright` passam sem erros, e a suite completa corre em menos de
    10 segundos sem rede.
 6. O relatório consegue citar, para cada afirmação quantitativa, um ficheiro em `results/`.

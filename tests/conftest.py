@@ -18,7 +18,7 @@ GROUND_TRUTH_HEADER = "filename,grupo,entidade,nif_comerciante,nif_cliente,data,
 
 #: Minimal but valid set of rows, used by the golden-set tests.
 VALID_ROWS = [
-    "01_plano_pingo_doce.jpg,plano,Pingo Doce,500100144,123456789,2026-10-24,16.10",
+    "01_direito_pingo_doce.jpg,direito,Pingo Doce,500100144,123456789,2026-10-24,16.10",
     "02_amarrotado_pingo_doce_par.jpg,amarrotado,Pingo Doce,500100144,,2026-10-24,16.10",
 ]
 
@@ -46,7 +46,7 @@ def receipts_tmp(tmp_path: Path) -> Path:
         tmp_path: Pytest's per-test temporary directory.
 
     Returns:
-        The created directory, containing ``01_plano_pingo_doce.jpg`` and
+        The created directory, containing ``01_direito_pingo_doce.jpg`` and
         ``02_amarrotado_pingo_doce_par.jpg``.
     """
     receipts = tmp_path / "receipts"

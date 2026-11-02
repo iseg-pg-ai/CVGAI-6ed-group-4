@@ -17,7 +17,7 @@ from src.types import GroundTruthRecord
 
 def _record(
     filename: str,
-    grupo: Literal["plano", "amarrotado"],
+    grupo: Literal["direito", "amarrotado"],
     entidade: str | None,
     *,
     nif_comerciante: str | None = None,
@@ -41,7 +41,7 @@ def test_resumo_counts_groups_merchants_and_present_fields() -> None:
     records = [
         _record(
             "flat-1.jpg",
-            "plano",
+            "direito",
             "Pingo Doce",
             nif_comerciante="500100144",
             data=date(2026, 10, 24),
@@ -49,7 +49,7 @@ def test_resumo_counts_groups_merchants_and_present_fields() -> None:
         ),
         _record(
             "flat-2.jpg",
-            "plano",
+            "direito",
             "Pingo Doce",
             nif_comerciante="500100144",
             nif_cliente="123456789",
@@ -73,7 +73,7 @@ def test_resumo_counts_groups_merchants_and_present_fields() -> None:
     assert result == {
         "total_registos": 4,
         "por_grupo": {
-            "plano": {
+            "direito": {
                 "n": 2,
                 "entidade": 2,
                 "nif_comerciante": 2,
@@ -109,7 +109,7 @@ def test_resumo_includes_both_groups_for_empty_corpus() -> None:
     assert resumo([]) == {
         "total_registos": 0,
         "por_grupo": {
-            "plano": {"n": 0, "entidade": 0, "nif_comerciante": 0, "nif_cliente": 0, "data": 0, "total": 0},
+            "direito": {"n": 0, "entidade": 0, "nif_comerciante": 0, "nif_cliente": 0, "data": 0, "total": 0},
             "amarrotado": {
                 "n": 0,
                 "entidade": 0,
@@ -126,7 +126,7 @@ def test_resumo_includes_both_groups_for_empty_corpus() -> None:
 
 def test_imprimir_resumo_formats_groups_and_merchants(capsys: pytest.CaptureFixture[str]) -> None:
     records = [
-        _record("flat.jpg", "plano", "Loja", nif_comerciante="500100144"),
+        _record("flat.jpg", "direito", "Loja", nif_comerciante="500100144"),
         _record("crumpled.jpg", "amarrotado", None),
     ]
 
@@ -136,7 +136,7 @@ def test_imprimir_resumo_formats_groups_and_merchants(capsys: pytest.CaptureFixt
     assert "Grupo" in output
     assert "nif_com" in output
     assert "nif_cli" in output
-    assert "plano" in output
+    assert "direito" in output
     assert "amarrotado" in output
     assert "Loja: 1" in output
     assert "(sem entidade): 1" in output
@@ -152,7 +152,7 @@ def test_main_cli_execution_with_custom_csv(
     csv_path = tmp_path / "truth.csv"
     csv_path.write_text(
         "filename,grupo,entidade,nif_comerciante,nif_cliente,data,total\n"
-        "flat.jpg,plano,SuperLoja,500100144,,2026-10-24,15.50\n",
+        "flat.jpg,direito,SuperLoja,500100144,,2026-10-24,15.50\n",
         encoding="utf-8",
     )
 
