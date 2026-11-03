@@ -22,7 +22,7 @@ def sample_ocr_doc() -> OcrDocument:
         OcrLine(id=2, text="NIF: 500100144", confidence=0.95, bbox=BBox(x1=20, y1=50, x2=140, y2=70)),
         OcrLine(id=3, text="TOTAL 16.10", confidence=0.99, bbox=BBox(x1=20, y1=120, x2=130, y2=150)),
     ]
-    return OcrDocument(lines=lines, engine="test", elapsed_ms=5.0, image_size=(200, 200))
+    return OcrDocument(lines=lines, engine="easyocr", elapsed_ms=5.0, image_size=(200, 200))
 
 
 def test_draw_all_ocr_boxes_contract(sample_ocr_doc: OcrDocument) -> None:
@@ -112,7 +112,7 @@ def test_crop_empty_or_unknown_ids_returns_none(sample_ocr_doc: OcrDocument) -> 
 def test_crop_clamps_to_image_boundaries() -> None:
     """Padding near image borders is clamped without indexing errors."""
     lines = [OcrLine(id=1, text="EDGE", confidence=1.0, bbox=BBox(x1=0, y1=0, x2=30, y2=20))]
-    doc = OcrDocument(lines=lines, engine="test", elapsed_ms=1.0, image_size=(100, 100))
+    doc = OcrDocument(lines=lines, engine="easyocr", elapsed_ms=1.0, image_size=(100, 100))
     canvas = np.full((100, 100, 3), 200, dtype=np.uint8)
 
     snippet = crop(canvas, doc, line_ids=[1], pad_px=20)

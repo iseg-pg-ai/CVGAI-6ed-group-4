@@ -1,4 +1,7 @@
-"""Score extraction results against the receipt ground truth."""
+"""Score extraction results against the receipt ground truth.
+
+Ref: Docs/Planning/implementation_plan.md, section 4.7.
+"""
 
 from __future__ import annotations
 
@@ -26,7 +29,7 @@ _METRIC_NAMES = ("taxa_acerto", "taxa_falso_positivo", "taxa_omissao")
 
 
 class MetricRates(TypedDict):
-    """As três taxas devolvidas para um agregado."""
+    """The three core metric rates for an evaluation group."""
 
     taxa_acerto: float
     taxa_falso_positivo: float
@@ -44,7 +47,7 @@ AggregatedMetrics = TypedDict(
 
 
 def _as_text(value: str | date | Decimal | None) -> str | None:
-    """Converter valores de groud-truth classificados para a representação comparável."""
+    """Convert typed ground-truth values to comparable string representations."""
     if value is None:
         return None
     return str(value)
@@ -72,8 +75,12 @@ def pontuar_registo(verdade: GroundTruthRecord, extracao: Extraction) -> list[Ma
 
     results: list[MatchResult] = []
     for field in FIELD_NAMES:
+        field_val = extracao.fields[field]
         expected = _as_text(expected_values[field])
-        obtained = extracao.fields[field].value
+        obtained = field_val.value
+        is_equiv = valores_equivalentes(field, expected, obtained)
+        acertou = False if expected is not None and field_val.status in ("INVALIDO", "AUSENTE") else is_equiv
+
         results.append(
             MatchResult(
                 filename=verdade.filename,
@@ -81,7 +88,7 @@ def pontuar_registo(verdade: GroundTruthRecord, extracao: Extraction) -> list[Ma
                 campo=field,
                 esperado=expected,
                 obtido=obtained,
-                acertou=valores_equivalentes(field, expected, obtained),
+                acertou=acertou,
                 falso_positivo=expected is None and obtained is not None,
                 omissao=expected is not None and obtained is None,
             )
@@ -90,7 +97,17 @@ def pontuar_registo(verdade: GroundTruthRecord, extracao: Extraction) -> list[Ma
 
 
 def _metricas(resultados: Iterable[MatchResult]) -> MetricRates:
-    """Calcula as três taxas especificadas para um subconjunto de resultados não agregados."""
+    """Calculate accuracy, false-positive, and omission rates for match results."""
+    matches = list(resultados)
+    expected_absent = sum(result.esperado is None for result in matches)
+    expected_present = sum(result.esperado is not None for result in matches)
+    return {
+        "taxa_acerto": sum(result.acertou for result in matches) / len(matches) if matches else 0.0,
+        "taxa_falso_positivo": (
+            sum(result.falso_positivo for result in matches) / expected_absent if expected_absent else 0.0
+        ),
+        "taxa_omissao": sum(result.omissao for result in matches) / expected_present if expected_present else 0.0,
+    }
 
     matches = list(resultados)
     expected_absent = sum(result.esperado is None for result in matches)
@@ -130,7 +147,7 @@ def agregar(resultados: list[MatchResult]) -> AggregatedMetrics:
 
 
 def _format_table(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> list[str]:
-    """Renderizar uma tabela em Markdown."""
+    """Render a table as Markdown-formatted lines."""
     return [
         "| " + " | ".join(headers) + " |",
         "| " + " | ".join("---" for _ in headers) + " |",

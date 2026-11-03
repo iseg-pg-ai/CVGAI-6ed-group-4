@@ -92,7 +92,7 @@ def extracao_vazia() -> Extraction:
         nif_cliente=ausente,
         data=ausente,
         total=ausente,
-        method="test",
+        method="regex",
         elapsed_ms=0.0,
     )
 
@@ -120,6 +120,6 @@ def extracao_exemplo() -> Extraction:
         nif_cliente=FieldValue(value="123456789", status="ENCONTRADO", line_id=5),
         data=FieldValue(value="2026-10-24", status="ENCONTRADO", line_id=7),
         total=FieldValue(value="16.10", status="ENCONTRADO", line_id=42),
-        method="test",
+        method="regex",
         elapsed_ms=12.5,
     )

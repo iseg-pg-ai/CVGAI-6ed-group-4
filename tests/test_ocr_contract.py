@@ -63,6 +63,25 @@ def test_reading_order_and_sequential_ids() -> None:
     assert doc.lines[2].text == "TOTAL 16.10"
 
 
+def test_horizontal_fragments_merged_into_single_line() -> None:
+    """Multi-column fragments on the same horizontal level are merged left-to-right."""
+    mock_items = [
+        ([[100, 50], [180, 50], [180, 70], [100, 70]], "16,10 EUR", 0.90),
+        ([[10, 52], [80, 52], [80, 72], [10, 72]], "TOTAL", 0.95),
+    ]
+    engine = EasyOCREngine(reader=MockReader(mock_items))
+    image = np.zeros((100, 200, 3), dtype=np.uint8)
+
+    doc = engine.read(image)
+
+    assert len(doc.lines) == 1
+    assert doc.lines[0].id == 1
+    assert doc.lines[0].text == "TOTAL 16,10 EUR"
+    assert doc.lines[0].bbox.x1 == 10
+    assert doc.lines[0].bbox.x2 == 180
+    assert doc.lines[0].confidence == pytest.approx(0.925)
+
+
 def test_bbox_clamping_to_image_boundaries() -> None:
     """Coordinates extending outside image edges are clamped to image bounds."""
     mock_items = [

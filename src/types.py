@@ -69,6 +69,10 @@ class BBox:
     x2: int
     y2: int
 
+    def __post_init__(self) -> None:
+        if self.x2 < self.x1 or self.y2 < self.y1:
+            raise ValueError(f"Invalid BBox coordinates: x1={self.x1}, y1={self.y1}, x2={self.x2}, y2={self.y2}")
+
     @property
     def width(self) -> int:
         """Width of the box in pixels."""
@@ -110,7 +114,7 @@ class OcrDocument:
     """
 
     lines: list[OcrLine]
-    engine: str
+    engine: OcrEngineName
     elapsed_ms: float
     image_size: tuple[int, int]
 
@@ -187,7 +191,7 @@ class Extraction:
     nif_cliente: FieldValue
     data: FieldValue
     total: FieldValue
-    method: str
+    method: MethodName
     elapsed_ms: float
     raw_response: str | None = None
 
@@ -246,8 +250,8 @@ class MatchResult:
     """
 
     filename: str
-    grupo: str
-    campo: str
+    grupo: GroupName
+    campo: FieldName
     esperado: str | None
     obtido: str | None
     acertou: bool
@@ -275,4 +279,4 @@ class Answer:
     answer: str
     status: Literal["ENCONTRADO", "AUSENTE NO DOCUMENTO"]
     line_ids: list[int]
-    provider: str
+    provider: ProviderName

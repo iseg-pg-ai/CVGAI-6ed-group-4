@@ -12,12 +12,13 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
-from src.types import IMAGE_EXTENSIONS, Answer, OcrDocument, OcrLine
+from src.types import IMAGE_EXTENSIONS, Answer, OcrDocument, OcrLine, ProviderName
 
 if TYPE_CHECKING:
     from src.llm_client import LLMClient
@@ -117,13 +118,61 @@ def _filter_line_ids(raw_lines: list[Any], valid_ids: set[int]) -> list[int]:
 def _locate_supporting_lines(answer: str, question: str, lines: Sequence[OcrLine]) -> list[int]:
     """Locate lines in the document that match keywords in the answer or question."""
     found: list[int] = []
-    text_corpus = f"{question} {answer}".lower()
-    keywords = [w for w in text_corpus.split() if len(w) >= 3]
+    stopwords = frozenset(
+        {
+            "qual",
+            "quais",
+            "quanto",
+            "quantos",
+            "onde",
+            "como",
+            "quem",
+            "para",
+            "com",
+            "loja",
+            "recibo",
+            "talao",
+            "talão",
+            "fatura",
+            "factura",
+            "documento",
+            "este",
+            "esta",
+            "esse",
+            "essa",
+            "isso",
+            "pelo",
+            "pela",
+            "sobre",
+            "qualquer",
+            "valor",
+            "total",
+            "compra",
+            "tem",
+            "ha",
+            "há",
+        }
+    )
 
-    for line in lines:
-        line_lower = line.text.lower()
-        if any(kw in line_lower for kw in keywords) and line.id not in found:
-            found.append(line.id)
+    def _extract_tokens(text: str) -> list[str]:
+        cleaned = re.sub(r"[^\w\s]", " ", text.lower())
+        return [w for w in cleaned.split() if len(w) >= 3 and w not in stopwords]
+
+    answer_tokens = _extract_tokens(answer)
+    question_tokens = _extract_tokens(question)
+
+    if answer_tokens:
+        for line in lines:
+            line_lower = line.text.lower()
+            if any(tok in line_lower for tok in answer_tokens) and line.id not in found:
+                found.append(line.id)
+
+    if not found and question_tokens:
+        for line in lines:
+            line_lower = line.text.lower()
+            if any(tok in line_lower for tok in question_tokens) and line.id not in found:
+                found.append(line.id)
+
     return found[:3]
 
 
@@ -156,7 +205,7 @@ def ask(
             answer="O documento nao contem texto reconhecido para responder à pergunta.",
             status="AUSENTE NO DOCUMENTO",
             line_ids=[],
-            provider=client.provider,
+            provider=cast(ProviderName, client.provider),
         )
 
     user_prompt = f"Pergunta: {question}\n\nDocumento:\n{doc.as_prompt_text()}"
@@ -170,7 +219,7 @@ def ask(
     raw_linhas = payload.get("linhas", [])
     filtered_ids = _filter_line_ids(raw_linhas, valid_ids)
 
-    is_found = "ENCONTRADO" in status_raw
+    is_found = status_raw == "ENCONTRADO"
     if is_found and not filtered_ids:
         located = _locate_supporting_lines(answer_text, question, doc.lines)
         if located:
@@ -189,7 +238,7 @@ def ask(
         answer=answer_text,
         status=status,
         line_ids=filtered_ids,
-        provider=client.last_effective_provider,
+        provider=cast(ProviderName, client.last_effective_provider),
     )
 
 

@@ -1,4 +1,7 @@
-"""Funções  para normalizar e comparar valores de campos de recibos."""
+"""Functions to normalise and compare receipt field values.
+
+Ref: Docs/Planning/implementation_plan.md, section 4.3.
+"""
 
 from __future__ import annotations
 
@@ -11,13 +14,13 @@ VALID_NIF_FIRST_DIGITS = frozenset("12356789")
 
 
 def limpar_texto(raw: str) -> str:
-    """Remove espaços em branco, elimina caracteres de controlo e corta as extremidades.
+    """Strip control characters, collapse whitespace, and trim extremities.
 
-    Argumentos:
+    Args:
+        raw: Text to clean.
 
-    raw: Texto a limpar.
-
-    Retorna: Texto sem caracteres de controlo e com espaços simples entre as palavras.
+    Returns:
+        Cleaned text with single spaces between words and no control characters.
     """
     characters: list[str] = []
     for character in raw:
@@ -29,18 +32,16 @@ def limpar_texto(raw: str) -> str:
 
 
 def parse_moeda(raw: str) -> Decimal | None:
-    """Analisa o primeiro valor monetário interpretável no texto.
+    """Parse the first interpretable monetary value in the text.
 
-    As vírgulas são tratadas como separadores decimais. Um ponto seguido de exatamente três
-    dígitos é tratado como separador de milhares, assim como espaços agrupados.
+    Commas are treated as decimal separators. A dot followed by exactly three digits
+    is treated as a thousands separator, as are grouped spaces.
 
-    Argumentos:
+    Args:
+        raw: Text that may contain a monetary value and currency marker.
 
-    raw: Texto que pode conter um valor monetário e um marcador de moeda.
-
-    Retorna:
-
-    O valor analisado ou ``None`` se não estiver presente nenhum valor válido.
+    Returns:
+        Parsed Decimal amount or None if no valid amount is present.
     """
     match = re.search(r"(?<!\d)[+-]?\d+(?:[ \u00a0\u202f.,]\d+)*(?!\d)", limpar_texto(raw))
     if match is None:
@@ -75,19 +76,17 @@ def parse_moeda(raw: str) -> Decimal | None:
 
 
 def parse_data(raw: str) -> date | None:
-    """Analisa datas de recibos comuns, opcionalmente seguidas de um horário.
+    """Parse common receipt issue dates, optionally followed by a timestamp.
 
-    Anos com dois dígitos em datas com hífen são interpretados como ``YY-MM-DD``.
-    Com quatro dígitos, aceita ``YYYY-MM-DD`` ou ``DD-MM-YYYY``. Com barra ou ponto,
-    aceita ``YYYY/MM/DD`` ou ``DD/MM/YY`` (e os formatos equivalentes com ponto).
+    Two-digit years in hyphenated dates default to YY-MM-DD. Four-digit years
+    accept YYYY-MM-DD or DD-MM-YYYY. Slashes and dots accept YYYY/MM/DD or DD/MM/YYYY
+    (and two-digit year equivalents).
 
-    Argumentos:
+    Args:
+        raw: Text containing a candidate date.
 
-    raw: Texto que contém uma data.
-
-    Retorna:
-
-    Uma data analisada ou ``None`` quando a entrada não é uma data válida e suportada.
+    Returns:
+        Parsed date object or None when no supported valid date is found.
     """
     text = limpar_texto(raw)
     text = re.sub(r"(?<!\d)\d{1,2}:\d{2}(?::\d{2})?(?!\d)", "", text)
@@ -96,46 +95,42 @@ def parse_data(raw: str) -> date | None:
         (r"(?<!\d)(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)", "ymd"),
         (r"(?<!\d)(\d{2})-(\d{1,2})-(\d{1,2})(?!\d)", "ymd"),
         (r"(?<!\d)(\d{8})(?!\d)", "compact"),
-        (r"(?<!\d)(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})(?!\d)", "dmy"),
+        (r"(?<!\d)(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})(?!\d)", "dmy"),
+        (r"(?<!\d)(\d{1,2})[/.](\d{1,2})[/.](\d{2})(?!\d)", "dmy"),
     )
 
     for pattern, order in date_patterns:
-        match = re.search(pattern, text)
-        if match is None:
-            continue
+        for match in re.finditer(pattern, text):
+            if order == "compact":
+                compact = match.group(1)
+                year, month, day = int(compact[:4]), int(compact[4:6]), int(compact[6:])
+            elif order == "ymd":
+                first, second, third = (int(part) for part in match.groups())
+                year, month, day = first, second, third
+                if year < 100:
+                    year += 2000
+            else:
+                first, second, third = (int(part) for part in match.groups())
+                day, month, year = first, second, third
+                if year < 100:
+                    year += 2000
 
-        if order == "compact":
-            compact = match.group(1)
-            year, month, day = int(compact[:4]), int(compact[4:6]), int(compact[6:])
-        elif order == "ymd":
-            first, second, third = (int(part) for part in match.groups())
-            year, month, day = first, second, third
-            if year < 100:
-                year += 2000
-        else:
-            first, second, third = (int(part) for part in match.groups())
-            day, month, year = first, second, third
-            if year < 100:
-                year += 2000
-
-        try:
-            return date(year, month, day)
-        except ValueError:
-            return None
+            try:
+                return date(year, month, day)
+            except ValueError:
+                continue
 
     return None
 
 
 def parse_nif(raw: str) -> str | None:
-    """Extrai um código NIF português de nove dígitos a partir de um texto.
+    """Extract a 9-digit Portuguese NIF sequence from text.
 
-    Argumentos:
+    Args:
+        raw: Text that may contain a NIF code, with optional spacing.
 
-    raw: Texto que pode conter um código NIF, com espaços facultativos entre os dígitos.
-
-    Retorna:
-
-    Os nove dígitos, ou ``None`` se não estiver presente nenhuma sequência de nove dígitos.
+    Returns:
+        The 9-digit string, or None if no 9-digit sequence is found.
     """
     match = re.search(r"(?<!\d)\d(?:[ \t]*\d){8}(?!\d)", raw)
     if match is None:
@@ -144,15 +139,13 @@ def parse_nif(raw: str) -> str | None:
 
 
 def validar_nif(nif: str) -> bool:
-    """Valida o primeiro dígito permitido e o dígito verificador módulo 11 de um NIF português.
+    """Validate allowed leading digit and modulo-11 check digit of a Portuguese NIF.
 
-    Argumentos:
+    Args:
+        nif: Candidate 9-digit NIF string.
 
-    nif: NIF candidato.
-
-    Retorno:
-
-    `True`` se o NIF tiver nove dígitos e um dígito de controlo válido.
+    Returns:
+        True if the NIF has 9 digits and satisfies modulo-11 check digit verification.
     """
     if len(nif) != 9 or not nif.isdigit() or nif[0] not in VALID_NIF_FIRST_DIGITS:
         return False
@@ -165,47 +158,39 @@ def validar_nif(nif: str) -> bool:
 
 
 def normalizar_entidade(raw: str) -> str:
-    """Cria um nome de entidade canónico que ignora os acentos e a pontuação.
+    """Create a canonical merchant name ignoring accents, punctuation and suffixes.
 
-    Argumentos:
+    Args:
+        raw: Merchant name as read from a receipt.
 
-    raw: Nome da entidade tal como é lido de um recibo.
-
-    Retorno:
-
-    Nome em minúsculas, sem acentos, pontuação ou sufixos legais reconhecidos.
+    Returns:
+        Lower-cased name without accents, punctuation, or recognized corporate suffixes.
     """
     decomposed = unicodedata.normalize("NFD", raw.lower())
-    entity_suffixes = {"lda", "sa", "unipessoal"}
+    entity_suffixes = {"lda", "sa", "unipessoal", "sociedade"}
     without_accents = "".join(character for character in decomposed if unicodedata.category(character) != "Mn")
     without_periods = without_accents.replace(".", "")
     words = "".join(
         character if character.isalnum() or character.isspace() else " " for character in without_periods
     ).split()
-    while words and words[-1] in entity_suffixes:
+    while len(words) > 1 and words[-1] in entity_suffixes:
         words.pop()
     return " ".join(words)
 
 
 def valores_equivalentes(campo: str, esperado: str | None, obtido: str | None) -> bool:
-    """Compara dois valores utilizando a regra de normalização para o seu campo canónico.
+    """Compare two values using the canonical normalisation rule for their field.
 
-    Argumentos:
+    Args:
+        campo: Canonical field name ('total', 'data', 'nif_*', or 'entidade').
+        esperado: Reference expected value.
+        obtido: Extracted candidate value.
 
-    campo: Nome do campo canónico (``total``, ``data``, um campo ``nif_*`` ou
-    ``entidade``).
+    Returns:
+        True if both values are semantically equivalent under the field's rule.
 
-    esperado: Valor de referência.
-
-    adquirido: Valor extraído.
-
-    Retorna:
-
-    Se ambos os valores são equivalentes de acordo com a regra do campo.
-
-    Exceções:
-
-    ValueError: Se ``campo`` não for um dos campos canónicos suportados.
+    Raises:
+        ValueError: If campo is not a recognized canonical field name.
     """
     esperado = esperado.strip() or None if esperado is not None else None
     obtido = obtido.strip() or None if obtido is not None else None
@@ -227,5 +212,7 @@ def valores_equivalentes(campo: str, esperado: str | None, obtido: str | None) -
         obtained_value = normalizar_entidade(obtido)
     else:
         raise ValueError(f"Unsupported field: {campo}")
+
+    return expected_value is not None and obtained_value is not None and expected_value == obtained_value
 
     return expected_value is not None and obtained_value is not None and expected_value == obtained_value

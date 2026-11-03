@@ -8,14 +8,17 @@ Ref: Docs/Planning/implementation_plan.md, section 2.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 from src.types import OcrEngineName
+
+logger = logging.getLogger(__name__)
 
 OcrEngineType = OcrEngineName
 
@@ -40,6 +43,10 @@ class Settings:
         receipts_dir: Absolute path to the receipts image directory.
         ground_truth_path: Absolute path to the ground truth CSV file.
         results_dir: Absolute path to the benchmark results directory.
+        max_side: Maximum image dimension for preprocessing downscale.
+        clahe_clip_limit: Default CLAHE contrast limit.
+        llama_port: Default local llama-server port.
+        llama_ngl: Default GPU layers offloaded in local llama-server.
     """
 
     llama_base_url: str
@@ -57,6 +64,10 @@ class Settings:
     receipts_dir: Path
     ground_truth_path: Path
     results_dir: Path
+    max_side: int = 1280
+    clahe_clip_limit: float = 2.0
+    llama_port: int = 8080
+    llama_ngl: int = 0
 
 
 def _resolve_path(repo_root: Path, path_str: str) -> Path:
@@ -85,35 +96,67 @@ def load_settings(repo_root: Path | None = None) -> Settings:
     """
     root = (repo_root or Path(__file__).resolve().parents[1]).resolve()
     env_file = root / ".env"
-    if env_file.is_file():
-        load_dotenv(dotenv_path=env_file, override=False)
+    file_vars: dict[str, str | None] = dotenv_values(dotenv_path=env_file) if env_file.is_file() else {}
 
-    llama_base_url = os.getenv("LLAMA_BASE_URL", "http://127.0.0.1:8080/v1").strip()
-    llama_model = os.getenv("LLAMA_MODEL", "local-llm").strip()
+    def _get_val(key: str, default: str = "") -> str:
+        env_val = os.getenv(key)
+        if env_val is not None:
+            return env_val
+        file_val = file_vars.get(key)
+        if file_val is not None:
+            return file_val
+        return default
+
+    llama_base_url = _get_val("LLAMA_BASE_URL", "http://127.0.0.1:8080/v1").strip()
+    llama_model = _get_val("LLAMA_MODEL", "local-llm").strip()
     try:
-        llama_timeout_s = float(os.getenv("LLAMA_TIMEOUT_S", "120"))
+        llama_timeout_s = float(_get_val("LLAMA_TIMEOUT_S", "120"))
     except ValueError:
         llama_timeout_s = 120.0
 
-    gemini_api_key = _normalize_optional_str(os.getenv("GEMINI_API_KEY"))
-    gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+    gemini_api_key = _normalize_optional_str(_get_val("GEMINI_API_KEY", "") or None)
+    gemini_model = _get_val("GEMINI_MODEL", "gemini-2.5-flash").strip()
 
-    openai_api_key = _normalize_optional_str(os.getenv("OPENAI_API_KEY"))
-    openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+    openai_api_key = _normalize_optional_str(_get_val("OPENAI_API_KEY", "") or None)
+    openai_model = _get_val("OPENAI_MODEL", "gpt-4o-mini").strip()
 
-    raw_engine = os.getenv("OCR_ENGINE", "easyocr").strip().lower()
-    ocr_engine: OcrEngineType = "tesseract" if raw_engine == "tesseract" else "easyocr"
+    raw_engine = _get_val("OCR_ENGINE", "easyocr").strip().lower()
+    if raw_engine in ("easyocr", "tesseract"):
+        ocr_engine: OcrEngineType = raw_engine  # type: ignore[assignment]
+    else:
+        logger.warning("Unrecognised OCR_ENGINE '%s'; defaulting to 'easyocr'.", raw_engine)
+        ocr_engine = "easyocr"
 
-    raw_langs = os.getenv("EASYOCR_LANGS", "pt,en")
+    raw_langs = _get_val("EASYOCR_LANGS", "pt,en")
     easyocr_langs = tuple(lang.strip() for lang in raw_langs.split(",") if lang.strip()) or ("pt", "en")
 
-    raw_tesseract_cmd = _normalize_optional_str(os.getenv("TESSERACT_CMD"))
+    raw_tesseract_cmd = _normalize_optional_str(_get_val("TESSERACT_CMD", "") or None)
     tesseract_cmd = Path(raw_tesseract_cmd).resolve() if raw_tesseract_cmd else None
 
-    data_dir = _resolve_path(root, os.getenv("DATA_DIR", "data"))
-    receipts_dir = _resolve_path(root, os.getenv("RECEIPTS_DIR", "data/receipts"))
-    ground_truth_path = _resolve_path(root, os.getenv("GROUND_TRUTH_PATH", "data/ground_truth.csv"))
-    results_dir = _resolve_path(root, os.getenv("RESULTS_DIR", "results"))
+    data_dir = _resolve_path(root, _get_val("DATA_DIR", "data"))
+    receipts_dir = _resolve_path(root, _get_val("RECEIPTS_DIR", "data/receipts"))
+    ground_truth_path = _resolve_path(root, _get_val("GROUND_TRUTH_PATH", "data/ground_truth.csv"))
+    results_dir = _resolve_path(root, _get_val("RESULTS_DIR", "results"))
+
+    try:
+        max_side = int(_get_val("PREPROCESS_MAX_SIDE", "1280"))
+    except ValueError:
+        max_side = 1280
+
+    try:
+        clahe_clip_limit = float(_get_val("PREPROCESS_CLAHE_CLIP", "2.0"))
+    except ValueError:
+        clahe_clip_limit = 2.0
+
+    try:
+        llama_port = int(_get_val("LLAMA_PORT", "8080"))
+    except ValueError:
+        llama_port = 8080
+
+    try:
+        llama_ngl = int(_get_val("LLAMA_NGL", "0"))
+    except ValueError:
+        llama_ngl = 0
 
     return Settings(
         llama_base_url=llama_base_url,
@@ -131,6 +174,10 @@ def load_settings(repo_root: Path | None = None) -> Settings:
         receipts_dir=receipts_dir,
         ground_truth_path=ground_truth_path,
         results_dir=results_dir,
+        max_side=max_side,
+        clahe_clip_limit=clahe_clip_limit,
+        llama_port=llama_port,
+        llama_ngl=llama_ngl,
     )
 
 

@@ -64,17 +64,18 @@ _MERCHANT_MARKER = re.compile(r"\b(?:nif|nipc|contribuinte|emitente|comerciante|
 _ENTITY_STOPWORDS = re.compile(
     r"\b(?:fatura|factura|recibo|talao|contribuinte|nif|nipc|atcud|cliente|total|iva|"
     r"troco|documento|original|duplicado|processado|certificado|software|operador|"
-    r"data|hora|telefone|tel|www|http|email|desconto)\b"
+    r"data|hora|telefone|tel|www|http|email|desconto|bem|vindo|copia|segunda|via)\b"
 )
 
 #: A total line: an explicit total label followed closely by the amount, which must close the
-#: line (optionally followed by a currency marker).
+#: line (optionally accompanied by currency markers or qualifiers).
 #:
 #: The anchor on the end of the line is what keeps product lines such as ``TOTAL CARE 4,50``
 #: and breakdown lines such as ``TOTAL IVA 3,02`` out of the result. ``SUBTOTAL`` never
 #: matches because there is no word boundary between ``SUB`` and ``TOTAL``.
 _TOTAL_LINE = re.compile(
-    r"\b(?:VALOR\s+)?TOTAL(?:\s+A\s+PAGAR)?\s*[\s:.]*"
+    r"\b(?:(?:VALOR\s+)?TOTAL(?:\s+(?:A\s+PAGAR|LIQUIDO|GERAL|FINAL))?|(?:VALOR\s+)?A\s+PAGAR)\s*[\s:.]*"
+    r"(?:EUR|EUROS|€)?\s*"
     r"(?P<amount>\d{1,3}(?:[ \u00a0\u202f.]\d{3})*[.,]\d{2}|\d+[.,]\d{2})"
     r"\s*(?:EUR|EUROS|€)?\s*$",
     re.IGNORECASE,

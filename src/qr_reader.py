@@ -89,29 +89,37 @@ def parse_at_qr_payload(payload: str) -> dict[str, str] | None:
     return data
 
 
-def _decode_single_image(img: np.ndarray, qr_detector: Any) -> str | None:
-    """Attempt decoding using pyzbar first, falling back to cv2.QRCodeDetector."""
+def _decode_all_codes(img: np.ndarray, qr_detector: Any) -> list[str]:
+    """Attempt decoding all candidate codes using pyzbar and cv2.QRCodeDetector."""
+    results: list[str] = []
     # Attempt with pyzbar if installed
     with contextlib.suppress(Exception):
         import pyzbar.pyzbar as pyzbar  # type: ignore[import-not-found,import-untyped]
 
-        results = pyzbar.decode(img)
-        for item in results:
+        for item in pyzbar.decode(img):
             text = item.data.decode("utf-8", errors="ignore").strip()
-            if text:
-                return text
+            if text and text not in results:
+                results.append(text)
 
     # Attempt with OpenCV QRCodeDetector
     with contextlib.suppress(Exception):
-        decoded_text, _, _ = qr_detector.detectAndDecode(img)
-        text_clean = str(decoded_text).strip()
-        if text_clean:
-            return text_clean
+        if hasattr(qr_detector, "detectAndDecodeMulti"):
+            retval, decoded_info, _, _ = qr_detector.detectAndDecodeMulti(img)
+            if retval and decoded_info is not None:
+                for item in decoded_info:
+                    clean = str(item).strip()
+                    if clean and clean not in results:
+                        results.append(clean)
+        else:
+            decoded_text, _, _ = qr_detector.detectAndDecode(img)
+            text_clean = str(decoded_text).strip()
+            if text_clean and text_clean not in results:
+                results.append(text_clean)
 
-    return None
+    return results
 
 
-def _detect_and_heal_qr_regions(gray: np.ndarray, qr_detector: Any) -> str | None:
+def _detect_and_heal_qr_regions(gray: np.ndarray, qr_detector: Any) -> dict[str, str] | None:
     """Locate candidate square QR blobs and heal thermal printer dead-pin streaks.
 
     Thermal printers frequently have burnt or dusty heating pins that slice thin vertical
@@ -119,6 +127,7 @@ def _detect_and_heal_qr_regions(gray: np.ndarray, qr_detector: Any) -> str | Non
     crops them, and applies horizontal morphological erosion to bridge the dead-pin gaps.
     """
     height, width = gray.shape[:2]
+    total_area = height * width
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 25, 10)
     kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
@@ -131,7 +140,7 @@ def _detect_and_heal_qr_regions(gray: np.ndarray, qr_detector: Any) -> str | Non
         x, y, bw, bh = cv2.boundingRect(c)
         aspect = bw / float(bh)
         area = bw * bh
-        if 0.70 <= aspect <= 1.40 and 10000 <= area <= 700000:
+        if 0.65 <= aspect <= 1.45 and (0.005 * total_area) <= area <= (0.75 * total_area):
             candidates.append((x, y, bw, bh))
 
     for x, y, bw, bh in candidates:
@@ -143,18 +152,20 @@ def _detect_and_heal_qr_regions(gray: np.ndarray, qr_detector: Any) -> str | Non
         crop_gray = gray[y1:y2, x1:x2]
 
         # 1. Direct decode on crop
-        decoded = _decode_single_image(crop_gray, qr_detector)
-        if decoded:
-            return decoded
+        for text in _decode_all_codes(crop_gray, qr_detector):
+            parsed = parse_at_qr_payload(text)
+            if parsed is not None:
+                return parsed
 
         # 2. Local Otsu threshold + horizontal streak healing
         _, bin_crop = cv2.threshold(crop_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         for kw in (1, 2, 3, 4):
             heal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kw, 1))
             healed = cv2.erode(bin_crop, heal_kernel)
-            decoded = _decode_single_image(healed, qr_detector)
-            if decoded:
-                return decoded
+            for text in _decode_all_codes(healed, qr_detector):
+                parsed = parse_at_qr_payload(text)
+                if parsed is not None:
+                    return parsed
 
     return None
 
@@ -187,39 +198,35 @@ def read(
     qr_detector = detector or cv2.QRCodeDetector()
 
     # Stage 1: Try direct detection on input image
-    decoded = _decode_single_image(image, qr_detector)
-    if decoded:
-        parsed = parse_at_qr_payload(decoded)
-        if parsed:
+    for text in _decode_all_codes(image, qr_detector):
+        parsed = parse_at_qr_payload(text)
+        if parsed is not None:
             return parsed
 
-    # Stage 2: Try grayscale
+    # Stage 2: Try grayscale if input was 3-channel
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
-    decoded = _decode_single_image(gray, qr_detector)
-    if decoded:
-        parsed = parse_at_qr_payload(decoded)
-        if parsed:
-            return parsed
+    if image.ndim == 3:
+        for text in _decode_all_codes(gray, qr_detector):
+            parsed = parse_at_qr_payload(text)
+            if parsed is not None:
+                return parsed
 
     # Stage 3: Try adaptive Gaussian thresholding (recovers faint thermal print)
     thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 5)
-    decoded = _decode_single_image(thresh, qr_detector)
-    if decoded:
-        parsed = parse_at_qr_payload(decoded)
-        if parsed:
+    for text in _decode_all_codes(thresh, qr_detector):
+        parsed = parse_at_qr_payload(text)
+        if parsed is not None:
             return parsed
 
     # Stage 4: Try localized candidate blob search with thermal streak healing
-    decoded = _detect_and_heal_qr_regions(gray, qr_detector)
-    if decoded:
-        parsed = parse_at_qr_payload(decoded)
-        if parsed:
-            return parsed
+    blob_result = _detect_and_heal_qr_regions(gray, qr_detector)
+    if blob_result is not None:
+        return blob_result
 
     # Stage 5: Try unscaled raw image if available (preserves tiny pixel modules)
     if raw_image is not None and raw_image is not image:
         raw_result = read(raw_image, detector=detector)
-        if raw_result:
+        if raw_result is not None:
             return raw_result
 
     return None

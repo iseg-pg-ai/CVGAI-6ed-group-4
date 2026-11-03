@@ -17,6 +17,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from src.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -102,6 +104,7 @@ class OpenAICompatibleClient:
         system: str,
         user: str,
         schema: dict[str, Any] | None = None,
+        image: np.ndarray | None = None,
     ) -> str:
         """Generate completion using OpenAI chat completions API."""
         messages = [
@@ -201,6 +204,7 @@ class GeminiClient:
         system: str,
         user: str,
         schema: dict[str, Any] | None = None,
+        image: np.ndarray | None = None,
     ) -> str:
         """Generate completion using Google GenAI SDK."""
         from google.genai import types
@@ -267,8 +271,13 @@ class FailoverLLMClient:
         system: str,
         user: str,
         schema: dict[str, Any] | None = None,
+        image: np.ndarray | None = None,
     ) -> str:
         """Execute request with primary provider or fallback to local on any failure."""
+        kwargs: dict[str, Any] = {"schema": schema}
+        if image is not None:
+            kwargs["image"] = image
+
         if not self.has_api_key or self.primary is None:
             logger.warning(
                 "No API key configured for %s; falling back to %s.",
@@ -276,7 +285,7 @@ class FailoverLLMClient:
                 self.fallback.provider,
             )
             try:
-                result = self.fallback.complete(system, user, schema=schema)
+                result = self.fallback.complete(system, user, **kwargs)
                 self.last_effective_provider = self.fallback.last_effective_provider
                 return result
             except LLMConnectionError as exc:
@@ -285,7 +294,7 @@ class FailoverLLMClient:
                 ) from exc
 
         try:
-            result = self.primary.complete(system, user, schema=schema)
+            result = self.primary.complete(system, user, **kwargs)
             self.last_effective_provider = self.primary.last_effective_provider
             return result
         except Exception as exc:
@@ -296,7 +305,7 @@ class FailoverLLMClient:
                 self.fallback.provider,
             )
             try:
-                result = self.fallback.complete(system, user, schema=schema)
+                result = self.fallback.complete(system, user, **kwargs)
                 self.last_effective_provider = self.fallback.last_effective_provider
                 return result
             except LLMConnectionError as fb_exc:
@@ -346,7 +355,7 @@ def build_client(
                     base_url="https://api.openai.com/v1",
                     api_key=cfg.openai_api_key or "sk-dummy-unconfigured",
                     model=cfg.openai_model,
-                    timeout_s=cfg.llama_timeout_s,
+                    timeout_s=min(25.0, cfg.llama_timeout_s),
                 )
                 if has_key
                 else None

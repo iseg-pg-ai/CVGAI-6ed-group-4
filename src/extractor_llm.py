@@ -34,7 +34,7 @@ import time
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from src.normalizers import (
     limpar_texto,
@@ -51,6 +51,7 @@ from src.types import (
     IMAGE_EXTENSIONS,
     Extraction,
     FieldValue,
+    MethodName,
     OcrDocument,
     OcrLine,
 )
@@ -356,12 +357,35 @@ def _locate_line(field: str, value: str, lines: Sequence[OcrLine]) -> int | None
         return None
 
     if field == "total":
-        # Compare with whitespace removed so that "1 234,56" matches the canonical "1234.56",
-        # and accept either decimal separator.
+        target_dec = parse_moeda(value)
+        total_keywords = ("total", "pagar", "liquido", "líquido", "final", "soma")
+
+        # Pass 1: lines with total keywords in reverse order where parse_moeda matches
+        for line in reversed(lines):
+            line_dec = parse_moeda(line.text)
+            if target_dec is not None and line_dec == target_dec:
+                line_lower = line.text.lower()
+                if any(kw in line_lower for kw in total_keywords):
+                    return line.id
+
+        # Pass 2: lines with total keywords where space-collapsed candidate matches target
         target = "".join(value.split())
-        for line in lines:
-            candidate = "".join(line.text.split())
-            if target in candidate or target.replace(".", ",") in candidate:
+        target_comma = target.replace(".", ",")
+        for line in reversed(lines):
+            line_no_spaces = "".join(line.text.split())
+            line_lower = line.text.lower()
+            if any(kw in line_lower for kw in total_keywords) and (
+                target in line_no_spaces or target_comma in line_no_spaces
+            ):
+                return line.id
+
+        # Pass 3: any line matching parse_moeda or target in reverse order
+        for line in reversed(lines):
+            line_dec = parse_moeda(line.text)
+            if target_dec is not None and line_dec == target_dec:
+                return line.id
+            line_no_spaces = "".join(line.text.split())
+            if target in line_no_spaces or target_comma in line_no_spaces:
                 return line.id
         return None
 
@@ -419,7 +443,7 @@ def _absent_extraction(method: str) -> Extraction:
         nif_cliente=absent,
         data=absent,
         total=absent,
-        method=method,
+        method=cast(MethodName, method),
         elapsed_ms=0.0,
     )
 
@@ -465,7 +489,7 @@ def extract(
         nif_cliente=_field_from_payload(payload, "nif_cliente", doc.lines),
         data=_field_from_payload(payload, "data", doc.lines),
         total=_field_from_payload(payload, "total", doc.lines),
-        method=client.last_effective_provider,
+        method=cast(MethodName, client.last_effective_provider),
         elapsed_ms=(time.perf_counter() - started) * 1000.0,
         raw_response=raw,
     )

@@ -16,7 +16,14 @@ from pathlib import Path
 
 from src.normalizers import validar_nif
 from src.settings import Settings, get_settings
-from src.types import FIELD_NAMES, GROUPS, GroundTruthRecord, GroupName
+from src.types import (
+    CONSUMIDOR_FINAL_NIF,
+    EARLIEST_PLAUSIBLE_DATE,
+    FIELD_NAMES,
+    GROUPS,
+    GroundTruthRecord,
+    GroupName,
+)
 
 _CSV_COLUMNS = (
     "filename",
@@ -116,8 +123,14 @@ def _validate_csv(path: Path, receipts_dir: Path) -> tuple[list[GroundTruthRecor
             ("nif_comerciante", merchant_nif),
             ("nif_cliente", customer_nif),
         ):
-            if nif and (re.fullmatch(r"[0-9]{9}", nif) is None or not validar_nif(nif)):
-                row_errors.append(f"{field_name} inválido: {nif!r}")
+            if nif:
+                if nif == CONSUMIDOR_FINAL_NIF:
+                    row_errors.append(
+                        f"{field_name} não deve usar o sentinela de consumidor final {CONSUMIDOR_FINAL_NIF!r}; "
+                        f"deixe a célula em branco se ausente"
+                    )
+                elif re.fullmatch(r"[0-9]{9}", nif) is None or not validar_nif(nif):
+                    row_errors.append(f"{field_name} inválido: {nif!r}")
 
         parsed_date: date | None = None
         if raw_date:
@@ -131,6 +144,8 @@ def _validate_csv(path: Path, receipts_dir: Path) -> tuple[list[GroundTruthRecor
                 else:
                     if parsed_date > today:
                         row_errors.append(f"data no futuro: {raw_date!r}")
+                    elif parsed_date < EARLIEST_PLAUSIBLE_DATE:
+                        row_errors.append(f"data anterior a {EARLIEST_PLAUSIBLE_DATE.isoformat()}: {raw_date!r}")
 
         parsed_total: Decimal | None = None
         if raw_total:
@@ -162,10 +177,10 @@ def _validate_csv(path: Path, receipts_dir: Path) -> tuple[list[GroundTruthRecor
     return records, errors
 
 
-def carregar_ground_truth(path: Path) -> list[GroundTruthRecord]:
+def carregar_ground_truth(path: Path, receipts_dir: Path | None = None) -> list[GroundTruthRecord]:
     """Read and validate the CSV. Raise GoldenSetError with every failure found."""
-
-    records, errors = _validate_csv(path, get_settings().receipts_dir)
+    effective_receipts_dir = receipts_dir if receipts_dir is not None else get_settings().receipts_dir
+    records, errors = _validate_csv(path, effective_receipts_dir)
     if errors:
         raise GoldenSetError(tuple(errors))
     return records

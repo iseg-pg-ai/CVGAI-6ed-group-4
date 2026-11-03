@@ -57,6 +57,7 @@ class PreprocessOptions:
     clahe_tile_grid_size: tuple[int, int] = (8, 8)
     auto_orient_osd: bool = True
     auto_deskew: bool = False
+    tesseract_cmd: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -500,7 +501,7 @@ def detect_orientation_osd(
     """
     cmd = str(tesseract_cmd) if tesseract_cmd else shutil.which("tesseract")
     if not cmd and os.name == "nt":
-        default_win = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+        default_win = Path("C:/Program Files/Tesseract-OCR/tesseract.exe")
         if default_win.is_file():
             cmd = str(default_win)
 
@@ -577,11 +578,10 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
         if options.auto_crop:
             cropped, did_crop = _crop_receipt_with_status(raw_resized)
             if did_crop:
-                oriented = cropped.copy()
-                effective_rotation = 90 if raw_resized.shape[1] > raw_resized.shape[0] else 0
+                oriented_full, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
                 if options.auto_deskew:
                     cropped, _ = deskew_image(cropped)
-                steps["rodada"] = oriented.copy()
+                steps["rodada"] = oriented_full.copy()
                 steps["recortada"] = cropped.copy()
             else:
                 oriented, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
@@ -617,7 +617,7 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
             steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_180)
             effective_rotation = (effective_rotation + 180) % 360
         else:
-            osd_rotate = detect_orientation_osd(filtered_bgr, min_confidence=3.0)
+            osd_rotate = detect_orientation_osd(filtered_bgr, min_confidence=3.0, tesseract_cmd=options.tesseract_cmd)
             if osd_rotate == 180:
                 filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_180)
                 steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_180)
