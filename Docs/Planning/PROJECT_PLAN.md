@@ -1,4 +1,4 @@
-# direito de Projeto: Leitor Inteligente de Documentos Visuais
+# Plano de Projeto: Leitor Inteligente de Documentos Visuais
 Pós-Graduação em Inteligência Artificial — Computer Vision & IA Generativa
 Ano Letivo 2026/2027 — Proposta 03
 
@@ -13,8 +13,8 @@ O sistema responde diretamente a todos os requisitos do enunciado:
 2. **Extração Estruturada de 5 Campos**: Nome da Entidade/Comerciante, NIF do Comerciante, NIF do Cliente (ou Consumidor Final), Data e Total pago.
 3. **Perguntas e Respostas Verificáveis**: Capacidade de responder a questões em linguagem natural, distinguindo claramente dados presentes de dados ausentes, acompanhados da região da imagem (bounding box) que sustenta a resposta.
 4. **Interface Gráfica Interativa (Gradio)**: Demonstração visual do pipeline passo a passo e exploração dos resultados em tempo real.
-5. **Arquitetura Híbrida de Inteligência (Local vs. Cloud)**: Suporte primário a inferência local com `llama.cpp` (privacidade de dados fiscais e independência de rede) e suporte secundário a modelos na cloud (Google Gemini e OpenAI), replicando o código lecionado nas aulas.
-6. **Avaliação Quantitativa e Robustez Física**: Medição do rácio de acerto nos 5 campos sobre um conjunto de 15 a 20 documentos reais — incluindo documentos propositadamente amarrotados e desdobrados — com mapeamento detalhado dos erros mais frequentes.
+5. **Arquitetura Híbrida de Inteligência (Local vs. Cloud)**: Suporte primário a inferência local com `llama.cpp` (privacidade de dados fiscais e independência de rede) via protocolo compatível com OpenAI, e suporte secundário a modelos na cloud (Google Gemini via `google-genai`), replicando o código lecionado nas aulas.
+6. **Avaliação Quantitativa e Robustez Física**: Medição do rácio de acerto nos 5 campos sobre um conjunto de 27 documentos reais (16 direitos e 11 amarrotados e desdobrados, superando a meta inicial de 15 a 20) — com mapeamento detalhado dos erros mais frequentes.
 
 ---
 
@@ -58,19 +58,18 @@ O sistema estrutura a informação nos seguintes atributos normalizados:
 
 ### Fase 4: Assistente de Perguntas e Respostas Verificável (Local vs. Cloud)
 O módulo de inteligência é implementado sobre uma interface unificada (`llm_client.py`), permitindo alternar de fornecedor com um único clique na aplicação:
-- **Fornecedor Local (Padrão de Privacidade)**: `llama.cpp` (`llama-server`) em `http://127.0.0.1:8080/v1` com modelo leve (ex.: `Qwen2.5-3B-Instruct`), 100% offline e em conformidade com a proteção de dados.
-- **Fornecedores Cloud (Demonstração da Matéria)**:
+- **Fornecedor Local (Padrão de Privacidade)**: `llama.cpp` (`llama-server`) em `http://127.0.0.1:8080/v1` com modelo leve (ex.: `Qwen2.5-Coder-3B-Instruct`), 100% offline e em conformidade com a proteção de dados.
+- **Fornecedor Cloud (Demonstração da Matéria)**:
   - **Google Gemini** via `google-genai` (ex.: `gemini-2.5-flash`), replicando `class-code/genAI/gemini_image.py`.
-  - **OpenAI** via `openai` (ex.: `gpt-4o-mini`), replicando `class-code/genAI/openai_image.py`.
-  - As chaves são lidas de um ficheiro `.env` (nunca versionado), à semelhança do código das aulas.
-- **Ponto de Arquitetura Relevante**: Como o `llama-server` expõe uma API compatível com a especificação OpenAI (`/v1/chat/completions`), o mesmo cliente Python serve o modelo local e os modelos cloud, alterando apenas `base_url`, `api_key` e o nome do modelo.
+  - A chave é lida de um ficheiro `.env` (`GEMINI_API_KEY`, nunca versionado), à semelhança do código das aulas.
+- **Ponto de Arquitetura Relevante**: O `llama-server` expõe uma API compatível com a especificação OpenAI (`/v1/chat/completions`), pelo que o SDK `openai` é reutilizado como cliente HTTP estritamente local para a inferência em `llama.cpp`.
 - **Funcionamento**: O modelo selecionado recebe o texto indexado por linha (`[01] O DAS BIFANAS`, `[02] NIF: 518396894`, ...). Em talões amarrotados, o modelo deduz semanticamente erros pontuais de OCR (ex.: `TOT4L` -> `total`).
 - Ao responder a uma pergunta do utilizador, o modelo devolve:
   - Resposta em linguagem natural.
   - Classificação de presença: `ENCONTRADO` ou `AUSENTE NO DOCUMENTO`.
   - Índice da linha de suporte.
 - O OpenCV utiliza esse índice para desenhar um destaque a cores sobre a imagem original e recortar a região comprovativa para apresentação na interface.
-- **Failover**: Se a rede ou a quota da API falharem durante a demonstração, a aplicação recua automaticamente para o modelo local, garantindo que a apresentação nunca quebra.
+- **Failover**: Se a rede ou a quota da API cloud falharem durante a demonstração, a aplicação recua automaticamente para o modelo local, garantindo que a apresentação nunca quebra.
 
 ---
 
@@ -99,7 +98,7 @@ Com o texto e as caixas delimitadoras extraídos pelo OCR vencedor, comparamos t
    - Ponto de discussão no relatório: avaliação do compromisso entre carga computacional/VRAM e capacidade de leitura de tabelas complexas face à abordagem híbrida.
 
 ### Nível 3: Duelo de Paradigmas (LLM Local vs. LLM Cloud)
-- **Objetivo**: Comparar o modelo local em `llama.cpp` (`Qwen2.5-3B`) com os modelos comerciais da cloud (`Gemini 2.5 Flash` e `GPT-4o-mini`).
+- **Objetivo**: Comparar o modelo local em `llama.cpp` (`Qwen2.5-Coder-3B`) com o modelo comercial da cloud (`Google Gemini 2.5 Flash`).
 - **Dimensões de Comparação**:
   - **Privacidade e RGPD**: Tratamento integralmente local, sem fuga de dados fiscais sensíveis, vs. transmissão de imagens e texto para servidores externos.
   - **Latência de Resposta**: Tempo de cálculo local em CPU/GPU vs. tempo de rede somado à latência da API remota.
@@ -121,7 +120,6 @@ A aplicação será organizada em três separadores claros para facilitar quer a
     - `Regras Python (Regex Baseline)`
     - `LLM Local via llama.cpp (Qwen2.5 3B) [Padrão Privado]`
     - `LLM Cloud - Google Gemini (gemini-2.5-flash)`
-    - `LLM Cloud - OpenAI (gpt-4o-mini)`
   - Botão de execução do processamento.
 - **Painel Central (Evidência Visual)**:
   - Imagem do documento anotada com retângulos delimitadores coloridos sobre o texto identificado.
@@ -139,11 +137,11 @@ A aplicação será organizada em três separadores claros para facilitar quer a
   4. Mapa de Caixas Delimitadoras do OCR
 - Permite capturar ecrãs diretos para o relatório e explicar claramente ao professor o contributo do OpenCV em documentos desafiadores.
 
-### Separador 3: Validação e Benchmark (15 a 20 Documentos)
+### Separador 3: Validação e Benchmark (27 Documentos)
 - Apresentação de tabela e gráficos de precisão:
   - Percentagem de sucesso na extração por campo (`Entidade`, `NIF Comerciante`, `NIF Cliente`, `Data`, `Total`).
   - Desagregação de desempenho: **Grupo A (Talões direitos)** vs. **Grupo B (Talões Amarrotados/Desdobrados)**.
-  - Comparação de tempo médio de execução e de precisão entre **Local (`llama.cpp`)** e **Cloud (`Gemini` / `OpenAI`)**.
+  - Comparação de tempo médio de execução e de precisão entre **Local (`llama.cpp`)** e **Cloud (`Gemini`)**.
   - Matriz de erros frequentes observados no dataset de teste (ex.: corte de caracteres em vincos, confusão entre NIF emitente/cliente pelo Regex, recuperação bem-sucedida pelo LLM).
 
 ---
@@ -152,18 +150,18 @@ A aplicação será organizada em três separadores claros para facilitar quer a
 
 ### Responsabilidades da Parte Técnica (Desenvolvimento do Código)
 - Implementação dos módulos de pré-processamento OpenCV (`preprocessing.py`) com filtros de contraste e atenuação de sombras de vincos.
-- Integração dos motores de OCR e do cliente unificado de linguagem (`llm_client.py`), suportando `llama.cpp` local e APIs cloud (Gemini e OpenAI) com chaves em ficheiro `.env`.
+- Integração dos motores de OCR e do cliente unificado de linguagem (`llm_client.py`), suportando `llama.cpp` local e API cloud (Gemini) com chave em ficheiro `.env`.
 - Construção da interface gráfica em Gradio (`app.py`).
 - Criação do script de avaliação automatizada sobre a pasta de documentos (`evaluate.py`).
 
 ### Responsabilidades dos Colegas (Dados, Validação, Relatório e Apresentação)
 1. **Recolha e Catalogação do Dataset (Dias 1 a 3)**:
-   - Obter 7 a 11 fotos adicionais de talões/faturas de lojas variadas, combinando com as 9 já recolhidas para totalizar 16 a 20 imagens.
-   - **Composição recomendada**:
-     - ~10 a 12 talões normais/direitos.
-     - ~5 a 8 talões propositadamente amarrotados e desdobrados (para testar os limites do sistema e enriquecer a secção de análise de erros).
+   - Obter fotos de talões/faturas de lojas variadas, totalizando 27 imagens em `data/receipts/`.
+   - **Composição obtida**:
+     - 16 talões normais/direitos.
+     - 11 talões propositadamente amarrotados e desdobrados (para testar os limites do sistema e enriquecer a secção de análise de erros).
      - Pelo menos 2 a 3 talões com dados ausentes (ex.: sem NIF de cliente ou sem contacto).
-   - Preencher o ficheiro de validação (`ground_truth.csv`) com os valores reais corretos de cada talão nas colunas: `ficheiro`, `grupo` (direito/amarrotado), `entidade`, `nif_comerciante`, `nif_cliente`, `data`, `total`.
+   - Preencher o ficheiro de validação (`ground_truth.csv`) com os valores reais corretos de cada talão nas colunas: `filename`, `grupo` (direito/amarrotado), `entidade`, `nif_comerciante`, `nif_cliente`, `data`, `total`.
 
 2. **Estruturação do Relatório Escrito (Dias 4 a 10)**:
    - Secção 1: Introdução, problema de negócio e contextualização legal do documento fiscal português.
@@ -182,7 +180,7 @@ A aplicação será organizada em três separadores claros para facilitar quer a
 ## 7. Estratégia de Hardware e Execução
 
 - **Ambiente de Desenvolvimento Principal**: O projeto corre integralmente em computador portátil com CPU padrão e placa gráfica ligeira, utilizando o pipeline híbrido com modelos de 3B parâmetros (ex.: `Qwen2.5-3B-Instruct`), com tempos de resposta de 3 a 5 segundos por documento.
-- **Flexibilidade com a Cloud**: A inclusão opcional de Google Gemini e OpenAI permite testar e demonstrar modelos de fronteira sem sobrecarregar o hardware local, bastando configurar as chaves no ficheiro `.env`.
+- **Flexibilidade com a Cloud**: A inclusão opcional de Google Gemini permite testar e demonstrar modelos de fronteira sem sobrecarregar o hardware local, bastando configurar a chave no ficheiro `.env`.
 - **Ambiente de Aceleração Opcional**: Modelos de visão mais pesados (7B a 14B) podem ser executados numa máquina com maior capacidade gráfica, servindo a API pela rede local sem alterar o código da interface.
 - **Segurança da Apresentação**: Toda a demonstração possui contingência 100% offline via `llama.cpp`, garantindo que eventuais quebras de rede ou quotas de API durante a aula não afetam a apresentação.
 
@@ -193,7 +191,7 @@ A aplicação será organizada em três separadores claros para facilitar quer a
 | Fase | Duração Estimada | Entregável Principal |
 | :--- | :--- | :--- |
 | **Marco 1: Reunião e Alinhamento** | Dia 1 | Aprovação da arquitetura e início da recolha de dados |
-| **Marco 2: Dataset e Ground Truth** | Dias 2 a 4 | Pasta `data/receipts/` com 16 a 20 fotos (planas e amarrotadas) e `ground_truth.csv` |
+| **Marco 2: Dataset e Ground Truth** | Dias 2 a 4 | Pasta `data/receipts/` com 27 fotos (planas e amarrotadas) e `ground_truth.csv` |
 | **Marco 3: Código Funcional e Gradio** | Dias 5 a 8 | Interface operacional com pré-processamento, OCR, extração e Q&A |
 | **Marco 4: Avaliação e Benchmark** | Dias 9 a 10 | Métricas, gráficos e tabelas de análise de erros direitos vs. amarrotados e Local vs. Cloud |
 | **Marco 5: Relatório e Slides** | Dias 11 a 13 | Documento final e apresentação PowerPoint finalizados |

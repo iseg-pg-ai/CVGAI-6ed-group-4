@@ -12,11 +12,11 @@ prazo real de submissão antes de partilhar.
 
 Equipa: Vitor (pipeline), José (camada de dados e métricas), Raquel (corpus e narrativa).
 
-**Estado em 2026-11-02.** WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09,
+**Estado em 2026-11-03.** WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09,
 WP-10, WP-11, WP-12, WP-13, WP-14 e WP-16 estão fechados e integrados em `master`. O `src/settings.py`
-foi acrescentado fora da numeração para centralizar o acesso ao ambiente e aos caminhos. O detalhe
-do que foi entregue, e do que diverge do plano original, está na secção 5.1. As restantes secções descrevem
-o alvo e continuam válidas para os pacotes por executar (WP-15, WP-17, WP-18).
+foi acrescentado fora da numeração para centralizar o acesso ao ambiente e aos caminhos, e `scripts/check_golden_set.sh`
+valida o dataset de forma automática. O detalhe do que foi entregue, e do que diverge do plano original, está na secção 5.1.
+As restantes secções descrevem o alvo e continuam válidas para os pacotes por executar (WP-15, WP-17, WP-18).
 
 ---
 
@@ -48,7 +48,7 @@ o alvo e continuam válidas para os pacotes por executar (WP-15, WP-17, WP-18).
 | Verificação de tipos | `pyright` (modo standard) | Convenção herdada do NLPG |
 | **Testes** | **`pytest` + `pytest-cov`** | O NLPG não tinha testes. Aqui são o mecanismo que permite ao José trabalhar de forma autónoma e que permite ao professor verificar o projeto num único comando. |
 | OCR | EasyOCR (principal) + Tesseract (comparativo) | Ver `PROJECT_PLAN.md`, secção 4 |
-| LLM/VLM | `llama.cpp` (`llama-server`) local + Gemini/OpenAI na cloud | Idem |
+| LLM/VLM | `llama.cpp` (`llama-server`) local + Google Gemini na cloud | Idem |
 | Interface | Gradio | Idem |
 | QR | `opencv-python-headless` (`cv2.QRCodeDetector`) com recurso alternativo a `pyzbar` | Sem dependência de serviços externos. Ver nota em 1.1: `contrib` não é necessário e conflitua com o EasyOCR. |
 
@@ -206,11 +206,11 @@ CVGAI-6ed-group-4/
 │   │   └── implementation_plan.md
 │   └── Presentation/              # mini-apresentação da Raquel (pendente)
 ├── data/
-│   ├── receipts/                  # 9 imagens presentes; convenção de nomes pendente
-│   │   ├── 01_direito_pingo_doce.jpg
-│   │   ├── 02_amarrotado_pingo_doce_par.jpg
+│   ├── receipts/                  # 27 imagens presentes (01_... a 27_...)
+│   │   ├── 01_direito_controlauto.jpg
+│   │   ├── 02_amachucado_tiendaanimal.jpg
 │   │   └── ...
-│   └── ground_truth.csv           # verdade de referência; só cabeçalho por agora
+│   └── ground_truth.csv           # 27 registos preenchidos (em revisão semântica de entidade)
 ├── models/                        # .gguf (git-ignored)
 ├── results/                       # saídas do benchmark (versionadas, pequenas)
 ├── src/
@@ -251,7 +251,7 @@ CVGAI-6ed-group-4/
 │   ├── test_dataset_stats.py      [José]   feito
 │   └── test_app.py                [Vitor]  feito
 ├── scripts/                       # atalhos de arranque
-│   ├── check_golden_set.sh        # atalho de validação         [Vitor]  pendente
+│   ├── check_golden_set.sh        # atalho de validação         [Vitor]  feito
 │   └── run_llama_server.sh        # arranque do servidor        [Vitor]  feito
 ├── .env.example
 ├── .gitignore
@@ -261,7 +261,7 @@ CVGAI-6ed-group-4/
 ```
 
 `feito` significa integrado em `master` com testes a passar; `pendente`, não iniciado. A árvore
-está atualizada a 2026-11-02. O `run_llama_server` existe também em `.ps1` e `.bat`, porque a
+está atualizada a 2026-11-03. O `run_llama_server` existe também em `.ps1` e `.bat`, porque a
 equipa trabalha em três sistemas.
 
 ### `.gitignore` (estado atual)
@@ -308,12 +308,16 @@ documenta cada campo; esta secção resume o que ele contém.
 
 Os tipos são todos `@dataclass(frozen=True, slots=True)` (`OcrEngine` é um `Protocol`), os
 identificadores de linha começam em 1 e `status` é
-`Literal["ENCONTRADO", "AUSENTE", "INVALIDO"]`. A implementação acrescentou três membros
-derivados, sem alterar nenhum campo do rascunho original:
+`Literal["ENCONTRADO", "AUSENTE", "INVALIDO"]`. O módulo define também e exporta as constantes
+partilhadas do projeto (`FIELD_NAMES`, `GROUPS`, `OCR_ENGINES`, `LLM_PROVIDERS`, `EXTRACTION_METHODS`,
+`CONSUMIDOR_FINAL_NIF`, `EARLIEST_PLAUSIBLE_DATE`, `IMAGE_EXTENSIONS`), impõe tipos `Literal`
+estritos (`OcrEngineName`, `MethodName`, `GroupName`, `FieldName`, `ProviderName`) nos atributos das
+dataclasses e valida a ordenação geométrica não-negativa (`x2 >= x1`, `y2 >= y1`) em `BBox.__post_init__`.
+A implementação acrescentou três membros derivados, sem alterar nenhum campo do rascunho original:
 
 | Tipo | Acrescento |
 | :--- | :--- |
-| `BBox` | propriedades `width` e `height` |
+| `BBox` | propriedades `width` e `height`, além da validação em `__post_init__` |
 | `OcrDocument` | `as_prompt_text()`, que numera as linhas como `[01] ...` para o prompt do LLM |
 | `Extraction` | propriedade `fields`, que devolve os cinco campos por nome de coluna |
 
@@ -375,79 +379,71 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` | em curso |
 | WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` | pendente |
 
-O caminho crítico é WP-00 → WP-01 → WP-04 → WP-05 → WP-09 → WP-10 → WP-12 → WP-16. WP-09 não
-figurava na versão original desta linha, mas o WP-10 depende dele desde a primeira tabela: o
-extrator por LLM reutiliza o contrato e os casos de teste do baseline. WP-12 entra agora porque
-o WP-16 depende de WP-04 a WP-12 e é o único pacote em falta nesse intervalo. Com WP-09 e WP-10
-fechados, o próximo trabalho do caminho crítico é o WP-12.
+O caminho crítico inicial (WP-00 → WP-01 → WP-04 → WP-05 → WP-09 → WP-10 → WP-12 → WP-16)
+encontra-se integralmente fechado e integrado em `master`. Os pacotes restantes são o runner
+do benchmark oficial (WP-15, `src/evaluate.py`), o alinhamento semântico dos nomes de entidades no
+golden set (WP-17, `data/ground_truth.csv`) e a mini-apresentação (WP-18).
 
 ### 5.1 Estado das entregas e desvios face ao plano
 
-Fechados e integrados em `master` a 2026-11-02: WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06,
-WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14 e WP-16. A suite tem 263 testes offline que correm
+Fechados e integrados em `master` a 2026-11-03: WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06,
+WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14 e WP-16. A suite tem 279 testes offline que correm
 em cerca de 4,5 s, mais um teste `slow` com o EasyOCR real, deselecionado por omissão.
 
 Desvios que valem registo, porque afetam os pacotes seguintes:
 
 - **`src/settings.py` (fora da numeração).** Centraliza `os.getenv`, o carregamento do `.env` e
   a resolução de todos os caminhos, para cumprir a regra "nenhuma leitura de ambiente fora de
-  `settings.py`". `load_settings(repo_root=...)` constrói um `Settings` isolado para um
-  diretório temporário, que é o que torna os testes de CLI possíveis sem escrever no
-  repositório; `get_settings()` é `lru_cache`ado e não deve ser usado em testes.
+  `settings.py`". `load_settings(repo_root=...)` usa `dotenv_values` para construir um `Settings`
+  isolado sem mutar `os.environ`; `get_settings()` é `lru_cache`ado e não deve ser usado em testes.
+  Expõe configurações para `max_side`, `clahe_clip_limit`, `llama_port` e `llama_ngl`.
 - **Convenção de CLI.** Todos os módulos correm como `python -m src.<modulo>` e expõem
   `main(argv=None, settings_override=None)`. Os imports pesados (Pillow, EasyOCR, `settings`)
   ficam adiados para `main` ou para o construtor do motor. Isso mantém o import barato e é o
-  que permite correr a suite em 0,3 s.
+  que permite correr a suite em milissegundos.
 - **Validação de imagens.** Todas as funções públicas que recebem uma imagem levantam
   `ValueError("Input image must not be empty or zero-sized.")` e devolvem sempre uma cópia, sem
   mutar a entrada. Os testes de `evidence.py` verificam a não-destrutividade.
-- **WP-04:** além da heurística de proporção, entrou uma sonda de orientação por Tesseract OSD
-  (`--psm 0`, timeout de 5 s, devolve `0` em qualquer falha) e o recorte passou a fazer warp de
-  perspetiva sobre o maior quadrilátero. Ambas são desligáveis em `PreprocessOptions`.
-- **WP-05:** `EasyOCREngine` aceita `reader=` para injetar um leitor falso nos testes e ordena
-  as linhas por `(y1, x1)` antes de as numerar.
-- **WP-07:** a descodificação tem cinco estágios, incluindo a procura de blobs quadrados com
-  reparação das riscas verticais deixadas por cabeças térmicas avariadas. O parser mantém as
-  chaves cruas da AT e acrescenta as alias usadas pelo resto do pipeline.
+- **WP-04:** além da heurística de proporção, o recorte faz warp de perspetiva com suporte a
+  `minAreaRect`, existe compensação contínua de inclinação (`auto_deskew=False` por omissão), e a
+  verificação de rotação a 180° combina uma heurística de centróide vertical do QR com a sonda
+  Tesseract OSD (`--psm 0`, timeout de 5 s, com encaminhamento de `tesseract_cmd`).
+- **WP-05:** `EasyOCREngine` aceita `reader=` para injeção em testes e agrupa fragmentos na mesma
+  linha horizontal antes de atribuir identificadores sequenciais de 1 a N.
+- **WP-07:** a descodificação itera por todos os códigos detetados (`_decode_all_codes`), impedindo
+  que códigos promocionais mascarem o QR fiscal da AT. O parser mantém as chaves cruas da AT e
+  acrescenta as alias usadas pelo resto do pipeline.
 - **WP-11:** a API ficou `draw_all_ocr_boxes`, `highlight` e `crop`, com `crop` a devolver
   `None` quando nenhum `line_id` existe. `highlight` desenha as linhas não citadas em cinza
   esbatido, para que a evidência ativa salte à vista.
 - **WP-02:** os normalizadores são puros e não leem ficheiros, ambiente nem desenham nada.
-  `parse_data` lê datas com hífen como `YY-MM-DD`, o que resolve o corpus mas cria ambiguidade
-  com `DD-MM-YY`; `parse_moeda` devolve o **primeiro** número da string, não o último.
+  `parse_data` utiliza `re.finditer` para testar todos os candidatos da linha, evitando saídas
+  prematuras provocadas por números de referência; `normalizar_entidade` remove sufixos societários
+  (`lda`, `sa`, `unipessoal`, `sociedade`) preservando pelo menos um token.
 - **WP-06:** `TesseractEngine` agrega caixas de palavra por `(block_num, par_num, line_num)`,
-  descarta `conf < 0` e restaura o `pytesseract.pytesseract.tesseract_cmd` global no fim, para
-  não deixar estado entre testes.
-- **WP-08:** `llm_client` expõe `OpenAICompatibleClient` (que serve o `llama-server` e a OpenAI
-  com o mesmo caminho de código), `GeminiClient` e `FailoverLLMClient`. O failover marca o
-  provedor efetivo em `last_effective_provider`, e `build_client` aceita clientes injetados
-  para os testes nunca tocarem na rede.
+  descarta `conf < 0`, expõe `image_to_data_fn` para injeção de testes e restaura o
+  `pytesseract.pytesseract.tesseract_cmd` global no fim.
+- **WP-08:** `llm_client` expõe `OpenAICompatibleClient` (que serve o `llama-server` local),
+  `GeminiClient` (com sanitização recursiva de `additionalProperties` via `_sanitize_gemini_schema`)
+  e `FailoverLLMClient`. O suporte ao provedor direto `llm_openai` foi removido para focar a
+  comparação em Local vs. Google Gemini.
 - **WP-09:** ver a secção 6, WP-09, para as regras do baseline e as três armadilhas que o
   pacote fecha (sentinela do consumidor final, NIF duplicado e total com quantidade à frente).
+  O padrão `_TOTAL_LINE` suporta qualificadores (`A PAGAR`, `LIQUIDO`, `GERAL`, `FINAL`) e
+  prefixos de moeda.
 - **WP-10:** `extract` aceita um `client` injetável e, sem ele, constrói o provedor a partir do
-  ambiente. O `method` vem de `last_effective_provider`, para que uma resposta obtida por
-  failover fique registada como local e não como o provedor que falhou. Uma resposta malformada
-  levanta `LLMResponseError` em vez de degradar para cinco `AUSENTE`, porque um resultado vazio
-  silencioso é indistinguível de um modelo que não leu nada e seria pontuado como cinco
-  omissões. O resultado do modelo nunca é confiado nas partes verificáveis: NIFs passam pelo
-  dígito de controlo, datas e totais são reprocessados pelos normalizadores puros, e um
-  `line_id` inventado ou `0` é re-ancorado deterministicamente por `_locate_line` no texto do
-  OCR (contar linhas não é tarefa semântica; o modelo real devolveu `0` para quatro de cinco
-  campos num talão longo). O prompt proíbe expressamente somas e cálculos: contra o modelo 3B
-  real, um talão sem total impresso resultou na soma aritmética dos artigos (0,80 + 2,40 = 3,20)
-  com `presente=true`, o que seria um falso positivo indetetável por pós-processamento.
-- **Arranque do `llama-server` (`scripts/run_llama_server.*`).** O modelo por omissão foi
-  atualizado para `models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` (o que existe no repositório),
-  o `MODEL` passou a aceitar variável de ambiente e o `NGL` passou a ter omissão `0` (seguro
-  para CPU; o anterior `99` falha alocação em GPUs pequenas como a MX150 de 2 GB). O modelo
-  `Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf` também corre no servidor como modelo de texto, mas a
-  entrada de imagem falha com erro 500 sem o ficheiro `mmproj` correspondente.
+  ambiente. O `_locate_line` para o total pesquisa em ordem inversa (`reversed(lines)`) e prioriza
+  linhas com palavras-chave de total para não ancorar em linhas de artigos.
+- **Arranque do `llama-server` (`scripts/run_llama_server.*`).** O modelo por omissão é
+  `models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf`, com porta 8080 e `NGL=0`.
+- **Validação do golden set (`scripts/check_golden_set.sh`).** Atalho que executa `src.golden_set` e
+  `src.dataset_stats`.
 
-Continua em aberto e bloqueia o benchmark: o golden set (WP-17) tem 9 imagens em
-`data/receipts/` e um `data/ground_truth.csv` só com cabeçalho. Sem verdade de referência não
-há `scoring.py` nem `evaluate.py` que produzam números citáveis. WP-09 e WP-10, já fechados,
-foram validados à custa de documentos de OCR sintéticos e de clientes falsos: a precisão de
-ambos sobre o corpus real só pode ser medida depois de o WP-17 entregar a verdade de referência.
+Estado atual do golden set e dependências do benchmark: o corpus conta com 27 imagens em
+`data/receipts/` e `data/ground_truth.csv` contém os 27 registos correspondentes, passando a validação
+estrutural a 100 %. Encontra-se em curso a revisão semântica do WP-17 para que os valores de `entidade`
+reflitam as designações comerciais exatamente como impressas nos talões em vez de slugs de ficheiro,
+antes de executar o benchmark oficial do WP-15.
 
 ---
 
@@ -565,7 +561,7 @@ filename,grupo,entidade,nif_comerciante,nif_cliente,data,total
 **Assinaturas:**
 
 ```python
-def carregar_ground_truth(path: Path) -> list[GroundTruthRecord]:
+def carregar_ground_truth(path: Path, receipts_dir: Path | None = None) -> list[GroundTruthRecord]:
     """Read and validate the CSV. Raise GoldenSetError with every failure found."""
 
 
@@ -583,9 +579,9 @@ class GoldenSetError(Exception):
 1. Cabeçalho exatamente com as sete colunas esperadas, pela ordem indicada.
 2. `filename` não vazio, sem duplicados e existente em `receipts_dir`.
 3. `grupo` em `{"direito", "amarrotado"}`.
-4. `nif_comerciante` e `nif_cliente`, quando preenchidos, têm nove dígitos e passam
-   `validar_nif`.
-5. `data`, quando preenchida, é interpretável e não está no futuro.
+4. `nif_comerciante` e `nif_cliente`, quando preenchidos, têm nove dígitos, passam
+   `validar_nif` e rejeitam o código sentinela de consumidor final (`999999990`).
+5. `data`, quando preenchida, é interpretável, não está no futuro e não é anterior a `2000-01-01`.
 6. `total`, quando preenchido, é interpretável e maior que zero.
 7. Nenhuma linha totalmente vazia; nenhuma coluna extra.
 
@@ -606,7 +602,13 @@ class TesseractEngine:
 
     name = "tesseract"
 
-    def __init__(self, lang: str = "por", psm: int = 6) -> None: ...
+    def __init__(
+        self,
+        lang: str = "por",
+        psm: int = 6,
+        tesseract_cmd: Path | str | None = None,
+        image_to_data_fn: Any | None = None,
+    ) -> None: ...
 
     def read(self, image: np.ndarray) -> OcrDocument: ...
 ```
@@ -941,22 +943,35 @@ Todos os testes em `tests/test_evaluate.py` passam offline em menos de 1 segundo
 - Uso: validação cruzada e coluna extra na interface. **Nunca** substitui o OCR, porque os
   talões de terminal de pagamento não têm QR.
 
-**WP-08 `llm_client.py`**
+**WP-08 `llm_client.py`** (implementado)
 
 ```python
 class LLMClient(Protocol):
     provider: str
+    last_effective_provider: str
 
-    def complete(self, system: str, user: str, schema: dict | None) -> str: ...
+    def complete(
+        self,
+        system: str,
+        user: str,
+        schema: dict[str, Any] | None = None,
+        image: np.ndarray | None = None,
+    ) -> str: ...
 
 
-def build_client(provider: str) -> LLMClient: ...
+def build_client(
+    provider: str = "llm_local",
+    settings: Settings | None = None,
+    primary_client: Any | None = None,
+    fallback_client: Any | None = None,
+) -> LLMClient: ...
 ```
 
-- `llama-server` e OpenAI partilham o mesmo caminho de código (`openai.OpenAI(base_url=...)`).
-- O Gemini usa `google-genai` e converte o schema para `response_schema`.
-- Failover: em erro de rede, erro de quota ou timeout, cai para o cliente local e marca o
-  `provider` efetivo na resposta.
+- `llama-server` usa `OpenAICompatibleClient` (`openai.OpenAI(base_url=...)`) para inferência local com Qwen2.5.
+- O Gemini usa `GeminiClient` (`google-genai`); o helper `_sanitize_gemini_schema` remove recursivamente
+  `additionalProperties` para evitar erros HTTP 400 da API da Google.
+- Failover: em erro de rede, erro de quota ou timeout, recua para o cliente local e marca o
+  `last_effective_provider` na resposta.
 
 **WP-10 `extractor_llm.py`** (implementado)
 
@@ -980,9 +995,8 @@ def main(argv: Sequence[str] | None = None, settings_override: Settings | None =
   assinatura e ignorado, tal como no baseline.
 - Schema direito, sem uniões de tipo: os cinco campos são `string`, a ausência é `""`, e há dois
   objetos fechados, `presente` (booleanos) e `linhas` (inteiros). **Todos** os objetos levam
-  `additionalProperties: false`: é obrigatório no modo `strict` da OpenAI e foi verificado que
-  `google.genai.types.GenerateContentConfig` o aceita, portanto um único schema serve os três
-  backends.
+  `additionalProperties: false`, garantindo gramática estrita no `llama-server` (e sendo sanitizado
+  automaticamente no cliente Gemini).
 - **Ponto confirmado:** o schema em `response_format` **não é injetado no prompt** pelo
   `llama-server`. A estrutura está descrita em texto no próprio prompt, caso contrário o modelo
   produz JSON válido com as chaves erradas.
@@ -1001,10 +1015,9 @@ def main(argv: Sequence[str] | None = None, settings_override: Settings | None =
   real somou duas linhas de artigos (0,80 + 2,40 = 3,20) e marcou o total como presente num talão
   que não tinha total impresso.
 - Ancoragem determinística (`_locate_line`): um `line_id` inventado ou devolvido como `0` é
-  procurado diretamente nas linhas do OCR através do normalizador próprio de cada campo. Contar
-  linhas não é tarefa semântica e delegá-la ao modelo 3B falhou em documentos longos (o modelo
-  devolveu `0` em quatro de cinco campos num talão de 11 linhas, embora os valores estivessem
-  certos).
+  procurado diretamente nas linhas do OCR através do normalizador próprio de cada campo. Para o total,
+  a pesquisa é realizada em ordem inversa (`reversed(lines)`) priorizando linhas com palavras-chave
+  (`total`, `pagar`, `liquido`, `final`, `soma`) para evitar ancoragens falsas em preços de artigos.
 - Um identificador que não exista no documento é descartado e re-ancorado; se o valor não
   existir de todo no texto, fica sem linha.
 - Documento sem linhas não gera pedido ao modelo: devolve cinco `AUSENTE` e não custa uma
@@ -1037,13 +1050,25 @@ ausente).
 - Nenhuma das funções altera a imagem de entrada: todas devolvem uma cópia BGR, convertendo
   imagens em escala de cinzentos quando necessário.
 
+**WP-12 `qa_assistant.py`** (implementado)
+
+- `ask(question: str, doc: OcrDocument, client: LLMClient | None = None, provider: str = "llm_local") -> Answer`:
+  submete a pergunta em linguagem natural e o documento OCR ao LLM, exigindo JSON estrito com
+  `answer`, `status` (`ENCONTRADO` vs. `AUSENTE NO DOCUMENTO`) e `linhas`.
+- Quando o modelo indica `ENCONTRADO` mas não cita linhas válidas, `_locate_supporting_lines` re-ancora
+  deterministicamente as linhas de suporte extraindo tokens limpos de pontuação e filtrados por
+  stopwords da resposta e da pergunta.
+- Se o documento não contiver linhas de texto, responde imediatamente `AUSENTE NO DOCUMENTO` sem chamar o modelo.
+
 **WP-16 `app.py`** (implementado)
 
 - `gr.Blocks` com os três separadores já especificados no `PROJECT_PLAN.md`.
-- O mapa de deteções usa `evidence.draw_all_ocr_boxes`; a prova visual usa
-  `evidence.highlight` e `evidence.crop`.
-- Cache de OCR por `sha256(bytes) + opções de pré-processamento`, para o Q&A não repetir a fase
-  mais cara.
+- Separador 1: Leitor e Assistente de Documentos, com controlos OpenCV, seletor de OCR, seletor de extrator,
+  e seletor desacoplado do modelo para Q&A (`qa_provider_choice`).
+- Separador 2: Pipeline Passo a Passo (imagens bruta, alinhada/recortada, filtrada e caixas delimitadoras).
+- Separador 3: Validação e Benchmark, com carregamento do relatório `metrics.csv` com `utf-8-sig` e exibição
+  estruturada dos cabeçalhos.
+- Caches de OCR e de motores em memória com proteção de concorrência via `threading.Lock()`.
 - `demo.queue().launch(share=False)`.
 
 ---
@@ -1072,10 +1097,11 @@ NN_estado_comerciante_par.jpg
 
 Exemplos: `01_direito_pingo_doce.jpg`, `02_amarrotado_pingo_doce_par.jpg`.
 
-**Estado a 2026-11-02:** `data/receipts/` tem 27 imagens recolhidas seguindo a convenção
-(`01_direito_controlauto.jpg`, `02_amachucado_tiendaanimal.jpg`, ...) e `data/ground_truth.csv`
-contém os 27 registos em curso de validação com o validador do WP-03. Quando o WP-17 fechar,
-o benchmark (WP-15) pode ser executado.
+**Estado a 2026-11-03:** `data/receipts/` tem 27 imagens recolhidas (`01_direito_controlauto.jpg`,
+`02_amachucado_tiendaanimal.jpg`, etc., onde os talões amarrotados usam o prefixo `NN_amachucado_...`
+no nome do ficheiro e o grupo canónico `"amarrotado"` na coluna CSV) e `data/ground_truth.csv`
+contém os 27 registos que passam a validação estrutural do WP-03. Quando o WP-17 concluir o alinhamento
+semântico dos nomes de entidades, o benchmark (WP-15) pode ser executado.
 
 ### 8.3 Protocolo de captura
 

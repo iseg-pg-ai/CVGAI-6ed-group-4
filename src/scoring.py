@@ -109,17 +109,6 @@ def _metricas(resultados: Iterable[MatchResult]) -> MetricRates:
         "taxa_omissao": sum(result.omissao for result in matches) / expected_present if expected_present else 0.0,
     }
 
-    matches = list(resultados)
-    expected_absent = sum(result.esperado is None for result in matches)
-    expected_present = sum(result.esperado is not None for result in matches)
-    return {
-        "taxa_acerto": sum(result.acertou for result in matches) / len(matches) if matches else 0.0,
-        "taxa_falso_positivo": (
-            sum(result.falso_positivo for result in matches) / expected_absent if expected_absent else 0.0
-        ),
-        "taxa_omissao": sum(result.omissao for result in matches) / expected_present if expected_present else 0.0,
-    }
-
 
 def agregar(resultados: list[MatchResult]) -> AggregatedMetrics:
     """Aggregate accuracy, false-positive, and omission rates by field and group.

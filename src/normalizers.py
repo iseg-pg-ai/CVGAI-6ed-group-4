@@ -214,5 +214,3 @@ def valores_equivalentes(campo: str, esperado: str | None, obtido: str | None) -
         raise ValueError(f"Unsupported field: {campo}")
 
     return expected_value is not None and obtained_value is not None and expected_value == obtained_value
-
-    return expected_value is not None and obtained_value is not None and expected_value == obtained_value
