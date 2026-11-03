@@ -44,13 +44,14 @@ EasyOCR, que descarrega os pesos na primeira execução):
 | `src/qa_assistant.py` | Assistente de Q&A com fundamentação em linhas citadas | `uv run python -m src.qa_assistant` |
 | `src/scoring.py` | Pontuação contra a verdade de referência e agregação de métricas | — |
 | `src/dataset_stats.py` | Estatísticas do corpus por grupo, comerciante e campo | `uv run python -m src.dataset_stats` |
+| `src/evaluate.py` | Runner do benchmark oficial sobre o golden set | `uv run python -m src.evaluate` |
 | `src/app.py` | Aplicação interativa Gradio (3 separadores) | `uv run python -m src.app` |
 
 Cada módulo CLI opera sobre o primeiro talão de `data/receipts/`; a flag `--file`
 escolhe outro ficheiro e `--save` escreve o resultado em disco em vez de abrir a janela.
 O script `bash scripts/check_golden_set.sh` corre a validação do golden set e as estatísticas do corpus num só passo.
 
-Por construir: runner do benchmark oficial (`src/evaluate.py`, WP-15) e mini-apresentação (WP-18).
+Por construir: mini-apresentação (WP-18).
 O extrator por LLM e o assistente de Q&A podem correr contra um `llama-server` local
 (`scripts/run_llama_server.sh`) ou contra a chave de API da Google (`GEMINI_API_KEY`) no `.env`.
 
@@ -252,6 +253,7 @@ uv run python -m src.qr_reader        # campos do QR da AT, quando o talão tive
 uv run python -m src.extractor_regex  # extração estruturada baseline
 uv run python -m src.evidence         # caixas do OCR e destaque das linhas citadas
 uv run python -m src.qa_assistant     # pergunta de teste ao assistente
+uv run python -m src.evaluate         # runner do benchmark oficial sobre o golden set
 ```
 
 Flags comuns: `--file caminho/para/talao.jpg` escolhe a imagem e `--save saida.png` escreve o
@@ -326,11 +328,11 @@ uv run pytest -k "nif" -q                           # filtra por nome
 uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 ```
 
-Ficheiros atuais da suite (279 testes offline): `test_smoke.py`, `test_settings.py`,
+Ficheiros atuais da suite (291 testes offline): `test_smoke.py`, `test_settings.py`,
 `test_normalizers.py`, `test_golden_set.py`, `test_preprocessing.py`, `test_ocr_contract.py`,
 `test_ocr_tesseract.py`, `test_qr_reader.py`, `test_evidence.py`, `test_llm_client.py`,
 `test_extractor_regex.py`, `test_extractor_llm.py`, `test_qa_assistant.py`, `test_scoring.py`,
-`test_dataset_stats.py` e `test_app.py`.
+`test_dataset_stats.py`, `test_evaluate.py` e `test_app.py`.
 
 Qualidade de código:
 
@@ -363,8 +365,9 @@ src/
   qa_assistant.py   assistente verificável de perguntas e respostas
   scoring.py        cálculo de taxas de acerto, falsos positivos e omissões
   dataset_stats.py  estatísticas do corpus por grupo, emitente e presença de campos
+  evaluate.py       runner do benchmark oficial sobre o golden set
   app.py            aplicação interativa Gradio com 3 separadores
-tests/              suite pytest com 279 testes, offline e determinística
+tests/              suite pytest com 291 testes, offline e determinística
 data/               imagens do golden set e verdade de referência
 results/            saídas do benchmark citadas no relatório
 Docs/               planeamento e apresentação

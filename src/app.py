@@ -95,9 +95,9 @@ def _compute_cache_key(image_bgr: np.ndarray, opts: PreprocessOptions, engine_na
     hasher = hashlib.sha256()
     hasher.update(image_bgr.tobytes())
     hasher.update(
-        f"{image_bgr.shape}:{image_bgr.dtype}:{opts.rotation_deg}:{opts.auto_crop}:"
+        f"{image_bgr.shape}:{image_bgr.dtype}:{opts.max_side}:{opts.rotation_deg}:{opts.auto_crop}:"
         f"{opts.remove_shadows}:{opts.clahe_clip_limit}:{opts.clahe_tile_grid_size}:"
-        f"{opts.auto_orient_osd}:{engine_name.lower()}".encode()
+        f"{opts.auto_orient_osd}:{opts.auto_deskew}:{engine_name.lower()}".encode()
     )
     return hasher.hexdigest()
 
@@ -181,12 +181,15 @@ def process_document(
     except Exception as exc:
         return None, None, f"Erro na conversao da imagem: {exc}", [], None, None, None, None, ""
 
+    cfg = settings or get_settings()
     rot_deg = "auto" if rotation_str == "auto" else int(rotation_str)
     opts = PreprocessOptions(
+        max_side=cfg.max_side,
         rotation_deg=rot_deg,  # type: ignore[arg-type]
         auto_crop=auto_crop,
         remove_shadows=remove_shadows,
         clahe_clip_limit=clahe_clip,
+        tesseract_cmd=cfg.tesseract_cmd,
     )
 
     try:
@@ -289,12 +292,15 @@ def answer_question(
     except Exception as exc:
         return "AUSENTE NO DOCUMENTO", f"Erro na conversao da imagem: {exc}", None, None
 
+    cfg = settings or get_settings()
     rot_deg = "auto" if rotation_str == "auto" else int(rotation_str)
     opts = PreprocessOptions(
+        max_side=cfg.max_side,
         rotation_deg=rot_deg,  # type: ignore[arg-type]
         auto_crop=auto_crop,
         remove_shadows=remove_shadows,
         clahe_clip_limit=clahe_clip,
+        tesseract_cmd=cfg.tesseract_cmd,
     )
 
     try:
@@ -346,7 +352,7 @@ def load_benchmark_report(settings: Settings | None = None) -> tuple[str, list[s
             "```bash\n"
             "uv run python -m src.evaluate\n"
             "```\n\n"
-            "Os resultados discriminados por metodo (Regex vs LLM) e por grupo (direito vs Amarrotado) "
+            "Os resultados discriminados por metodo (Regex vs LLM) e por grupo (direito vs amarrotado) "
             "serao gerados em `results/metrics.md` e `results/metrics.csv`."
         )
 
@@ -377,7 +383,7 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
         found = sorted(
             [str(p) for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
         )
-        example_files = [[p] for p in found[:26]]
+        example_files = [[p] for p in found]
 
     with gr.Blocks(title="Leitor Inteligente de Documentos Visuais") as demo:
         gr.Markdown(
@@ -513,6 +519,7 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
                         "falso_positivo",
                         "omissao",
                     ],
+                    datatype=["str", "str", "str", "str", "str", "str", "str", "str"],
                     interactive=False,
                     label="Tabela de Metricas Detalhada (results/metrics.csv)",
                 )

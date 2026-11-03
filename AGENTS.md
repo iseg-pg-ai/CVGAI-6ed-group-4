@@ -4,12 +4,12 @@ Smart reader for Portuguese purchase receipts and simplified invoices. Hybrid pi
 
 ## Current State
 
-Closed work packages: WP-00 (skeleton), WP-01 (data contracts), WP-02 (pure normalizers), WP-03 (golden set loader), WP-04 (preprocessing), WP-05 (EasyOCR), WP-06 (Tesseract), WP-07 (AT QR reader), WP-08 (LLM client), WP-09 (regex baseline), WP-10 (LLM extractor), WP-11 (visual evidence), WP-12 (Q&A assistant), WP-13 (scoring), WP-14 (corpus statistics), WP-16 (Gradio UI). `src/settings.py` was added outside the numbering as the single environment and path layer, and `scripts/check_golden_set.sh` provides automated golden set verification.
+Closed work packages: WP-00 (skeleton), WP-01 (data contracts), WP-02 (pure normalizers), WP-03 (golden set loader), WP-04 (preprocessing), WP-05 (EasyOCR), WP-06 (Tesseract), WP-07 (AT QR reader), WP-08 (LLM client), WP-09 (regex baseline), WP-10 (LLM extractor), WP-11 (visual evidence), WP-12 (Q&A assistant), WP-13 (scoring), WP-14 (corpus statistics), WP-15 (benchmark runner), WP-16 (Gradio UI). `src/settings.py` was added outside the numbering as the single environment and path layer, and `scripts/check_golden_set.sh` provides automated golden set verification.
 
-- Implemented: `src/types.py`, `src/settings.py`, `src/normalizers.py`, `src/golden_set.py`, `src/preprocessing.py`, `src/ocr_engine.py`, `src/ocr_tesseract.py`, `src/qr_reader.py`, `src/llm_client.py`, `src/extractor_regex.py`, `src/extractor_llm.py`, `src/evidence.py`, `src/qa_assistant.py`, `src/scoring.py`, `src/dataset_stats.py`, `src/app.py`, `scripts/run_llama_server.{sh,ps1,bat}`, `scripts/check_golden_set.sh`.
-- Not implemented yet: `src/evaluate.py` (WP-15 benchmark runner) and `Docs/Presentation/` (WP-18 slide deck). Do not describe them as available, in docs or in code.
+- Implemented: `src/types.py`, `src/settings.py`, `src/normalizers.py`, `src/golden_set.py`, `src/preprocessing.py`, `src/ocr_engine.py`, `src/ocr_tesseract.py`, `src/qr_reader.py`, `src/llm_client.py`, `src/extractor_regex.py`, `src/extractor_llm.py`, `src/evidence.py`, `src/qa_assistant.py`, `src/scoring.py`, `src/dataset_stats.py`, `src/evaluate.py`, `src/app.py`, `scripts/run_llama_server.{sh,ps1,bat}`, `scripts/check_golden_set.sh`.
+- Not implemented yet: `Docs/Presentation/` (WP-18 slide deck). Do not describe it as available, in docs or in code.
 - Corpus: `data/receipts/` holds 27 images (`01_...` to `27_...`); `data/ground_truth.csv` has 27 records validated structurally by `scripts/check_golden_set.sh`, with WP-17 in progress for semantic alignment of the `entidade` column against printed receipt headers.
-- Suite: 279 tests, offline, about 4.5 s. One `@pytest.mark.slow` live-EasyOCR test is deselected by default.
+- Suite: 291 tests, offline, about 4.5 s. One `@pytest.mark.slow` live-EasyOCR test is deselected by default.
 
 Each module docstring carries a `Ref:` line pointing at the section of `Docs/Planning/implementation_plan.md` that specifies it. Keep that convention for new modules.
 
@@ -78,6 +78,7 @@ uv run pytest --cov=src --cov-report=term-missing
 - **Q&A assistant (`src/qa_assistant.py`)**: `ask(question, doc, client=None, provider="llm_local") -> Answer`. Returns `status` in `{"ENCONTRADO", "AUSENTE NO DOCUMENTO"}` and re-anchors missing `line_ids` using punctuation-stripped, stopword-filtered tokens.
 - **Scoring (`src/scoring.py`)**: `pontuar_registo(verdade, extracao) -> list[MatchResult]`, `agregar(resultados) -> AggregatedMetrics`, `escrever_tabelas(resultados, destino) -> None`. Fields marked `"INVALIDO"` or `"AUSENTE"` never score `acertou=True` when `esperado is not None`.
 - **Corpus statistics (`src/dataset_stats.py`)**: `resumo(registos) -> dict[str, object]` and `imprimir_resumo(registos) -> None`.
+- **Benchmark runner (`src/evaluate.py`)**: `avaliar_registo(...) -> tuple[Extraction, list[MatchResult]]`, `avaliar_corpus(...) -> list[MatchResult]`. Preprocesses, runs OCR, extracts canonical fields, scores each receipt against reference truth via `pontuar_registo`, and optionally outputs `metrics.csv` and `metrics.md` with run configuration metadata via `escrever_tabelas`.
 - **Gradio UI (`src/app.py`)**: `build_app(settings_override=None) -> gr.Blocks`. Three tabs: Document Reader and Q&A (with decoupled Q&A provider selector), Step-by-Step CV Pipeline, and Validation & Benchmark Dashboard (reading `metrics.csv` with `utf-8-sig`). In-memory caches are guarded by `_CACHE_LOCK`.
 - **QR Code Reader usage**: Cross-validation and an extra interface column only; never the primary source, because payment terminal slips have no QR.
 - **LLM Prompting Gotcha**: `llama-server` does not inject `response_format` schemas into the prompt text automatically. Prompts must explicitly describe the expected JSON schema. Keep schemas flat without union types to avoid breaking `llama.cpp`'s `json-schema-to-grammar`.

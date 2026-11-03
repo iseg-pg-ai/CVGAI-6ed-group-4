@@ -35,7 +35,7 @@ def make_test_settings(
         llama_model="qwen2.5-3b",
         llama_timeout_s=30.0,
         gemini_api_key=gemini_key,
-        gemini_model="gemini-2.5-flash",
+        gemini_model="gemini-3.5-flash",
         ocr_engine="easyocr",
         easyocr_langs=("pt", "en"),
         tesseract_cmd=None,
@@ -110,7 +110,7 @@ def test_gemini_client_with_and_without_schema() -> None:
     mock_resp.text = '{"total": "16.10"}'
     mock_inner.models.generate_content.return_value = mock_resp
 
-    client = GeminiClient(api_key="gemini-key", model="gemini-2.5-flash", client=mock_inner)
+    client = GeminiClient(api_key="gemini-key", model="gemini-3.5-flash", client=mock_inner)
 
     schema = {"type": "object", "properties": {"total": {"type": "string"}}}
     out = client.complete(system="System instructions", user="User query", schema=schema)
@@ -119,7 +119,7 @@ def test_gemini_client_with_and_without_schema() -> None:
     assert client.provider == "llm_gemini"
 
     call_kwargs = mock_inner.models.generate_content.call_args.kwargs
-    assert call_kwargs["model"] == "gemini-2.5-flash"
+    assert call_kwargs["model"] == "gemini-3.5-flash"
     assert call_kwargs["contents"] == "User query"
     config = call_kwargs["config"]
     assert config.system_instruction == "System instructions"

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -27,6 +27,7 @@ def avaliar_registo(
     method: MethodName = "regex",
     llm_client: LLMClient | None = None,
     preprocess_opts: PreprocessOptions | None = None,
+    settings: Settings | None = None,
 ) -> tuple[Extraction, list[MatchResult]]:
     """Run preprocessing, OCR, QR reading, extraction, and scoring for a single receipt.
 
@@ -34,9 +35,10 @@ def avaliar_registo(
         registo: Ground-truth reference record for one receipt.
         receipts_dir: Directory containing the receipt image files.
         ocr_engine: Initialised OCR engine instance (EasyOCR or Tesseract).
-        method: Extraction method ('regex', 'llm_local', 'llm_gemini', or 'llm_openai').
+        method: Extraction method ('regex', 'llm_local', or 'llm_gemini').
         llm_client: Optional injected LLM client (used when method != 'regex').
         preprocess_opts: Optional OpenCV preprocessing options. When None, default options apply.
+        settings: Optional Settings instance for configuring preprocessing or client fallback.
 
     Returns:
         Tuple of (Extraction, list of 5 MatchResult objects).
@@ -59,7 +61,19 @@ def avaliar_registo(
     if raw_image is None:
         raise ValueError(f"Unable to decode receipt image: {image_path}")
 
-    prep = preprocess(raw_image, preprocess_opts or PreprocessOptions())
+    opts = preprocess_opts
+    if opts is None:
+        opts = (
+            PreprocessOptions(
+                max_side=settings.max_side,
+                clahe_clip_limit=settings.clahe_clip_limit,
+                tesseract_cmd=settings.tesseract_cmd,
+            )
+            if settings is not None
+            else PreprocessOptions()
+        )
+
+    prep = preprocess(raw_image, opts)
     doc = ocr_engine.read(prep.image)
     qr_data = read_qr(prep.image, raw_image=raw_image)
 
@@ -69,7 +83,7 @@ def avaliar_registo(
         from src.extractor_llm import extract as extract_llm
         from src.llm_client import build_client
 
-        client = llm_client or build_client(method)
+        client = llm_client or build_client(method, settings=settings)
         extraction = extract_llm(doc, qr=qr_data, client=client)
 
     matches = pontuar_registo(registo, extraction)
@@ -85,6 +99,8 @@ def avaliar_corpus(
     llm_client: LLMClient | None = None,
     preprocess_opts: PreprocessOptions | None = None,
     destino_resultados: Path | None = None,
+    settings: Settings | None = None,
+    progress_callback: Callable[[int, int, GroundTruthRecord], None] | None = None,
 ) -> list[MatchResult]:
     """Evaluate validated records and optionally write detailed and aggregate reports.
 
@@ -96,6 +112,9 @@ def avaliar_corpus(
         llm_client: Optional injected LLM client, reused for all receipts.
         preprocess_opts: Optional OpenCV preprocessing options.
         destino_resultados: When provided, writes ``metrics.csv`` and ``metrics.md`` there.
+        settings: Optional Settings instance forwarded to record evaluation.
+        progress_callback: Optional callback invoked as ``callback(index, total, record)``
+            before processing each receipt.
 
     Returns:
         Combined list of ``MatchResult`` objects across all evaluated receipts (5 per receipt).
@@ -103,10 +122,13 @@ def avaliar_corpus(
     if method != "regex" and llm_client is None:
         from src.llm_client import build_client
 
-        llm_client = build_client(method)
+        llm_client = build_client(method, settings=settings)
 
     all_results: list[MatchResult] = []
-    for record in registos:
+    total_records = len(registos)
+    for index, record in enumerate(registos, start=1):
+        if progress_callback is not None:
+            progress_callback(index, total_records, record)
         _, matches = avaliar_registo(
             record,
             receipts_dir,
@@ -114,13 +136,29 @@ def avaliar_corpus(
             method=method,
             llm_client=llm_client,
             preprocess_opts=preprocess_opts,
+            settings=settings,
         )
         all_results.extend(matches)
 
     if destino_resultados is not None:
         from src.scoring import escrever_tabelas
 
-        escrever_tabelas(all_results, destino_resultados)
+        preproc_active = (
+            "desativado"
+            if preprocess_opts is not None
+            and not preprocess_opts.auto_crop
+            and not preprocess_opts.remove_shadows
+            and preprocess_opts.clahe_clip_limit <= 0.0
+            else "ativo"
+        )
+        metadata = {
+            "Motor OCR": getattr(ocr_engine, "name", str(ocr_engine)),
+            "Método de extração": method,
+            "Pré-processamento": preproc_active,
+            "Documentos avaliados": str(len(registos)),
+        }
+        escrever_tabelas(all_results, destino_resultados, metadata=metadata)
+
     return all_results
 
 
@@ -134,7 +172,9 @@ def main(
         argv: Optional CLI arguments, primarily for tests.
         settings_override: Optional custom Settings instance.
     """
+    from src.extractor_llm import LLMResponseError
     from src.golden_set import GoldenSetError, carregar_ground_truth
+    from src.llm_client import LLMError
     from src.ocr_engine import EasyOCREngine
     from src.ocr_tesseract import TesseractEngine
     from src.preprocessing import PreprocessOptions
@@ -158,6 +198,8 @@ def main(
         default="regex",
         help="Extraction method to benchmark",
     )
+    parser.add_argument("--limit", "-n", type=int, default=None, help="Limit number of receipts to evaluate")
+    parser.add_argument("--gpu", action="store_true", help="Enable GPU inference for EasyOCR")
     parser.add_argument("--no-preprocess", action="store_true", help="Disable all preprocessing stages")
     effective_argv = list(argv) if argv is not None else (sys.argv[1:] if __name__ == "__main__" else [])
     args = parser.parse_args(effective_argv)
@@ -169,34 +211,67 @@ def main(
             print(problem)
         return
 
+    print(f"Golden set carregado: {len(records)} registos.")
+    if args.limit is not None and args.limit > 0:
+        records = records[: args.limit]
+        print(f"Limite ativo: a avaliar apenas os primeiros {len(records)} registos.")
+
+    print(f"A inicializar motor OCR ({args.engine})...")
     if args.engine == "tesseract":
         ocr_engine: OcrEngine = TesseractEngine(tesseract_cmd=settings.tesseract_cmd)
     else:
-        ocr_engine = EasyOCREngine(langs=settings.easyocr_langs)
+        ocr_engine = EasyOCREngine(langs=settings.easyocr_langs, gpu=args.gpu)
 
     preprocess_opts = (
         PreprocessOptions(
+            max_side=settings.max_side,
             rotation_deg=0,
             auto_crop=False,
             remove_shadows=False,
             clahe_clip_limit=0.0,
             auto_orient_osd=False,
+            tesseract_cmd=settings.tesseract_cmd,
         )
         if args.no_preprocess
-        else None
+        else PreprocessOptions(
+            max_side=settings.max_side,
+            clahe_clip_limit=settings.clahe_clip_limit,
+            tesseract_cmd=settings.tesseract_cmd,
+        )
     )
-    results = avaliar_corpus(
-        records,
-        args.receipts_dir,
-        ocr_engine,
-        method=args.method,
-        preprocess_opts=preprocess_opts,
-        destino_resultados=args.output_dir,
-    )
-    metrics = agregar(results)["global"]
+
+    print(f"A iniciar benchmark ({len(records)} documentos, motor: {args.engine}, método: {args.method})...\n")
+
+    def _show_progress(idx: int, total: int, record: GroundTruthRecord) -> None:
+        print(f"[{idx:02d}/{total:02d}] A avaliar {record.filename} ({record.grupo})...", flush=True)
+
+    try:
+        results = avaliar_corpus(
+            records,
+            args.receipts_dir,
+            ocr_engine,
+            method=args.method,
+            preprocess_opts=preprocess_opts,
+            destino_resultados=args.output_dir,
+            settings=settings,
+            progress_callback=_show_progress,
+        )
+    except (LLMError, LLMResponseError) as err:
+        print(f"Erro na extração com modelo de linguagem: {err}")
+        return
+    except Exception as err:
+        print(f"Erro na execução do benchmark: {err}")
+        return
+
+    aggregated = agregar(results)
+    metrics = aggregated["global"]
+    print("\n--- Resultados do Benchmark ---")
     print(f"Taxa de acerto global: {metrics['taxa_acerto']:.4f}")
     print(f"Taxa de falsos positivos: {metrics['taxa_falso_positivo']:.4f}")
     print(f"Taxa de omissão: {metrics['taxa_omissao']:.4f}")
+    if "por_grupo" in aggregated:
+        for group, group_metrics in aggregated["por_grupo"].items():
+            print(f"Taxa de acerto ({group}): {group_metrics['taxa_acerto']:.4f}")
     print(f"Relatórios: {args.output_dir / 'metrics.csv'} e {args.output_dir / 'metrics.md'}")
 
 

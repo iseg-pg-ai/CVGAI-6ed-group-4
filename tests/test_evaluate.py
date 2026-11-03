@@ -171,11 +171,23 @@ def test_avaliar_corpus_escreve_metrics_csv_e_md(tmp_path: Path) -> None:
     records = [_record("receipt-a.jpg", "direito"), _record("receipt-b.jpg", "amarrotado")]
     output_dir = tmp_path / "results"
 
-    results = avaliar_corpus(records, receipts_dir, FakeOcrEngine(), destino_resultados=output_dir)
+    results = avaliar_corpus(
+        records,
+        receipts_dir,
+        FakeOcrEngine(),
+        preprocess_opts=PreprocessOptions(
+            rotation_deg=0, auto_crop=False, remove_shadows=False, clahe_clip_limit=0.0, auto_orient_osd=False
+        ),
+        destino_resultados=output_dir,
+    )
 
     assert len(results) == 10
     assert (output_dir / "metrics.csv").is_file()
     assert (output_dir / "metrics.md").is_file()
+    md_text = (output_dir / "metrics.md").read_text(encoding="utf-8")
+    assert "- **Motor OCR:** easyocr" in md_text
+    assert "- **Método de extração:** regex" in md_text
+    assert "- **Documentos avaliados:** 2" in md_text
 
 
 def test_avaliar_corpus_reutiliza_um_cliente_llm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -187,7 +199,7 @@ def test_avaliar_corpus_reutiliza_um_cliente_llm(tmp_path: Path, monkeypatch: py
     client = FakeLLMClient()
     builds: list[str] = []
 
-    def build_client(provider: str) -> FakeLLMClient:
+    def build_client(provider: str, settings: Any = None) -> FakeLLMClient:
         builds.append(provider)
         return client
 
@@ -198,6 +210,9 @@ def test_avaliar_corpus_reutiliza_um_cliente_llm(tmp_path: Path, monkeypatch: py
         receipts_dir,
         FakeOcrEngine(),
         method="llm_local",
+        preprocess_opts=PreprocessOptions(
+            rotation_deg=0, auto_crop=False, remove_shadows=False, clahe_clip_limit=0.0, auto_orient_osd=False
+        ),
     )
 
     assert len(results) == 10
@@ -251,4 +266,195 @@ def test_main_cli_executa_offline_com_doubles(
     assert "Taxa de acerto global" in output
     assert "Taxa de falsos positivos" in output
     assert "Taxa de omissão" in output
+    assert "Taxa de acerto (direito)" in output
     assert (output_dir / "metrics.md").is_file()
+
+
+def test_main_cli_golden_set_invalido_imprime_erros(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When the ground-truth CSV is invalid, main prints errors without crashing."""
+    bad_csv = tmp_path / "bad.csv"
+    bad_csv.write_text("invalid,header\n", encoding="utf-8")
+    settings = load_settings(repo_root=tmp_path)
+
+    main(
+        argv=["--csv", str(bad_csv), "--receipts-dir", str(tmp_path)],
+        settings_override=settings,
+    )
+
+    output = capsys.readouterr().out
+    assert "Cabeçalho inválido" in output
+
+
+def test_main_cli_engine_tesseract_e_metodo_llm(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI selects Tesseract and LLM client doubles and runs successfully."""
+    receipts_dir = tmp_path / "receipts"
+    receipts_dir.mkdir()
+    _write_image(receipts_dir / "receipt.jpg")
+    csv_path = tmp_path / "truth.csv"
+    _write_ground_truth(csv_path)
+    output_dir = tmp_path / "results"
+    settings = load_settings(repo_root=tmp_path)
+    settings = replace(
+        settings,
+        ground_truth_path=csv_path,
+        receipts_dir=receipts_dir,
+        results_dir=output_dir,
+    )
+
+    monkeypatch.setattr("src.ocr_tesseract.TesseractEngine", FakeOcrEngine)
+    client = FakeLLMClient()
+    monkeypatch.setattr("src.llm_client.build_client", lambda *args, **kwargs: client)
+
+    main(
+        argv=[
+            "--csv",
+            str(csv_path),
+            "--receipts-dir",
+            str(receipts_dir),
+            "--output-dir",
+            str(output_dir),
+            "--engine",
+            "tesseract",
+            "--method",
+            "llm_local",
+            "--no-preprocess",
+        ],
+        settings_override=settings,
+    )
+
+    output = capsys.readouterr().out
+    assert "Taxa de acerto global: 1.0000" in output
+    assert client.calls == 1
+
+
+def test_main_cli_erro_llm_tratado_sem_traceback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A connection error from the LLM client is caught and printed cleanly."""
+    from src.llm_client import LLMConnectionError
+
+    receipts_dir = tmp_path / "receipts"
+    receipts_dir.mkdir()
+    _write_image(receipts_dir / "receipt.jpg")
+    csv_path = tmp_path / "truth.csv"
+    _write_ground_truth(csv_path)
+    output_dir = tmp_path / "results"
+    settings = load_settings(repo_root=tmp_path)
+    settings = replace(
+        settings,
+        ground_truth_path=csv_path,
+        receipts_dir=receipts_dir,
+        results_dir=output_dir,
+    )
+
+    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", FakeOcrEngine)
+
+    class ErrorClient:
+        def complete(self, *args: Any, **kwargs: Any) -> str:
+            raise LLMConnectionError("Connection refused on 8080")
+
+    monkeypatch.setattr("src.llm_client.build_client", lambda *args, **kwargs: ErrorClient())
+
+    main(
+        argv=[
+            "--csv",
+            str(csv_path),
+            "--receipts-dir",
+            str(receipts_dir),
+            "--output-dir",
+            str(output_dir),
+            "--method",
+            "llm_local",
+            "--no-preprocess",
+        ],
+        settings_override=settings,
+    )
+
+    output = capsys.readouterr().out
+    assert "Erro na extração com modelo de linguagem" in output
+    assert "Connection refused on 8080" in output
+
+
+def test_avaliar_corpus_invoca_progress_callback(tmp_path: Path) -> None:
+    """Progress callback receives 1-based index, total count, and current record."""
+    receipts_dir = tmp_path / "receipts"
+    receipts_dir.mkdir()
+    _write_image(receipts_dir / "receipt-a.jpg")
+    _write_image(receipts_dir / "receipt-b.jpg")
+    records = [_record("receipt-a.jpg", "direito"), _record("receipt-b.jpg", "amarrotado")]
+
+    calls: list[tuple[int, int, str]] = []
+
+    def callback(idx: int, total: int, rec: GroundTruthRecord) -> None:
+        calls.append((idx, total, rec.filename))
+
+    avaliar_corpus(
+        records,
+        receipts_dir,
+        FakeOcrEngine(),
+        preprocess_opts=PreprocessOptions(
+            rotation_deg=0, auto_crop=False, remove_shadows=False, clahe_clip_limit=0.0, auto_orient_osd=False
+        ),
+        progress_callback=callback,
+    )
+
+    assert calls == [(1, 2, "receipt-a.jpg"), (2, 2, "receipt-b.jpg")]
+
+
+def test_main_cli_com_flag_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI limit flag restricts evaluation to the specified number of records."""
+    receipts_dir = tmp_path / "receipts"
+    receipts_dir.mkdir()
+    _write_image(receipts_dir / "receipt-a.jpg")
+    _write_image(receipts_dir / "receipt-b.jpg")
+
+    csv_path = tmp_path / "truth.csv"
+    with csv_path.open("w", encoding="utf-8", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["filename", "grupo", "entidade", "nif_comerciante", "nif_cliente", "data", "total"])
+        writer.writerow(["receipt-a.jpg", "direito", "A", "500100144", "", "2026-10-27", "16.10"])
+        writer.writerow(["receipt-b.jpg", "amarrotado", "B", "500100144", "", "2026-10-27", "16.10"])
+
+    output_dir = tmp_path / "results"
+    settings = load_settings(repo_root=tmp_path)
+    settings = replace(
+        settings,
+        ground_truth_path=csv_path,
+        receipts_dir=receipts_dir,
+        results_dir=output_dir,
+    )
+    engine = FakeOcrEngine()
+    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", lambda *args, **kwargs: engine)
+
+    main(
+        argv=[
+            "--csv",
+            str(csv_path),
+            "--receipts-dir",
+            str(receipts_dir),
+            "--output-dir",
+            str(output_dir),
+            "--limit",
+            "1",
+            "--no-preprocess",
+        ],
+        settings_override=settings,
+    )
+
+    output = capsys.readouterr().out
+    assert "Limite ativo: a avaliar apenas os primeiros 1 registos." in output
+    assert "[01/01] A avaliar receipt-a.jpg" in output
+    assert engine.read_calls == 1

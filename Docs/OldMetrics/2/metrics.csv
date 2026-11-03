@@ -1,0 +1,136 @@
+﻿filename,grupo,campo,esperado,obtido,acertou,falso_positivo,omissao
+01_direito_controlauto.jpg,direito,entidade,controlauto,Sontrolauto 30 Houdekvn SequnaNC,false,false,false
+01_direito_controlauto.jpg,direito,nif_comerciante,,00037191,false,true,false
+01_direito_controlauto.jpg,direito,nif_cliente,500037191,,false,false,true
+01_direito_controlauto.jpg,direito,data,2026-09-10,2026-09-10,true,false,false
+01_direito_controlauto.jpg,direito,total,37.47,30.46,false,false,false
+02_amachucado_tiendaanimal.jpg,amarrotado,entidade,tiendaanimal,Tiendanimal,false,false,false
+02_amachucado_tiendaanimal.jpg,amarrotado,nif_comerciante,504671529,,false,false,true
+02_amachucado_tiendaanimal.jpg,amarrotado,nif_cliente,231622597,,false,false,true
+02_amachucado_tiendaanimal.jpg,amarrotado,data,2026-06-11,2026-06-11,true,false,false
+02_amachucado_tiendaanimal.jpg,amarrotado,total,14.99,14096.00,false,false,false
+03_direito_prod_lavoura.jpg,direito,entidade,prod_lavoura,MCGAD,false,false,false
+03_direito_prod_lavoura.jpg,direito,nif_comerciante,509719503,509719503,true,false,false
+03_direito_prod_lavoura.jpg,direito,nif_cliente,208401563,208401563,true,false,false
+03_direito_prod_lavoura.jpg,direito,data,2026-01-13,2026-01-13,true,false,false
+03_direito_prod_lavoura.jpg,direito,total,89.50,89.50,true,false,false
+04_direito_bcm_bricolage.jpg,direito,entidade,bcm_bricolage,"CELOSIA ExTew Vine 0.5k1,5 Nis 8422502362004",false,false,false
+04_direito_bcm_bricolage.jpg,direito,nif_comerciante,506848558,266003583,false,false,false
+04_direito_bcm_bricolage.jpg,direito,nif_cliente,266003583,,false,false,true
+04_direito_bcm_bricolage.jpg,direito,data,2025-06-22,2025-06-22,true,false,false
+04_direito_bcm_bricolage.jpg,direito,total,10.24,10.24,true,false,false
+05_direito_bcm_bricolage.jpg,direito,entidade,bcm_bricolage,Aunn ente,false,false,false
+05_direito_bcm_bricolage.jpg,direito,nif_comerciante,506848558,941,false,false,false
+05_direito_bcm_bricolage.jpg,direito,nif_cliente,266003583,,false,false,true
+05_direito_bcm_bricolage.jpg,direito,data,2025-07-12,2025-06-15,false,false,false
+05_direito_bcm_bricolage.jpg,direito,total,106.93,106.93,true,false,false
+06_direito_rail_bike_marvao.jpg,direito,entidade,rail_bike_marvao,RAIL BIKE MARVÃO,true,false,false
+06_direito_rail_bike_marvao.jpg,direito,nif_comerciante,514454849,514454849,true,false,false
+06_direito_rail_bike_marvao.jpg,direito,nif_cliente,231622597,231622597,true,false,false
+06_direito_rail_bike_marvao.jpg,direito,data,2026-03-01,2026-03-01,true,false,false
+06_direito_rail_bike_marvao.jpg,direito,total,50.00,50.00,true,false,false
+07_direito_caparica_peles.jpg,direito,entidade,caparica_peles,ApARICA PELES,false,false,false
+07_direito_caparica_peles.jpg,direito,nif_comerciante,504991310,P7504991310,false,false,false
+07_direito_caparica_peles.jpg,direito,nif_cliente,266003583,266003583,true,false,false
+07_direito_caparica_peles.jpg,direito,data,2025-12-21,2025-12-21,true,false,false
+07_direito_caparica_peles.jpg,direito,total,35.00,35.00,true,false,false
+08_direito_pet_city.jpg,direito,entidade,pet_city,Oniine SNCP,false,false,false
+08_direito_pet_city.jpg,direito,nif_comerciante,513068767,306476,false,false,false
+08_direito_pet_city.jpg,direito,nif_cliente,,,true,false,false
+08_direito_pet_city.jpg,direito,data,2026-10-26,2026-10-26,true,false,false
+08_direito_pet_city.jpg,direito,total,40.96,40.96,true,false,false
+09_amachucado_vecc_veterinary.jpg,amarrotado,entidade,vecc_veterinary,VECC-VETERINARY EMERGENCY AND CRITICAL CARE HOSPITALS S A,false,false,false
+09_amachucado_vecc_veterinary.jpg,amarrotado,nif_comerciante,510423310,510423310,true,false,false
+09_amachucado_vecc_veterinary.jpg,amarrotado,nif_cliente,266003583,266003583,true,false,false
+09_amachucado_vecc_veterinary.jpg,amarrotado,data,2026-09-06,2026-09-06,true,false,false
+09_amachucado_vecc_veterinary.jpg,amarrotado,total,26.67,26.67,true,false,false
+10_direito_vecc_veterinary.jpg,direito,entidade,vecc_veterinary,"VECC-VETERINARY EMERGENCY AND CRITICAL CARE HOSPITAL S,s",false,false,false
+10_direito_vecc_veterinary.jpg,direito,nif_comerciante,510423310,510423310,true,false,false
+10_direito_vecc_veterinary.jpg,direito,nif_cliente,266003583,266003583,true,false,false
+10_direito_vecc_veterinary.jpg,direito,data,2026-10-20,2026-10-20,true,false,false
+10_direito_vecc_veterinary.jpg,direito,total,67.79,67.79,true,false,false
+11_amachucado_gelataria_versailles.jpg,amarrotado,entidade,gelataria_versailles,Vercad,false,false,false
+11_amachucado_gelataria_versailles.jpg,amarrotado,nif_comerciante,500569410,,false,false,true
+11_amachucado_gelataria_versailles.jpg,amarrotado,nif_cliente,221349367,,false,false,true
+11_amachucado_gelataria_versailles.jpg,amarrotado,data,2026-10-28,203-10-28,false,false,false
+11_amachucado_gelataria_versailles.jpg,amarrotado,total,8.96,42.89,false,false,false
+12_amachucado_gelataria_versailles.jpg,amarrotado,entidade,gelataria_versailles,"VesAILLES , Lda",false,false,false
+12_amachucado_gelataria_versailles.jpg,amarrotado,nif_comerciante,500569410,60256910,false,false,false
+12_amachucado_gelataria_versailles.jpg,amarrotado,nif_cliente,213666839,,false,false,true
+12_amachucado_gelataria_versailles.jpg,amarrotado,data,2026-10-30,2022-10-30,false,false,false
+12_amachucado_gelataria_versailles.jpg,amarrotado,total,8.80,6.90,false,false,false
+13_direito_gelataria_versailles.jpg,direito,entidade,gelataria_versailles,Ve Se,false,false,false
+13_direito_gelataria_versailles.jpg,direito,nif_comerciante,500569410,15 a 1050- 106 21 A 1050,false,false,false
+13_direito_gelataria_versailles.jpg,direito,nif_cliente,213666839,,false,false,true
+13_direito_gelataria_versailles.jpg,direito,data,2026-10-27,2026-10-27,true,false,false
+13_direito_gelataria_versailles.jpg,direito,total,11.57,11.57,true,false,false
+14_amachucado_mc_donalds.jpg,amarrotado,entidade,mc_donalds,Reco Iha L Direito,false,false,false
+14_amachucado_mc_donalds.jpg,amarrotado,nif_comerciante,502167017,502767 '617 2740 244,false,false,false
+14_amachucado_mc_donalds.jpg,amarrotado,nif_cliente,252919700,252919700,true,false,false
+14_amachucado_mc_donalds.jpg,amarrotado,data,2026-10-27,2026-10-27,true,false,false
+14_amachucado_mc_donalds.jpg,amarrotado,total,26.65,23.40,false,false,false
+15_direito_bifanas.jpg,direito,entidade,bifanas,,false,false,true
+15_direito_bifanas.jpg,direito,nif_comerciante,518396894,78u40226audu3,false,false,false
+15_direito_bifanas.jpg,direito,nif_cliente,261594842,,false,false,true
+15_direito_bifanas.jpg,direito,data,2026-10-24,2023-04-01,false,false,false
+15_direito_bifanas.jpg,direito,total,16.10,299.74,false,false,false
+16_amachucado_pingo_doce.jpg,amarrotado,entidade,pingo_doce,PINGO DOCE,true,false,false
+16_amachucado_pingo_doce.jpg,amarrotado,nif_comerciante,500829993,500829993,true,false,false
+16_amachucado_pingo_doce.jpg,amarrotado,nif_cliente,,,true,false,false
+16_amachucado_pingo_doce.jpg,amarrotado,data,2026-10-27,2026-10-27,true,false,false
+16_amachucado_pingo_doce.jpg,amarrotado,total,4.70,70.00,false,false,false
+17_direito_pingo_doce.jpg,direito,entidade,pingo_doce,Uori Duvor !,false,false,false
+17_direito_pingo_doce.jpg,direito,nif_comerciante,500829993,950082or9,false,false,false
+17_direito_pingo_doce.jpg,direito,nif_cliente,,,true,false,false
+17_direito_pingo_doce.jpg,direito,data,2026-10-27,2021-10-08,false,false,false
+17_direito_pingo_doce.jpg,direito,total,5.86,6.31,false,false,false
+18_direito_pingo_doce.jpg,direito,entidade,pingo_doce,PINGO DOCE,true,false,false
+18_direito_pingo_doce.jpg,direito,nif_comerciante,500829993,33808115,false,false,false
+18_direito_pingo_doce.jpg,direito,nif_cliente,261034561,,false,false,true
+18_direito_pingo_doce.jpg,direito,data,2026-10-27,2026-10-27,true,false,false
+18_direito_pingo_doce.jpg,direito,total,1.17,71.00,false,false,false
+19_amachucado_gelataria_versailles.jpg,amarrotado,entidade,gelataria_versailles,Versaize3,false,false,false
+19_amachucado_gelataria_versailles.jpg,amarrotado,nif_comerciante,500569410,6012564410,false,false,false
+19_amachucado_gelataria_versailles.jpg,amarrotado,nif_cliente,282543538,,false,false,true
+19_amachucado_gelataria_versailles.jpg,amarrotado,data,2026-10-27,2027-10-27,false,false,false
+19_amachucado_gelataria_versailles.jpg,amarrotado,total,8.96,5203896.00,false,false,false
+20_amachucado_italian_republic.jpg,amarrotado,entidade,italian_republic,SPACIO SARORES Htalian Reouolic - Auchan Dsscais Estrada Naciona,false,false,false
+20_amachucado_italian_republic.jpg,amarrotado,nif_comerciante,508957796,2754 Cascais LDA,false,false,false
+20_amachucado_italian_republic.jpg,amarrotado,nif_cliente,,,true,false,false
+20_amachucado_italian_republic.jpg,amarrotado,data,2026-11-01,2026-11-01,true,false,false
+20_amachucado_italian_republic.jpg,amarrotado,total,51.65,51.65,true,false,false
+21_amachucado_wok_to_walk.jpg,amarrotado,entidade,wok_to_walk,WDK TI WrLK,false,false,false
+21_amachucado_wok_to_walk.jpg,amarrotado,nif_comerciante,517562332,188009094,false,false,false
+21_amachucado_wok_to_walk.jpg,amarrotado,nif_cliente,188009094,,false,false,true
+21_amachucado_wok_to_walk.jpg,amarrotado,data,2026-11-02,2026-01-02,false,false,false
+21_amachucado_wok_to_walk.jpg,amarrotado,total,10.95,10.95,true,false,false
+22_amachucado_jrn_doçarias.jpg,amarrotado,entidade,jrn_doçarias,JRH Doçar ías Uhipessu,false,false,false
+22_amachucado_jrn_doçarias.jpg,amarrotado,nif_comerciante,513980350,188009094,false,false,false
+22_amachucado_jrn_doçarias.jpg,amarrotado,nif_cliente,188009094,,false,false,true
+22_amachucado_jrn_doçarias.jpg,amarrotado,data,2026-11-01,2026-11-01,true,false,false
+22_amachucado_jrn_doçarias.jpg,amarrotado,total,6.00,6006.00,false,false,false
+23_amachucado_amelia_flores.jpg,amarrotado,entidade,amelia_flores,RECREIO AMÉLIA,false,false,false
+23_amachucado_amelia_flores.jpg,amarrotado,nif_comerciante,514355719,514355719,true,false,false
+23_amachucado_amelia_flores.jpg,amarrotado,nif_cliente,188009094,,false,false,true
+23_amachucado_amelia_flores.jpg,amarrotado,data,2026-10-28,2026-10-28,true,false,false
+23_amachucado_amelia_flores.jpg,amarrotado,total,11.00,11.00,true,false,false
+24_direito_alentejo_ubbo.jpg,direito,entidade,alentejo_ubbo,Gakii n Caffe,false,false,false
+24_direito_alentejo_ubbo.jpg,direito,nif_comerciante,508957109,1224,false,false,false
+24_direito_alentejo_ubbo.jpg,direito,nif_cliente,188009094,,false,false,true
+24_direito_alentejo_ubbo.jpg,direito,data,2026-10-30,2026-11-01,false,false,false
+24_direito_alentejo_ubbo.jpg,direito,total,9.90,8.05,false,false,false
+25_direito_honorio.jpg,direito,entidade,honorio,9C'+2'21 iocz9940) Avh &n Da OvwL,false,false,false
+25_direito_honorio.jpg,direito,nif_comerciante,509509304,9C'+2'21 iocz9940) Avh &n Da OvwL,false,false,false
+25_direito_honorio.jpg,direito,nif_cliente,188009094,,false,false,true
+25_direito_honorio.jpg,direito,data,2026-10-27,2021-07-07,false,false,false
+25_direito_honorio.jpg,direito,total,9.25,,false,false,true
+26_direito_continente_amadora.jpg,direito,entidade,continente_amadora,MODELO CONTINENTE HIPERMERCADOS S.A,false,false,false
+26_direito_continente_amadora.jpg,direito,nif_comerciante,502011475,P7502011475,false,false,false
+26_direito_continente_amadora.jpg,direito,nif_cliente,,,true,false,false
+26_direito_continente_amadora.jpg,direito,data,2026-10-27,2026-10-27,true,false,false
+26_direito_continente_amadora.jpg,direito,total,10.88,10.88,true,false,false
+27_direito_garden_caffe.jpg,direito,entidade,garden_caffe,,false,false,true
+27_direito_garden_caffe.jpg,direito,nif_comerciante,513690867,,false,false,true
+27_direito_garden_caffe.jpg,direito,nif_cliente,188009094,,false,false,true
+27_direito_garden_caffe.jpg,direito,data,2026-11-01,,false,false,true
+27_direito_garden_caffe.jpg,direito,total,8.05,,false,false,true

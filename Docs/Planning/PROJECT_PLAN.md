@@ -60,7 +60,7 @@ O sistema estrutura a informação nos seguintes atributos normalizados:
 O módulo de inteligência é implementado sobre uma interface unificada (`llm_client.py`), permitindo alternar de fornecedor com um único clique na aplicação:
 - **Fornecedor Local (Padrão de Privacidade)**: `llama.cpp` (`llama-server`) em `http://127.0.0.1:8080/v1` com modelo leve (ex.: `Qwen2.5-Coder-3B-Instruct`), 100% offline e em conformidade com a proteção de dados.
 - **Fornecedor Cloud (Demonstração da Matéria)**:
-  - **Google Gemini** via `google-genai` (ex.: `gemini-2.5-flash`), replicando `class-code/genAI/gemini_image.py`.
+  - **Google Gemini** via `google-genai` (ex.: `gemini-3.5-flash`), replicando `class-code/genAI/gemini_image.py`.
   - A chave é lida de um ficheiro `.env` (`GEMINI_API_KEY`, nunca versionado), à semelhança do código das aulas.
 - **Ponto de Arquitetura Relevante**: O `llama-server` expõe uma API compatível com a especificação OpenAI (`/v1/chat/completions`), pelo que o SDK `openai` é reutilizado como cliente HTTP estritamente local para a inferência em `llama.cpp`.
 - **Funcionamento**: O modelo selecionado recebe o texto indexado por linha (`[01] O DAS BIFANAS`, `[02] NIF: 518396894`, ...). Em talões amarrotados, o modelo deduz semanticamente erros pontuais de OCR (ex.: `TOT4L` -> `total`).
@@ -119,7 +119,7 @@ A aplicação será organizada em três separadores claros para facilitar quer a
   - Seletor do fornecedor de inteligência:
     - `Regras Python (Regex Baseline)`
     - `LLM Local via llama.cpp (Qwen2.5 3B) [Padrão Privado]`
-    - `LLM Cloud - Google Gemini (gemini-2.5-flash)`
+    - `LLM Cloud - Google Gemini (gemini-3.5-flash)`
   - Botão de execução do processamento.
 - **Painel Central (Evidência Visual)**:
   - Imagem do documento anotada com retângulos delimitadores coloridos sobre o texto identificado.

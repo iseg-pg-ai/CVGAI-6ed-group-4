@@ -13,10 +13,10 @@ prazo real de submissão antes de partilhar.
 Equipa: Vitor (pipeline), José (camada de dados e métricas), Raquel (corpus e narrativa).
 
 **Estado em 2026-11-03.** WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09,
-WP-10, WP-11, WP-12, WP-13, WP-14 e WP-16 estão fechados e integrados em `master`. O `src/settings.py`
+WP-10, WP-11, WP-12, WP-13, WP-14, WP-15 e WP-16 estão fechados e integrados em `master`. O `src/settings.py`
 foi acrescentado fora da numeração para centralizar o acesso ao ambiente e aos caminhos, e `scripts/check_golden_set.sh`
 valida o dataset de forma automática. O detalhe do que foi entregue, e do que diverge do plano original, está na secção 5.1.
-As restantes secções descrevem o alvo e continuam válidas para os pacotes por executar (WP-15, WP-17, WP-18).
+As restantes secções descrevem o alvo e continuam válidas para os pacotes por executar (WP-17, WP-18).
 
 ---
 
@@ -229,7 +229,7 @@ CVGAI-6ed-group-4/
 │   ├── qa_assistant.py            # Q&A com evidência           [Vitor]  feito
 │   ├── evidence.py                # bbox -> recorte/destaque    [Vitor]  feito
 │   ├── scoring.py                 # comparação e agregação      [José]   feito
-│   ├── evaluate.py                # runner do benchmark         [José]   pendente
+│   ├── evaluate.py                # runner do benchmark         [José]   feito
 │   ├── dataset_stats.py           # estatística do corpus       [José]   feito
 │   └── app.py                     # Gradio                      [Vitor]  feito
 ├── tests/
@@ -249,6 +249,7 @@ CVGAI-6ed-group-4/
 │   ├── test_extractor_llm.py      [Vitor]  feito
 │   ├── test_qa_assistant.py       [Vitor]  feito
 │   ├── test_dataset_stats.py      [José]   feito
+│   ├── test_evaluate.py           [José]   feito
 │   └── test_app.py                [Vitor]  feito
 ├── scripts/                       # atalhos de arranque
 │   ├── check_golden_set.sh        # atalho de validação         [Vitor]  feito
@@ -374,20 +375,20 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | WP-12 | Assistente de Q&A com evidência | Vitor | WP-08, WP-11 | 5 h | `src/qa_assistant.py` | feito |
 | WP-13 | Pontuação e agregação | **José** | WP-02, WP-03 | 5 a 7 h | `src/scoring.py`, `tests/test_scoring.py` | feito |
 | WP-14 | Estatística do corpus | **José** | WP-03 | 2 a 3 h | `src/dataset_stats.py` | feito |
-| WP-15 | Runner do benchmark | **José** | WP-13 | 4 a 5 h | `src/evaluate.py`, `tests/test_evaluate.py` | pendente |
+| WP-15 | Runner do benchmark | **José** | WP-13 | 4 a 5 h | `src/evaluate.py`, `tests/test_evaluate.py` | feito |
 | WP-16 | Aplicação Gradio | Vitor | WP-04 a WP-12 | 10 h | `src/app.py` | feito |
 | WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` | em curso |
 | WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` | pendente |
 
 O caminho crítico inicial (WP-00 → WP-01 → WP-04 → WP-05 → WP-09 → WP-10 → WP-12 → WP-16)
-encontra-se integralmente fechado e integrado em `master`. Os pacotes restantes são o runner
-do benchmark oficial (WP-15, `src/evaluate.py`), o alinhamento semântico dos nomes de entidades no
-golden set (WP-17, `data/ground_truth.csv`) e a mini-apresentação (WP-18).
+e o runner do benchmark oficial (WP-15) encontram-se integralmente fechados e integrados em `master`.
+Os pacotes restantes são o alinhamento semântico dos nomes de entidades no golden set
+(WP-17, `data/ground_truth.csv`) e a mini-apresentação (WP-18).
 
 ### 5.1 Estado das entregas e desvios face ao plano
 
 Fechados e integrados em `master` a 2026-11-03: WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06,
-WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14 e WP-16. A suite tem 279 testes offline que correm
+WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15 e WP-16. A suite tem 291 testes offline que correm
 em cerca de 4,5 s, mais um teste `slow` com o EasyOCR real, deselecionado por omissão.
 
 Desvios que valem registo, porque afetam os pacotes seguintes:

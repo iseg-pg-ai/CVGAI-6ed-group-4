@@ -1,0 +1,6 @@
+﻿filename,grupo,campo,esperado,obtido,acertou,falso_positivo,omissao
+01_direito_controlauto.jpg,direito,entidade,controlauto,Sontrolauto,false,false,false
+01_direito_controlauto.jpg,direito,nif_comerciante,,,true,false,false
+01_direito_controlauto.jpg,direito,nif_cliente,500037191,{00037191,false,false,false
+01_direito_controlauto.jpg,direito,data,2026-09-10,2026-09-10,true,false,false
+01_direito_controlauto.jpg,direito,total,37.47,30.46,false,false,false

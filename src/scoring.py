@@ -6,7 +6,7 @@ Ref: Docs/Planning/implementation_plan.md, section 4.7.
 from __future__ import annotations
 
 import csv
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -144,7 +144,11 @@ def _format_table(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> list
     ]
 
 
-def escrever_tabelas(resultados: list[MatchResult], destino: Path) -> None:
+def escrever_tabelas(
+    resultados: list[MatchResult],
+    destino: Path,
+    metadata: Mapping[str, str] | None = None,
+) -> None:
     """Write results/metrics.csv and results/metrics.md (table for the report).
 
     ``destino`` is the output directory; this function creates
@@ -153,6 +157,7 @@ def escrever_tabelas(resultados: list[MatchResult], destino: Path) -> None:
     Args:
         resultados: Per-field comparisons to export.
         destino: Directory in which to write the two report files.
+        metadata: Optional dictionary of run metadata to include in the Markdown header.
     """
     destino.mkdir(parents=True, exist_ok=True)
     csv_path = destino / "metrics.csv"
@@ -174,7 +179,12 @@ def escrever_tabelas(resultados: list[MatchResult], destino: Path) -> None:
             )
 
     aggregated = agregar(resultados)
-    markdown_lines = ["# Métricas do benchmark", "", "## Global", ""]
+    markdown_lines = ["# Métricas do benchmark", ""]
+    if metadata:
+        for key, value in metadata.items():
+            markdown_lines.append(f"- **{key}:** {value}")
+        markdown_lines.append("")
+    markdown_lines.extend(["## Global", ""])
     global_metrics = aggregated["global"]
     markdown_lines.extend(
         _format_table(

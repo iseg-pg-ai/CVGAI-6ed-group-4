@@ -111,7 +111,7 @@ def load_settings(repo_root: Path | None = None) -> Settings:
         llama_timeout_s = 120.0
 
     gemini_api_key = _normalize_optional_str(_get_val("GEMINI_API_KEY", "") or None)
-    gemini_model = _get_val("GEMINI_MODEL", "gemini-2.5-flash").strip()
+    gemini_model = _get_val("GEMINI_MODEL", "gemini-3.5-flash").strip()
 
     raw_engine = _get_val("OCR_ENGINE", "easyocr").strip().lower()
     if raw_engine in ("easyocr", "tesseract"):

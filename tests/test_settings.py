@@ -34,7 +34,7 @@ def test_default_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert settings.llama_model == "local-llm"
     assert settings.llama_timeout_s == 120.0
     assert settings.gemini_api_key is None
-    assert settings.gemini_model == "gemini-2.5-flash"
+    assert settings.gemini_model == "gemini-3.5-flash"
     assert settings.ocr_engine == "easyocr"
     assert settings.easyocr_langs == ("pt", "en")
     assert settings.tesseract_cmd is None

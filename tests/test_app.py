@@ -382,9 +382,11 @@ def test_load_benchmark_report_fallback_and_existing(mock_app_settings: Settings
 
     # When present
     (mock_app_settings.results_dir / "metrics.md").write_text("# Real Benchmark Metrics\nTest table", encoding="utf-8")
-    (mock_app_settings.results_dir / "metrics.csv").write_text("campo,taxa_acerto\ntotal,1.0\n", encoding="utf-8")
+    csv_header = "filename,grupo,campo,esperado,obtido,acertou,falso_positivo,omissao\n"
+    csv_row = "receipt.jpg,direito,total,16.10,16.10,true,false,false\n"
+    (mock_app_settings.results_dir / "metrics.csv").write_text(csv_header + csv_row, encoding="utf-8-sig")
 
     md2, headers2, rows2 = load_benchmark_report(settings=mock_app_settings)
     assert "Real Benchmark Metrics" in md2
-    assert headers2 == ["campo", "taxa_acerto"]
-    assert rows2 == [["total", "1.0"]]
+    assert headers2 == ["filename", "grupo", "campo", "esperado", "obtido", "acertou", "falso_positivo", "omissao"]
+    assert rows2 == [["receipt.jpg", "direito", "total", "16.10", "16.10", "true", "false", "false"]]
