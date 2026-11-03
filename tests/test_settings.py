@@ -18,8 +18,6 @@ def test_default_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         "LLAMA_TIMEOUT_S",
         "GEMINI_API_KEY",
         "GEMINI_MODEL",
-        "OPENAI_API_KEY",
-        "OPENAI_MODEL",
         "OCR_ENGINE",
         "EASYOCR_LANGS",
         "TESSERACT_CMD",
@@ -37,8 +35,6 @@ def test_default_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert settings.llama_timeout_s == 120.0
     assert settings.gemini_api_key is None
     assert settings.gemini_model == "gemini-2.5-flash"
-    assert settings.openai_api_key is None
-    assert settings.openai_model == "gpt-4o-mini"
     assert settings.ocr_engine == "easyocr"
     assert settings.easyocr_langs == ("pt", "en")
     assert settings.tesseract_cmd is None
@@ -52,13 +48,11 @@ def test_default_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 def test_empty_string_api_keys_normalize_to_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Empty strings in environment or .env are normalized to None."""
     monkeypatch.setenv("GEMINI_API_KEY", "   ")
-    monkeypatch.setenv("OPENAI_API_KEY", "")
     monkeypatch.setenv("TESSERACT_CMD", "")
 
     settings = load_settings(repo_root=tmp_path)
 
     assert settings.gemini_api_key is None
-    assert settings.openai_api_key is None
     assert settings.tesseract_cmd is None
 
 
@@ -68,7 +62,6 @@ def test_environment_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("LLAMA_MODEL", "qwen2.5-3b")
     monkeypatch.setenv("LLAMA_TIMEOUT_S", "45.5")
     monkeypatch.setenv("GEMINI_API_KEY", "secret-gemini-key")
-    monkeypatch.setenv("OPENAI_API_KEY", "secret-openai-key")
     monkeypatch.setenv("OCR_ENGINE", "tesseract")
     monkeypatch.setenv("EASYOCR_LANGS", "pt, es, fr")
     monkeypatch.setenv("TESSERACT_CMD", "/usr/bin/tesseract")
@@ -80,7 +73,6 @@ def test_environment_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert settings.llama_model == "qwen2.5-3b"
     assert settings.llama_timeout_s == 45.5
     assert settings.gemini_api_key == "secret-gemini-key"
-    assert settings.openai_api_key == "secret-openai-key"
     assert settings.ocr_engine == "tesseract"
     assert settings.easyocr_langs == ("pt", "es", "fr")
     assert settings.tesseract_cmd == Path("/usr/bin/tesseract").resolve()

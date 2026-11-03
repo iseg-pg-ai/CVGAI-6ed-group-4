@@ -49,6 +49,12 @@ def test_bbox_geometry() -> None:
     with pytest.raises(AttributeError):
         box.x1 = 0  # type: ignore[misc]
 
+    with pytest.raises(ValueError):
+        BBox(x1=50, y1=20, x2=40, y2=70)
+
+    with pytest.raises(ValueError):
+        BBox(x1=10, y1=80, x2=40, y2=70)
+
 
 def test_ocr_document_renders_prompt_text() -> None:
     """Lines are numbered from one, zero-padded, in reading order."""
@@ -57,7 +63,7 @@ def test_ocr_document_renders_prompt_text() -> None:
             OcrLine(id=1, text="PINGO DOCE", confidence=0.98, bbox=BBox(0, 0, 10, 10)),
             OcrLine(id=2, text="TOTAL 16,10", confidence=0.91, bbox=BBox(0, 10, 10, 20)),
         ],
-        engine="fake",
+        engine="easyocr",
         elapsed_ms=1.0,
         image_size=(120, 240),
     )
@@ -74,7 +80,7 @@ def test_extraction_exposes_the_five_fields_in_order() -> None:
         nif_cliente=ausente,
         data=ausente,
         total=ausente,
-        method="test",
+        method="regex",
         elapsed_ms=0.0,
     )
 
@@ -138,8 +144,8 @@ def test_shared_contract_constants() -> None:
     assert FIELD_NAMES == ("entidade", "nif_comerciante", "nif_cliente", "data", "total")
     assert GROUPS == ("direito", "amarrotado")
     assert OCR_ENGINES == ("easyocr", "tesseract")
-    assert LLM_PROVIDERS == ("llm_local", "llm_gemini", "llm_openai")
-    assert EXTRACTION_METHODS == ("regex", "llm_local", "llm_gemini", "llm_openai")
+    assert LLM_PROVIDERS == ("llm_local", "llm_gemini")
+    assert EXTRACTION_METHODS == ("regex", "llm_local", "llm_gemini")
     assert CONSUMIDOR_FINAL_NIF == "999999990"
     assert date(2000, 1, 1) == EARLIEST_PLAUSIBLE_DATE
     assert IMAGE_EXTENSIONS == (".jpg", ".jpeg", ".png")

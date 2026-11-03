@@ -18,7 +18,7 @@ Campos extraídos de cada documento:
 | `total` | Total pago |
 
 Três métodos de extração correm em paralelo para comparação: expressões regulares
-(baseline), LLM local servido por `llama.cpp` e LLM na cloud (Gemini ou OpenAI).
+(baseline), LLM local servido por `llama.cpp` e LLM na cloud (Google Gemini).
 
 ## Estado atual
 
@@ -37,7 +37,7 @@ EasyOCR, que descarrega os pesos na primeira execução):
 | `src/ocr_engine.py` | EasyOCR com caixas delimitadoras e IDs de linha | `uv run python -m src.ocr_engine` |
 | `src/ocr_tesseract.py` | Motor OCR comparativo, com agregação de palavras em linhas | `uv run python -m src.ocr_tesseract` |
 | `src/qr_reader.py` | Leitura do QR da AT para validação cruzada | `uv run python -m src.qr_reader` |
-| `src/llm_client.py` | Clientes local, Gemini e OpenAI com failover | `uv run python -m src.llm_client` |
+| `src/llm_client.py` | Clientes local e Gemini com failover | `uv run python -m src.llm_client` |
 | `src/extractor_regex.py` | Extrator por regex (baseline) | `uv run python -m src.extractor_regex` |
 | `src/extractor_llm.py` | Extrator por LLM, local ou cloud, com JSON validado | `uv run python -m src.extractor_llm --provider llm_local` |
 | `src/evidence.py` | Destaque e recorte da região comprovativa | `uv run python -m src.evidence -l 1,2,3` |
@@ -48,13 +48,14 @@ EasyOCR, que descarrega os pesos na primeira execução):
 
 Cada módulo CLI opera sobre o primeiro talão de `data/receipts/`; a flag `--file`
 escolhe outro ficheiro e `--save` escreve o resultado em disco em vez de abrir a janela.
+O script `bash scripts/check_golden_set.sh` corre a validação do golden set e as estatísticas do corpus num só passo.
 
 Por construir: runner do benchmark oficial (`src/evaluate.py`, WP-15) e mini-apresentação (WP-18).
 O extrator por LLM e o assistente de Q&A podem correr contra um `llama-server` local
-(`scripts/run_llama_server.sh`) ou contra chaves de API (`GEMINI_API_KEY` ou `OPENAI_API_KEY`) no `.env`.
+(`scripts/run_llama_server.sh`) ou contra a chave de API da Google (`GEMINI_API_KEY`) no `.env`.
 
 O corpus conta com 27 imagens recolhidas em `data/receipts/` (`01_...` a `27_...`) e
-`data/ground_truth.csv` contém os registos correspondentes (WP-17 em curso de validação).
+`data/ground_truth.csv` contém os 27 registos correspondentes validados estruturalmente (WP-17 em curso de alinhamento semântico dos nomes de entidades).
 
 ## Requisitos
 
@@ -239,23 +240,26 @@ winget install --id=astral-sh.uv -e
 
 ### Pré-visualizações por módulo
 
-Enquanto a interface Gradio não existe (WP-16), cada fase já implementada tem uma entrada de
-linha de comando que abre uma janela com o resultado sobre o primeiro talão de
-`data/receipts/`:
+Além da interface Gradio, cada fase do pipeline tem uma entrada de linha de comando que abre uma
+janela com o resultado sobre o primeiro talão de `data/receipts/` ou imprime o resultado na consola:
 
 ```bash
+bash scripts/check_golden_set.sh      # validação do golden set e estatísticas do corpus
 uv run python -m src.preprocessing    # antes vs depois do OpenCV
 uv run python -m src.ocr_engine       # linhas numeradas prontas para o prompt
+uv run python -m src.ocr_tesseract    # OCR alternativo via Tesseract
 uv run python -m src.qr_reader        # campos do QR da AT, quando o talão tiver um
+uv run python -m src.extractor_regex  # extração estruturada baseline
 uv run python -m src.evidence         # caixas do OCR e destaque das linhas citadas
+uv run python -m src.qa_assistant     # pergunta de teste ao assistente
 ```
 
 Flags comuns: `--file caminho/para/talao.jpg` escolhe a imagem e `--save saida.png` escreve o
 resultado em disco em vez de abrir a janela. O `src.evidence` acrescenta `--lines 1,2,3` para
 escolher as linhas a destacar e a recortar; sem a flag, usa até três linhas que contenham
 `TOTAL`, `NIF`, `NIPC` ou `CONTRIBUINTE` e, se não houver nenhuma, as duas primeiras. O
-`src.preprocessing` aceita `--rotate`, `--no-crop`, `--no-shadows` e `--no-osd`; o
-`src.ocr_engine` aceita `--gpu` e `--no-preprocess`; o `src.qr_reader` aceita
+`src.preprocessing` aceita `--rotate`, `--no-crop`, `--no-shadows`, `--no-osd` e `--deskew` /
+`--no-deskew`; o `src.ocr_engine` aceita `--gpu` e `--no-preprocess`; o `src.qr_reader` aceita
 `--no-preprocess`.
 
 ### Aplicação Gradio
@@ -322,7 +326,7 @@ uv run pytest -k "nif" -q                           # filtra por nome
 uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 ```
 
-Ficheiros atuais da suite (263 testes offline): `test_smoke.py`, `test_settings.py`,
+Ficheiros atuais da suite (279 testes offline): `test_smoke.py`, `test_settings.py`,
 `test_normalizers.py`, `test_golden_set.py`, `test_preprocessing.py`, `test_ocr_contract.py`,
 `test_ocr_tesseract.py`, `test_qr_reader.py`, `test_evidence.py`, `test_llm_client.py`,
 `test_extractor_regex.py`, `test_extractor_llm.py`, `test_qa_assistant.py`, `test_scoring.py`,
@@ -352,7 +356,7 @@ src/
   ocr_engine.py     EasyOCR com caixas delimitadoras e IDs de linha
   ocr_tesseract.py  backend Tesseract OCR com agregação de palavras
   qr_reader.py      leitura e validação cruzada do QR da AT
-  llm_client.py     clientes LLM (local, Gemini, OpenAI) com failover
+  llm_client.py     clientes LLM (local e Gemini) com failover
   extractor_regex.py baseline de extração estruturada por expressões regulares
   extractor_llm.py  extrator por LLM com ancoragem determinística de evidência
   evidence.py       destaque e recorte da região comprovativa
@@ -360,12 +364,12 @@ src/
   scoring.py        cálculo de taxas de acerto, falsos positivos e omissões
   dataset_stats.py  estatísticas do corpus por grupo, emitente e presença de campos
   app.py            aplicação interativa Gradio com 3 separadores
-tests/              suite pytest com 263 testes, offline e determinística
+tests/              suite pytest com 279 testes, offline e determinística
 data/               imagens do golden set e verdade de referência
 results/            saídas do benchmark citadas no relatório
 Docs/               planeamento e apresentação
 models/             pesos .gguf do LLM local (não versionados)
-scripts/            scripts de arranque do llama-server (.sh, .ps1, .bat)
+scripts/            validação do golden set (check_golden_set.sh) e arranque do llama-server (.sh, .ps1, .bat)
 ```
 
 O plano de implementação, com os pacotes de trabalho e os respetivos donos, está em

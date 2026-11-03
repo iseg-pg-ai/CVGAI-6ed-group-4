@@ -49,13 +49,13 @@ def _document() -> OcrDocument:
         OcrLine(index, text, 0.9, BBox(0, (index - 1) * 20, 200, index * 20))
         for index, text in enumerate(OCR_TEXT, start=1)
     ]
-    return OcrDocument(lines=lines, engine="fake", elapsed_ms=0.1, image_size=(200, 80))
+    return OcrDocument(lines=lines, engine="easyocr", elapsed_ms=0.1, image_size=(200, 80))
 
 
 class FakeOcrEngine:
     """OCR double returning a fixed receipt document."""
 
-    name = "fake"
+    name: str = "easyocr"
 
     def __init__(self, **_: Any) -> None:
         self.read_calls = 0

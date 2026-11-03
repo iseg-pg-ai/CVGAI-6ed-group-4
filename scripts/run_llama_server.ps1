@@ -8,7 +8,7 @@
       1. Script parameters: -Model, -Port, -Ngl, -Ctx
       2. Environment variables: MODEL, PORT, NGL, CTX
       3. .env file: LLAMA_MODEL_PATH / MODEL, LLAMA_PORT / PORT, etc.
-      4. Default fallback: models\Qwen2.5-3B-Instruct-Q8_0.gguf, 8080, 99, 8192
+      4. Default fallback: models\Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf, 8080, 0, 8192
 .EXAMPLE
     .\scripts\run_llama_server.ps1
 .EXAMPLE
@@ -50,7 +50,7 @@ if (Test-Path $EnvFile) {
 
 # Resolve settings by precedence
 if (-not $Model) {
-    $Model = if ($env:MODEL) { $env:MODEL } elseif ($env:LLAMA_MODEL_PATH) { $env:LLAMA_MODEL_PATH } else { "models\Qwen2.5-3B-Instruct-Q8_0.gguf" }
+    $Model = if ($env:MODEL) { $env:MODEL } elseif ($env:LLAMA_MODEL_PATH) { $env:LLAMA_MODEL_PATH } else { "models\Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf" }
 }
 
 if ($Port -le 0) {
@@ -58,7 +58,7 @@ if ($Port -le 0) {
 }
 
 if ($Ngl -lt 0) {
-    $Ngl = if ($null -ne $env:NGL) { [int]$env:NGL } elseif ($null -ne $env:LLAMA_NGL) { [int]$env:LLAMA_NGL } else { 99 }
+    $Ngl = if ($null -ne $env:NGL) { [int]$env:NGL } elseif ($null -ne $env:LLAMA_NGL) { [int]$env:LLAMA_NGL } else { 0 }
 }
 
 if ($Ctx -le 0) {

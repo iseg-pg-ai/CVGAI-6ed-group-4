@@ -6,7 +6,7 @@
 #   1. CLI argument:       $0 <path/to/model.gguf>
 #   2. Environment:        MODEL=... PORT=... NGL=... CTX=...
 #   3. .env file:          LLAMA_MODEL_PATH / MODEL, LLAMA_PORT / PORT, etc.
-#   4. Default fallback:   models/Qwen2.5-3B-Instruct-Q8_0.gguf, 8080, 99, 8192
+#   4. Default fallback:   models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf, 8080, 0, 8192
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,9 +36,9 @@ if [ -f "${ENV_FILE}" ]; then
     done < "${ENV_FILE}"
 fi
 
-MODEL="${1:-${MODEL:-${LLAMA_MODEL_PATH:-models/Qwen2.5-3B-Instruct-Q8_0.gguf}}}"
+MODEL="${1:-${MODEL:-${LLAMA_MODEL_PATH:-models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf}}}"
 PORT="${PORT:-${LLAMA_PORT:-8080}}"
-NGL="${NGL:-${LLAMA_NGL:-99}}"
+NGL="${NGL:-${LLAMA_NGL:-0}}"
 CTX="${CTX:-${LLAMA_CTX:-8192}}"
 
 if [ ! -f "${MODEL}" ]; then

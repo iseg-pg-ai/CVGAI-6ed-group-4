@@ -14,6 +14,7 @@ import argparse
 import csv
 import hashlib
 import sys
+import threading
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -36,15 +37,17 @@ from src.types import IMAGE_EXTENSIONS, Extraction, OcrDocument, OcrEngine
 if TYPE_CHECKING:
     from src.settings import Settings
 
-# In-memory caches
+# In-memory thread-safe caches
+_CACHE_LOCK = threading.Lock()
 _OCR_CACHE: dict[str, tuple[PreprocessResult, OcrDocument, dict[str, str] | None]] = {}
 _ENGINE_CACHE: dict[str, OcrEngine] = {}
 
 
 def clear_caches() -> None:
     """Clear in-memory OCR document and engine caches."""
-    _OCR_CACHE.clear()
-    _ENGINE_CACHE.clear()
+    with _CACHE_LOCK:
+        _OCR_CACHE.clear()
+        _ENGINE_CACHE.clear()
 
 
 def _from_gradio_rgb(image: np.ndarray) -> np.ndarray:
@@ -102,8 +105,9 @@ def _compute_cache_key(image_bgr: np.ndarray, opts: PreprocessOptions, engine_na
 def _get_ocr_engine(engine_name: str, settings: Settings | None = None) -> OcrEngine:
     """Retrieve or instantiate a cached OCR engine instance."""
     key = engine_name.strip().lower()
-    if key in _ENGINE_CACHE:
-        return _ENGINE_CACHE[key]
+    with _CACHE_LOCK:
+        if key in _ENGINE_CACHE:
+            return _ENGINE_CACHE[key]
 
     cfg = settings or get_settings()
     engine: OcrEngine
@@ -112,7 +116,8 @@ def _get_ocr_engine(engine_name: str, settings: Settings | None = None) -> OcrEn
     else:
         engine = EasyOCREngine(langs=cfg.easyocr_langs, warmup=False)
 
-    _ENGINE_CACHE[key] = engine
+    with _CACHE_LOCK:
+        _ENGINE_CACHE[key] = engine
     return engine
 
 
@@ -124,8 +129,9 @@ def _get_ocr_document(
 ) -> tuple[PreprocessResult, OcrDocument, dict[str, str] | None]:
     """Retrieve preprocessed result, OCR document, and QR data from cache or compute them."""
     cache_key = _compute_cache_key(image_bgr, opts, engine_name)
-    if cache_key in _OCR_CACHE:
-        return _OCR_CACHE[cache_key]
+    with _CACHE_LOCK:
+        if cache_key in _OCR_CACHE:
+            return _OCR_CACHE[cache_key]
 
     # Step 1: Preprocess (BGR -> BGR)
     prep_result = preprocess(image_bgr, opts)
@@ -138,9 +144,10 @@ def _get_ocr_document(
     qr_data = read_qr(prep_result.image, raw_image=image_bgr)
 
     # Store in cache (limit size to 20 entries)
-    if len(_OCR_CACHE) >= 20:
-        _OCR_CACHE.pop(next(iter(_OCR_CACHE)))
-    _OCR_CACHE[cache_key] = (prep_result, ocr_doc, qr_data)
+    with _CACHE_LOCK:
+        if len(_OCR_CACHE) >= 20:
+            _OCR_CACHE.pop(next(iter(_OCR_CACHE)))
+        _OCR_CACHE[cache_key] = (prep_result, ocr_doc, qr_data)
 
     return prep_result, ocr_doc, qr_data
 
@@ -196,9 +203,6 @@ def process_document(
             extraction = extract_regex(ocr_doc, qr=qr_data)
         elif extractor_name == "LLM Cloud (Gemini)":
             client = build_client(provider="llm_gemini", settings=settings)
-            extraction = extract_llm(ocr_doc, qr=qr_data, client=client)
-        elif extractor_name == "LLM Cloud (OpenAI)":
-            client = build_client(provider="llm_openai", settings=settings)
             extraction = extract_llm(ocr_doc, qr=qr_data, client=client)
         else:
             client = build_client(provider="llm_local", settings=settings)
@@ -301,7 +305,6 @@ def answer_question(
     provider_map = {
         "LLM Local (llama.cpp)": "llm_local",
         "LLM Cloud (Gemini)": "llm_gemini",
-        "LLM Cloud (OpenAI)": "llm_openai",
     }
     provider = provider_map.get(provider_choice, "llm_local")
 
@@ -350,7 +353,7 @@ def load_benchmark_report(settings: Settings | None = None) -> tuple[str, list[s
     csv_headers: list[str] = []
     csv_rows: list[list[str]] = []
     if csv_path.is_file():
-        with csv_path.open(encoding="utf-8") as f:
+        with csv_path.open(encoding="utf-8-sig") as f:
             reader = list(csv.reader(f))
             if reader:
                 csv_headers = reader[0]
@@ -374,7 +377,7 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
         found = sorted(
             [str(p) for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
         )
-        example_files = [[p] for p in found[:6]]
+        example_files = [[p] for p in found[:26]]
 
     with gr.Blocks(title="Leitor Inteligente de Documentos Visuais") as demo:
         gr.Markdown(
@@ -414,7 +417,6 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
                                 "Regex Baseline",
                                 "LLM Local (llama.cpp)",
                                 "LLM Cloud (Gemini)",
-                                "LLM Cloud (OpenAI)",
                             ],
                             value="Regex Baseline",
                             label="Metodo de Extracao",
@@ -446,6 +448,14 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
                     )
 
                     gr.Markdown("### Assistente Verificavel de Perguntas e Respostas")
+                    qa_provider_choice = gr.Radio(
+                        choices=[
+                            "LLM Local (llama.cpp)",
+                            "LLM Cloud (Gemini)",
+                        ],
+                        value="LLM Local (llama.cpp)",
+                        label="Modelo LLM para Q&A",
+                    )
                     txt_question = gr.Textbox(
                         label="Pergunta em Linguagem Natural",
                         placeholder="Ex: Qual o NIF do cliente? Qual o total a pagar?",
@@ -493,6 +503,16 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
                 gr.Markdown("### Metricas Quantitativas sobre o Golden Set")
                 md_benchmark = gr.Markdown()
                 tbl_benchmark = gr.Dataframe(
+                    headers=[
+                        "filename",
+                        "grupo",
+                        "campo",
+                        "esperado",
+                        "obtido",
+                        "acertou",
+                        "falso_positivo",
+                        "omissao",
+                    ],
                     interactive=False,
                     label="Tabela de Metricas Detalhada (results/metrics.csv)",
                 )
@@ -539,7 +559,7 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
                 chk_shadows,
                 slider_clahe,
                 ocr_choice,
-                extractor_choice,
+                qa_provider_choice,
             ],
             outputs=[
                 txt_qa_status,
@@ -556,9 +576,11 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
         btn_q4.click(lambda: "Qual o valor total pago?", outputs=txt_question)
 
         # Benchmark tab load & refresh handlers
-        def _refresh_benchmark() -> tuple[str, list[list[str]]]:
-            md, _, rows = load_benchmark_report(settings=settings)
-            return md, rows
+        def _refresh_benchmark() -> tuple[str, Any]:
+            md, headers, rows = load_benchmark_report(settings=settings)
+            if headers:
+                return md, gr.update(value=rows, headers=headers)
+            return md, gr.update(value=[])
 
         demo.load(fn=_refresh_benchmark, outputs=[md_benchmark, tbl_benchmark])
         btn_refresh_bench.click(fn=_refresh_benchmark, outputs=[md_benchmark, tbl_benchmark])

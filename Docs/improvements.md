@@ -11,19 +11,19 @@ Domain: Smart Reader for Portuguese Receipts and Simplified Invoices (CVGAI 6th 
 This document provides an exhaustive, module-by-module technical audit of the codebase, identifying functional gaps, edge-case vulnerabilities, architectural inconsistencies, and necessary improvements across all pipeline stages.
 
 ### Status Summary
-- **Implemented Modules**: `src/types.py`, `src/settings.py`, `src/normalizers.py`, `src/golden_set.py`, `src/preprocessing.py`, `src/ocr_engine.py`, `src/ocr_tesseract.py`, `src/qr_reader.py`, `src/llm_client.py`, `src/extractor_regex.py`, `src/extractor_llm.py`, `src/evidence.py`, `src/qa_assistant.py`, `src/scoring.py`, `src/dataset_stats.py`, `src/app.py`, `scripts/run_llama_server.{sh,ps1,bat}`.
-- **Missing / Pending Work Packages**:
+- **Implemented Modules & Scripts**: `src/types.py`, `src/settings.py`, `src/normalizers.py`, `src/golden_set.py`, `src/preprocessing.py`, `src/ocr_engine.py`, `src/ocr_tesseract.py`, `src/qr_reader.py`, `src/llm_client.py`, `src/extractor_regex.py`, `src/extractor_llm.py`, `src/evidence.py`, `src/qa_assistant.py`, `src/scoring.py`, `src/dataset_stats.py`, `src/app.py`, `scripts/run_llama_server.{sh,ps1,bat}`, `scripts/check_golden_set.sh`.
+- **Addressed Technical Audits**: The module-level robustness fixes, typing enforcements, and script alignments identified in Section 4 were implemented across commits `66209907`, `3d4c7805`, and `8ae84b28`.
+- **Remaining Work Packages**:
   - `src/evaluate.py` & `tests/test_evaluate.py` (WP-15 - Automated Benchmark Runner)
-  - `scripts/check_golden_set.sh` (Convenience validation script)
+  - `data/ground_truth.csv` annotations audit (WP-17 - semantic alignment of `entidade` trading names)
   - `Docs/Presentation/` (WP-18 - Golden Set and Project Slide Deck)
-  - `data/ground_truth.csv` annotations audit (WP-17 semantic alignment)
 
 ---
 
 ## 2. Unfinished Work Packages and Core Functional Gaps
 
 ### 2.1 WP-15: Automated Benchmark Runner (`src/evaluate.py` & `tests/test_evaluate.py`)
-- **Current State**: Not implemented.
+- **Current State**: Pending implementation.
 - **Consequence**: Users cannot execute the end-to-end evaluation benchmark over `data/ground_truth.csv` to output `results/metrics.csv` and `results/metrics.md`. Consequently, Tab 3 of the Gradio interface (`src/app.py`) displays only a placeholder notification.
 - **Architectural Requirements & Deficiencies in Existing Plan**:
   - The specification in `Docs/Planning/implementation_plan.md` (lines 776-876) describes evaluating a single `--engine` and single `--method` per execution, overwriting `results/metrics.csv`.
@@ -31,8 +31,8 @@ This document provides an exhaustive, module-by-module technical audit of the co
   - **Improvement**: `evaluate.py` must support an `--all-methods` / `--all-engines` matrix run or persist distinct target files (e.g., `results/metrics_regex_easyocr.csv`, `results/metrics_llm_easyocr.csv`), culminating in an integrated multi-method comparative summary table inside `results/metrics.md`.
 
 ### 2.2 Golden Set Check Utility (`scripts/check_golden_set.sh`)
-- **Current State**: Specified in `implementation_plan.md` (line 254) as an operational shortcut, but missing from `scripts/`.
-- **Improvement**: Implement `scripts/check_golden_set.sh` with strict POSIX flags (`set -euo pipefail`), invoking `python -m src.golden_set` and `python -m src.dataset_stats`.
+- **Current State**: Implemented (commit `3d4c7805`).
+- **Implementation**: Created `scripts/check_golden_set.sh` with strict POSIX flags (`set -euo pipefail`), invoking `python -m src.golden_set` and `python -m src.dataset_stats`. Validates all 27 records and outputs corpus stratification cleanly.
 
 ### 2.3 Presentation Deck (`Docs/Presentation/`)
 - **Current State**: WP-18 remains pending.
@@ -56,6 +56,8 @@ A rigorous inspection of `data/ground_truth.csv` against `src/normalizers.py` re
 ---
 
 ## 4. Detailed Module Audit and Technical Improvements
+
+*Note: The technical improvements detailed below across sections 4.1 to 4.17 were implemented, tested, and integrated into `master` in commits `66209907`, `3d4c7805`, and `8ae84b28`.*
 
 ### 4.1 Data Contracts (`src/types.py`)
 - **Loose Types in Dataclasses**:
@@ -269,25 +271,39 @@ A rigorous inspection of `data/ground_truth.csv` against `src/normalizers.py` re
 
 ## 5. Prioritized Implementation Roadmap
 
+### 5.1 Completed Work
+- **Core Pipeline & Robustness Bug Fixes (Sections 4.1 to 4.17)**:
+  - `src/types.py`: Literal type annotations and BBox non-negative ordering validation.
+  - `src/settings.py`: Isolated `dotenv_values` parsing, engine warning logging, and runtime knobs.
+  - `src/normalizers.py`: English Google docstrings with `Ref:`, `re.finditer` in `parse_data`, and multi-word legal suffix stripping in `normalizar_entidade`.
+  - `src/golden_set.py`: `receipts_dir` parameter, `999999990` sentinel rejection, and `2000-01-01` date lower bound.
+  - `src/preprocessing.py`: `tesseract_cmd` forwarding, intermediate steps dictionary consistency, and forward-slash Windows paths.
+  - `src/ocr_engine.py`: Baseline-aware horizontal bounding-box fragment merging.
+  - `src/ocr_tesseract.py`: Standardized English docstrings/errors with `Ref:` and `image_to_data_fn` injection hook.
+  - `src/qr_reader.py`: Multi-QR barcode loop (`_decode_all_codes`) preventing promotional code masking and proportional blob area bounds.
+  - `src/llm_client.py`: Multimodal image parameter support and removal of `llm_openai` direct provider.
+  - `src/extractor_regex.py`: Expanded `_TOTAL_LINE` qualifiers/currencies and greeting stopwords.
+  - `src/extractor_llm.py`: Reverse-order total line grounding with keyword prioritization.
+  - `src/qa_assistant.py`: Punctuation/stopword token extraction and strict `status_raw == "ENCONTRADO"` validation.
+  - `src/scoring.py`: Standardized English docstrings with `Ref:` and `INVALIDO`/`AUSENTE` status check.
+  - `src/dataset_stats.py`: Typed `exc.errors` access and `receipts_dir` forwarding.
+  - `src/app.py`: Decoupled `qa_provider_choice`, `utf-8-sig` CSV reading with table headers, and `_CACHE_LOCK` thread safety.
+  - `scripts/run_llama_server.*`: Default model aligned with `Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` and `NGL=0`.
+  - `scripts/check_golden_set.sh`: Automated POSIX check script for golden set and dataset stats.
+
+### 5.2 Remaining Deliverables
 1. **Phase 1: Dataset Integrity & Annotations (WP-17)**
-   - Re-annotate the `entidade` column in `data/ground_truth.csv` with the actual printed merchant names.
-   - Run `uv run python -m src.golden_set` and verify zero validation errors.
+   - Re-annotate the `entidade` column in `data/ground_truth.csv` with the actual printed merchant names (e.g. replacing filename slugs like `continente_amadora` with `"MODELO CONTINENTE HIPERMERCADOS S.A."`).
+   - Run `bash scripts/check_golden_set.sh` and verify zero validation errors.
 
 2. **Phase 2: Benchmark Runner Implementation (WP-15)**
    - Implement `src/evaluate.py` according to `implementation_plan.md` Section 6 (WP-15), supporting automated output generation for `results/metrics.csv` and `results/metrics.md`.
    - Add unit and contract tests in `tests/test_evaluate.py` using offline test doubles.
 
-3. **Phase 3: Core Pipeline & Robustness Bug Fixes**
-   - **`src/normalizers.py`**: Fix `parse_data` early-exit bug and translate docstrings to English with `Ref:` headers.
-   - **`src/ocr_engine.py`**: Merge horizontally aligned EasyOCR bounding boxes sharing baseline coordinates.
-   - **`src/qr_reader.py`**: Iterate through all detected codes so promotional QR codes do not mask fiscal AT QR codes.
-   - **`src/extractor_llm.py`**: Search in reverse (`reversed(lines)`) when grounding `total` to prevent matching article lines.
-   - **`src/qa_assistant.py`**: Fix `status == "ENCONTRADO"` check, strip punctuation in keyword matching, and add mocks to `test_main_cli_preview`.
-   - **`src/golden_set.py`**: Allow optional `receipts_dir` in `carregar_ground_truth` and reject `999999990`.
-   - **`src/app.py`**: Open CSV with `utf-8-sig`, supply table headers to Tab 3, and decouple Q&A provider choice from the extraction method.
-   - **`scripts/run_llama_server.*`**: Align defaults with `Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` and `NGL=0`.
+3. **Phase 3: Presentation Deck (WP-18)**
+   - Build the slide deck in `Docs/Presentation/` following the 6-slide structure in `implementation_plan.md` Section 8.6.
 
-4. **Phase 4: Final Validation and Deliverables**
+4. **Phase 4: Final Verification & Benchmark Run**
    - Run the full verification pipeline:
      ```bash
      uv run ruff format --line-length 120 src tests
@@ -295,8 +311,7 @@ A rigorous inspection of `data/ground_truth.csv` against `src/normalizers.py` re
      uv run pyright src tests
      uv run pytest
      ```
-   - Execute the benchmark:
+   - Execute the official benchmark:
      ```bash
      uv run python -m src.evaluate
      ```
-   - Build the slide deck in `Docs/Presentation/` (WP-18).

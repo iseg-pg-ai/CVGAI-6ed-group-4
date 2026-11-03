@@ -41,7 +41,7 @@ def _extraction(
         nif_cliente=FieldValue(value=nif_cliente, status="ENCONTRADO" if nif_cliente is not None else "AUSENTE"),
         data=FieldValue(value=data, status="ENCONTRADO" if data is not None else "AUSENTE"),
         total=FieldValue(value=total, status="ENCONTRADO" if total is not None else "AUSENTE"),
-        method="test",
+        method="regex",
         elapsed_ms=0.0,
     )
 
@@ -79,11 +79,38 @@ def test_pontuar_registo_marks_false_positive_and_omission_separately() -> None:
     assert by_field["nif_cliente"].esperado is None
     assert by_field["nif_cliente"].falso_positivo
     assert not by_field["nif_cliente"].omissao
-    assert by_field["nif_comerciante"].falso_positivo is False
-    assert by_field["nif_comerciante"].omissao is False
+    assert not by_field["nif_cliente"].acertou
+
+    assert by_field["nif_comerciante"].esperado == "500100144"
+    assert by_field["nif_comerciante"].obtido == "500100145"
+    assert not by_field["nif_comerciante"].falso_positivo
+    assert not by_field["nif_comerciante"].omissao
     assert not by_field["nif_comerciante"].acertou
-    assert by_field["data"].omissao
+
+    assert by_field["data"].esperado == "2026-10-24"
+    assert by_field["data"].obtido is None
     assert not by_field["data"].falso_positivo
+    assert by_field["data"].omissao
+    assert not by_field["data"].acertou
+
+
+def test_pontuar_registo_rejects_invalido_status() -> None:
+    """A field marked INVALIDO never scores acertou=True when an expected value exists."""
+    from src.types import FieldValue
+
+    ext = _extraction()
+    ext = Extraction(
+        entidade=ext.entidade,
+        nif_comerciante=FieldValue(value="500100144", status="INVALIDO"),
+        nif_cliente=ext.nif_cliente,
+        data=ext.data,
+        total=ext.total,
+        method="regex",
+        elapsed_ms=1.0,
+    )
+    results = pontuar_registo(_record(), ext)
+    by_field = {result.campo: result for result in results}
+    assert by_field["nif_comerciante"].acertou is False
 
 
 def test_agregar_uses_the_defined_denominators_for_each_rate() -> None:
@@ -168,8 +195,8 @@ def test_agregar_accepts_empty_group_and_field_values_in_input() -> None:
     """Additional keys in the shared MatchResult contract are retained in aggregates."""
     custom_result = MatchResult(
         filename="other.jpg",
-        grupo="custom",
-        campo="custom_field",
+        grupo="custom",  # type: ignore[arg-type]
+        campo="custom_field",  # type: ignore[arg-type]
         esperado=None,
         obtido=None,
         acertou=True,

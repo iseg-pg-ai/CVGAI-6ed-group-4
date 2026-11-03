@@ -127,14 +127,53 @@ class EasyOCREngine:
             bbox = BBox(x1=x1, y1=y1, x2=x2, y2=y2)
             candidates.append((y1, x1, text, confidence, bbox))
 
-        # Sort top-to-bottom, breaking ties left-to-right
-        candidates.sort(key=lambda c: (c[0], c[1]))
+        # Sort initial fragments top-to-bottom
+        candidates.sort(key=lambda c: (c[4].y1, c[4].x1))
 
-        lines = [OcrLine(id=idx + 1, text=c[2], confidence=c[3], bbox=c[4]) for idx, c in enumerate(candidates)]
+        # Group fragments that fall on the same horizontal line
+        line_groups: list[list[tuple[int, int, str, float, BBox]]] = []
+        for cand in candidates:
+            cand_bbox = cand[4]
+            cand_cy = (cand_bbox.y1 + cand_bbox.y2) / 2.0
+            cand_h = max(1, cand_bbox.height)
+
+            placed = False
+            for group in line_groups:
+                grp_y1 = min(item[4].y1 for item in group)
+                grp_y2 = max(item[4].y2 for item in group)
+                grp_cy = (grp_y1 + grp_y2) / 2.0
+                grp_h = max(1, grp_y2 - grp_y1)
+
+                overlap = min(cand_bbox.y2, grp_y2) - max(cand_bbox.y1, grp_y1)
+                is_same_line = overlap > 0.45 * min(cand_h, grp_h) or abs(cand_cy - grp_cy) <= 0.45 * min(cand_h, grp_h)
+                if is_same_line:
+                    group.append(cand)
+                    placed = True
+                    break
+
+            if not placed:
+                line_groups.append([cand])
+
+        # Sort lines top-to-bottom by top-most y coordinate
+        line_groups.sort(key=lambda grp: min(item[4].y1 for item in grp))
+
+        # Merge horizontal fragments left-to-right within each line
+        lines: list[OcrLine] = []
+        for idx, grp in enumerate(line_groups, start=1):
+            grp.sort(key=lambda item: item[4].x1)
+            line_text = " ".join(item[2] for item in grp)
+            avg_conf = sum(item[3] for item in grp) / len(grp)
+            line_bbox = BBox(
+                x1=min(item[4].x1 for item in grp),
+                y1=min(item[4].y1 for item in grp),
+                x2=max(item[4].x2 for item in grp),
+                y2=max(item[4].y2 for item in grp),
+            )
+            lines.append(OcrLine(id=idx, text=line_text, confidence=avg_conf, bbox=line_bbox))
 
         return OcrDocument(
             lines=lines,
-            engine=self.name,
+            engine="easyocr",
             elapsed_ms=elapsed_ms,
             image_size=(width, height),
         )

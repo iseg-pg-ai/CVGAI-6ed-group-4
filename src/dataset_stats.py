@@ -127,9 +127,9 @@ def main(
     args = parser.parse_args(effective_argv)
 
     try:
-        records = carregar_ground_truth(args.csv)
+        records = carregar_ground_truth(args.csv, receipts_dir=settings.receipts_dir)
     except GoldenSetError as exc:
-        for err in exc.args[0]:
+        for err in exc.errors:
             print(err)
         return
 

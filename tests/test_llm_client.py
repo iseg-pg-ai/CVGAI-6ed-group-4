@@ -25,7 +25,6 @@ from src.settings import Settings
 
 
 def make_test_settings(
-    openai_key: str | None = None,
     gemini_key: str | None = None,
 ) -> Settings:
     """Helper creating an isolated Settings instance for client tests."""
@@ -37,8 +36,6 @@ def make_test_settings(
         llama_timeout_s=30.0,
         gemini_api_key=gemini_key,
         gemini_model="gemini-2.5-flash",
-        openai_api_key=openai_key,
-        openai_model="gpt-4o-mini",
         ocr_engine="easyocr",
         easyocr_langs=("pt", "en"),
         tesseract_cmd=None,
@@ -88,10 +85,10 @@ def test_openai_compatible_client_with_schema() -> None:
     mock_inner.chat.completions.create.return_value.choices = [mock_choice]
 
     client = OpenAICompatibleClient(
-        provider="llm_openai",
-        base_url="https://api.openai.com/v1",
+        provider="llm_local",
+        base_url="http://127.0.0.1:8080/v1",
         api_key="sk-test",
-        model="gpt-4o-mini",
+        model="qwen2.5-3b",
         client=mock_inner,
     )
 
@@ -138,7 +135,7 @@ def test_failover_when_api_key_missing() -> None:
     mock_fallback.complete.return_value = "FALLBACK RESPONSE"
 
     failover = FailoverLLMClient(
-        provider="llm_openai",
+        provider="llm_gemini",
         primary=None,
         fallback=mock_fallback,
         has_api_key=False,
@@ -180,15 +177,15 @@ def test_failover_on_network_or_api_exception() -> None:
 def test_failover_uses_primary_when_successful() -> None:
     """FailoverLLMClient returns primary output and preserves provider when successful."""
     mock_primary = MagicMock(spec=LLMClient)
-    mock_primary.provider = "llm_openai"
-    mock_primary.last_effective_provider = "llm_openai"
+    mock_primary.provider = "llm_gemini"
+    mock_primary.last_effective_provider = "llm_gemini"
     mock_primary.complete.return_value = "PRIMARY CLOUD RESPONSE"
 
     mock_fallback = MagicMock(spec=LLMClient)
     mock_fallback.provider = "llm_local"
 
     failover = FailoverLLMClient(
-        provider="llm_openai",
+        provider="llm_gemini",
         primary=mock_primary,
         fallback=mock_fallback,
         has_api_key=True,
@@ -197,7 +194,7 @@ def test_failover_uses_primary_when_successful() -> None:
     out = failover.complete(system="Sys", user="User")
 
     assert out == "PRIMARY CLOUD RESPONSE"
-    assert failover.last_effective_provider == "llm_openai"
+    assert failover.last_effective_provider == "llm_gemini"
     mock_fallback.complete.assert_not_called()
 
 
@@ -214,22 +211,16 @@ def test_build_client_factory_local() -> None:
 def test_build_client_factory_cloud_with_and_without_keys() -> None:
     """build_client configures FailoverLLMClient for cloud backends."""
     # Without keys
-    settings_no_keys = make_test_settings(openai_key=None, gemini_key=None)
-    client_openai = build_client(provider="llm_openai", settings=settings_no_keys)
+    settings_no_keys = make_test_settings(gemini_key=None)
     client_gemini = build_client(provider="llm_gemini", settings=settings_no_keys)
 
-    assert isinstance(client_openai, FailoverLLMClient)
-    assert client_openai.has_api_key is False
     assert isinstance(client_gemini, FailoverLLMClient)
     assert client_gemini.has_api_key is False
 
     # With keys
-    settings_with_keys = make_test_settings(openai_key="sk-real", gemini_key="real-gemini")
-    client_openai_k = build_client(provider="llm_openai", settings=settings_with_keys)
+    settings_with_keys = make_test_settings(gemini_key="real-gemini")
     client_gemini_k = build_client(provider="llm_gemini", settings=settings_with_keys)
 
-    assert isinstance(client_openai_k, FailoverLLMClient)
-    assert client_openai_k.has_api_key is True
     assert isinstance(client_gemini_k, FailoverLLMClient)
     assert client_gemini_k.has_api_key is True
 
@@ -276,10 +267,10 @@ def test_openai_compatible_client_raises_llm_quota_error() -> None:
     )
 
     client = OpenAICompatibleClient(
-        provider="llm_openai",
-        base_url="https://api.openai.com/v1",
+        provider="llm_local",
+        base_url="http://127.0.0.1:8080/v1",
         api_key="sk-test",
-        model="gpt-4o-mini",
+        model="qwen2.5-3b",
         client=mock_inner,
     )
 
@@ -296,7 +287,7 @@ def test_failover_raises_connection_error_when_fallback_fails() -> None:
     mock_fallback.complete.side_effect = LLMConnectionError("Connection refused on 8080")
 
     failover = FailoverLLMClient(
-        provider="llm_openai",
+        provider="llm_gemini",
         primary=None,
         fallback=mock_fallback,
         has_api_key=False,

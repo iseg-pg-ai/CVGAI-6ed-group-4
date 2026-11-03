@@ -93,7 +93,7 @@ def _document(texts: list[str]) -> OcrDocument:
         )
         for index, text in enumerate(texts, start=1)
     ]
-    return OcrDocument(lines=lines, engine="test", elapsed_ms=1.0, image_size=(1000, 20 * max(1, len(texts))))
+    return OcrDocument(lines=lines, engine="easyocr", elapsed_ms=1.0, image_size=(1000, 20 * max(1, len(texts))))
 
 
 #: The receipt the canned payload refers to, with four lines so its line ids resolve.
@@ -507,6 +507,27 @@ def test_grounding_handles_the_printed_forms(field: str, value: str, expected_li
     assert extraction.fields[field].line_id == expected_line
 
 
+def test_locate_line_total_prioritizes_total_line_over_article_line() -> None:
+    """When an item price matches the total amount, grounding binds to the TOTAL line."""
+    texts = [
+        "CAFE CENTRAL",
+        "1 CAFE 0,80",
+        "1 PASTEL 0,80",
+        "TOTAL 0,80",
+    ]
+    payload = {
+        "entidade": "CAFE CENTRAL",
+        "nif_comerciante": "",
+        "nif_cliente": "",
+        "data": "",
+        "total": "0.80",
+        "presente": {"entidade": True, "nif_comerciante": False, "nif_cliente": False, "data": False, "total": True},
+        "linhas": {"entidade": 1, "nif_comerciante": 0, "nif_cliente": 0, "data": 0, "total": 0},
+    }
+    extraction = extract(_document(texts), client=FakeClient(payload))
+    assert extraction.total.line_id == 4
+
+
 @pytest.mark.parametrize("raw_line", [2, "2"])
 def test_line_id_accepts_int_and_numeric_string(raw_line: object) -> None:
     """Providers disagree on the type of a line number; both spellings resolve."""
@@ -521,7 +542,7 @@ def test_line_id_accepts_int_and_numeric_string(raw_line: object) -> None:
 def test_empty_document_does_not_call_the_model() -> None:
     """A blank scan costs no request and yields five absent fields."""
     client = FakeClient(RECEIPT)
-    doc = OcrDocument(lines=[], engine="test", elapsed_ms=0.0, image_size=(10, 10))
+    doc = OcrDocument(lines=[], engine="easyocr", elapsed_ms=0.0, image_size=(10, 10))
 
     extraction = extract(doc, client=client)
 

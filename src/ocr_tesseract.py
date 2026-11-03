@@ -1,8 +1,9 @@
-"""Implementação do motor OCR partilhado no Tesseract.
+"""Tesseract OCR backend implementation.
 
-Os resultados do Tesseract ao nível da palavra são agrupados em linhas de recibo
-com geometria delimitada e identificadores baseados num, para que os consumidores
-possam utilizar o mesmo contrato que o backend do EasyOCR.
+Word-level Tesseract bounding boxes are aggregated into receipt lines with bounded
+geometry and 1-based sequential line identifiers, satisfying the shared OcrEngine protocol.
+
+Ref: Docs/Planning/implementation_plan.md, section 4.5.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ _TESSERACT_LOCK = threading.Lock()
 
 
 class TesseractEngine:
-    """Motor OCR baseado em Tesseract, que agrega caixas de palavras em linhas."""
+    """Tesseract-based OCR engine aggregating word boxes into lines."""
 
     name = "tesseract"
 
@@ -37,25 +38,23 @@ class TesseractEngine:
         lang: str = "por",
         psm: int = 6,
         tesseract_cmd: Path | str | None = None,
+        image_to_data_fn: Any | None = None,
     ) -> None:
-        """Configura o idioma do Tesseract, o modo de segmentação de páginas e o executável (opcional).
+        """Configure Tesseract language, page segmentation mode, and executable path.
 
-        Argumentos:
+        Args:
+            lang: Tesseract language code. Defaults to 'por'.
+            psm: Tesseract page segmentation mode (0-13). Defaults to 6.
+            tesseract_cmd: Optional explicit path to the tesseract executable.
+            image_to_data_fn: Optional callable injection point for testing.
 
-        lang: Código do idioma do Tesseract, sendo o padrão o português.
-
-        psm: Modo de segmentação de páginas do Tesseract.
-
-        tesseract_cmd: Caminho opcional para o executável do Tesseract.
-
-        Exceções:
-
-        ValueError: Se o idioma estiver vazio ou o modo de segmentação de páginas não for compatível.
+        Raises:
+            ValueError: If language is empty or PSM mode is outside 0-13.
         """
         if not lang.strip():
-            raise ValueError("A linguagem Tesseract não pode estar vazia.")
+            raise ValueError("Tesseract language code must not be empty.")
         if psm not in range(14):
-            raise ValueError("O valor de Tesseract PSM deve estar entre 0 e 13.")
+            raise ValueError("Tesseract PSM mode must be between 0 and 13.")
 
         if tesseract_cmd is None:
             from src.settings import get_settings
@@ -65,34 +64,30 @@ class TesseractEngine:
         self.lang = lang
         self.psm = psm
         self.tesseract_cmd = str(tesseract_cmd) if tesseract_cmd is not None else None
+        self._image_to_data_fn = image_to_data_fn
 
     def read(self, image: np.ndarray) -> OcrDocument:
-        """Reconhece texto e agrega os resultados de palavras do Tesseract em linhas.
+        """Recognise text and aggregate word boxes into reading lines.
 
-        Argumentos:
+        Args:
+            image: BGR or grayscale image, typically produced by preprocessing.
 
-        imagem: Imagem BGR ou em tons de cinzento, geralmente produzida por pré-processamento.
+        Returns:
+            OcrDocument containing lines sorted in reading order.
 
-        Retorno:
-
-        Um documento OCR com as linhas ordenadas por ordem de leitura.
-
-        Exceções:
-
-        ValueError: Se a imagem estiver vazia ou tiver um formato não suportado.
-
-        pytesseract.TesseractNotFoundError: Se o executável do Tesseract não estiver disponível.
-
-        pytesseract.TesseractError: Se o Tesseract não conseguir processar a imagem.
+        Raises:
+            ValueError: If image is empty or has unsupported channels.
+            pytesseract.TesseractNotFoundError: If Tesseract executable is unavailable.
+            pytesseract.TesseractError: If Tesseract inference fails.
         """
         if image is None or image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
-            raise ValueError("A imagem de entrada não pode estar vazia nem ter tamanho zero.")
+            raise ValueError("Input image must not be empty or zero-sized.")
         if image.ndim == 2:
             image_for_tesseract = image
         elif image.ndim == 3 and image.shape[2] == 3:
             image_for_tesseract = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         else:
-            raise ValueError("A imagem de entrada deve ser em tons de cinzento ou ter três canais BGR.")
+            raise ValueError("Input image must be grayscale or have 3 BGR channels.")
 
         height, width = image.shape[:2]
         start_time = time.perf_counter()
@@ -111,7 +106,7 @@ class TesseractEngine:
             "line_num",
         )
         if any(field not in data for field in required_fields):
-            raise ValueError("A saída do Tesseract não contém os dados de palavras necessários.")
+            raise ValueError("Tesseract output is missing required word fields.")
 
         field_lengths = {len(data[field]) for field in required_fields}
         if len(field_lengths) != 1:
@@ -126,7 +121,7 @@ class TesseractEngine:
             try:
                 confidence = float(data["conf"][index])
             except (TypeError, ValueError) as error:
-                raise ValueError(f"Tesseract devolveu uma confiança inválida na palavra {index}.") from error
+                raise ValueError(f"Tesseract returned invalid confidence at word {index}.") from error
             if confidence < 0:
                 continue
 
@@ -139,7 +134,7 @@ class TesseractEngine:
                 par_num = int(data["par_num"][index])
                 line_num = int(data["line_num"][index])
             except (TypeError, ValueError) as error:
-                raise ValueError(f"Tesseract devolveu uma geometria inválida na palavra {index}.") from error
+                raise ValueError(f"Tesseract returned invalid geometry at word {index}.") from error
 
             x1 = max(0, min(width, left))
             y1 = max(0, min(height, top))
@@ -170,13 +165,16 @@ class TesseractEngine:
         ]
         return OcrDocument(
             lines=lines,
-            engine=self.name,
+            engine="tesseract",
             elapsed_ms=elapsed_ms,
             image_size=(width, height),
         )
 
     def _image_to_data(self, image: np.ndarray) -> dict[str, list[Any]]:
-        """Chama o pytesseract isolando a sua configuração executável em todo o processo."""
+        """Call pytesseract while isolating process-wide executable setting."""
+        if self._image_to_data_fn is not None:
+            return self._image_to_data_fn(image)
+
         with _TESSERACT_LOCK:
             tesseract_module = pytesseract.pytesseract
             original_cmd = tesseract_module.tesseract_cmd

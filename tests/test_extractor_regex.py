@@ -46,7 +46,7 @@ def _document(texts: list[str], *, width: int = 1000, height: int | None = None)
         )
         for index, text in enumerate(texts, start=1)
     ]
-    return OcrDocument(lines=lines, engine="test", elapsed_ms=1.0, image_size=(width, canvas_height))
+    return OcrDocument(lines=lines, engine="easyocr", elapsed_ms=1.0, image_size=(width, canvas_height))
 
 
 #: A realistic flat supermarket receipt, used as the happy path.
@@ -240,6 +240,20 @@ def test_total_takes_the_last_matching_line() -> None:
     assert extraction.total.line_id == 3
 
 
+def test_total_qualifier_and_currency_prefix_variations() -> None:
+    """Supports TOTAL EUR 16,10, TOTAL A PAGAR, and A PAGAR formats."""
+    assert extract(_document(["LOJA", "TOTAL EUR 16,10"])).total.value == "16.10"
+    assert extract(_document(["LOJA", "TOTAL A PAGAR 16,10"])).total.value == "16.10"
+    assert extract(_document(["LOJA", "A PAGAR: 16,10"])).total.value == "16.10"
+    assert extract(_document(["LOJA", "TOTAL GERAL 16,10 €"])).total.value == "16.10"
+
+
+def test_greeting_line_ignored_for_entity() -> None:
+    """Banner lines starting with BEM-VINDO or 2ª VIA are not picked as entity."""
+    extraction = extract(_document(["BEM-VINDO", "PASTELARIA LISBOA", "NIF 501964843", "TOTAL 2,00"]))
+    assert extraction.entidade.value == "PASTELARIA LISBOA"
+
+
 def test_total_survives_a_thousands_separator() -> None:
     """Grouped thousands are read as one amount, not as two numbers."""
     extraction = extract(_document(["MERCEARIA", "NIF 500100144", "TOTAL 1 234,56"]))
@@ -316,7 +330,7 @@ def test_date_absent_without_a_plausible_candidate() -> None:
 
 def test_empty_document_returns_all_fields_absent() -> None:
     """An engine that read nothing produces a well-formed empty extraction."""
-    extraction = extract(OcrDocument(lines=[], engine="test", elapsed_ms=0.0, image_size=(10, 10)))
+    extraction = extract(OcrDocument(lines=[], engine="easyocr", elapsed_ms=0.0, image_size=(10, 10)))
 
     for name, field in extraction.fields.items():
         assert field.status == "AUSENTE", f"{name} was {field.status}, expected AUSENTE"

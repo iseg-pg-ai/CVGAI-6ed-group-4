@@ -36,12 +36,12 @@ OcrEngineName = Literal["easyocr", "tesseract"]
 OCR_ENGINES: tuple[OcrEngineName, ...] = ("easyocr", "tesseract")
 
 #: Supported LLM provider backend identifiers.
-ProviderName = Literal["llm_local", "llm_gemini", "llm_openai"]
-LLM_PROVIDERS: tuple[ProviderName, ...] = ("llm_local", "llm_gemini", "llm_openai")
+ProviderName = Literal["llm_local", "llm_gemini"]
+LLM_PROVIDERS: tuple[ProviderName, ...] = ("llm_local", "llm_gemini")
 
 #: Supported extraction method identifiers.
-MethodName = Literal["regex", "llm_local", "llm_gemini", "llm_openai"]
-EXTRACTION_METHODS: tuple[MethodName, ...] = ("regex", "llm_local", "llm_gemini", "llm_openai")
+MethodName = Literal["regex", "llm_local", "llm_gemini"]
+EXTRACTION_METHODS: tuple[MethodName, ...] = ("regex", "llm_local", "llm_gemini")
 
 #: AT sentinel printed in the B field of a final-consumer invoice (passes NIF check digit).
 CONSUMIDOR_FINAL_NIF = "999999990"
@@ -68,6 +68,10 @@ class BBox:
     y1: int
     x2: int
     y2: int
+
+    def __post_init__(self) -> None:
+        if self.x2 < self.x1 or self.y2 < self.y1:
+            raise ValueError(f"Invalid BBox coordinates: x1={self.x1}, y1={self.y1}, x2={self.x2}, y2={self.y2}")
 
     @property
     def width(self) -> int:
@@ -110,7 +114,7 @@ class OcrDocument:
     """
 
     lines: list[OcrLine]
-    engine: str
+    engine: OcrEngineName
     elapsed_ms: float
     image_size: tuple[int, int]
 
@@ -177,7 +181,7 @@ class Extraction:
         data: Date of issue.
         total: Total amount paid.
         method: Which extractor produced this result, e.g. ``"regex"``, ``"llm_local"``,
-            ``"llm_gemini"`` or ``"llm_openai"``.
+            or ``"llm_gemini"``.
         elapsed_ms: Wall-clock time of the extraction, in milliseconds.
         raw_response: Raw model response, kept for debugging and for the report appendix.
     """
@@ -187,7 +191,7 @@ class Extraction:
     nif_cliente: FieldValue
     data: FieldValue
     total: FieldValue
-    method: str
+    method: MethodName
     elapsed_ms: float
     raw_response: str | None = None
 
@@ -246,8 +250,8 @@ class MatchResult:
     """
 
     filename: str
-    grupo: str
-    campo: str
+    grupo: GroupName
+    campo: FieldName
     esperado: str | None
     obtido: str | None
     acertou: bool
@@ -275,4 +279,4 @@ class Answer:
     answer: str
     status: Literal["ENCONTRADO", "AUSENTE NO DOCUMENTO"]
     line_ids: list[int]
-    provider: str
+    provider: ProviderName

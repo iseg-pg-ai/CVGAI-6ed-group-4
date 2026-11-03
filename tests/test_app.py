@@ -55,8 +55,6 @@ def mock_app_settings(tmp_path: Path) -> Settings:
         llama_timeout_s=30.0,
         gemini_api_key=None,
         gemini_model="gemini",
-        openai_api_key=None,
-        openai_model="gpt",
         ocr_engine="easyocr",
         easyocr_langs=("pt", "en"),
         tesseract_cmd=None,
@@ -141,7 +139,7 @@ def test_engine_cache_and_document_cache_hit(monkeypatch: pytest.MonkeyPatch, mo
             read_calls += 1
             return OcrDocument(
                 lines=[OcrLine(id=1, text="TEST", confidence=0.9, bbox=BBox(0, 0, 10, 10))],
-                engine="counting",
+                engine="easyocr",
                 elapsed_ms=1.0,
                 image_size=(image.shape[1], image.shape[0]),
             )
@@ -206,7 +204,7 @@ def test_process_document_execution_and_rgb_output(
             OcrLine(id=2, text="NIF: 500100144", confidence=0.95, bbox=BBox(10, 35, 90, 50)),
             OcrLine(id=3, text="Total: 16.10 EUR", confidence=0.99, bbox=BBox(10, 55, 90, 75)),
         ],
-        engine="mock_ocr",
+        engine="easyocr",
         elapsed_ms=10.0,
         image_size=(100, 100),
     )
@@ -261,7 +259,7 @@ def test_process_document_llm_extractor_fallback(monkeypatch: pytest.MonkeyPatch
     """When an LLM extractor fails, process_document falls back to regex with an explanatory note."""
     mock_doc = OcrDocument(
         lines=[OcrLine(id=1, text="Total 16.10", confidence=0.99, bbox=BBox(0, 0, 10, 10))],
-        engine="mock",
+        engine="easyocr",
         elapsed_ms=1.0,
         image_size=(20, 20),
     )
@@ -335,7 +333,7 @@ def test_answer_question_with_mock_qa(monkeypatch: pytest.MonkeyPatch, mock_app_
 
     mock_doc = OcrDocument(
         lines=[OcrLine(id=1, text="Total 16.10", confidence=0.99, bbox=BBox(10, 10, 50, 30))],
-        engine="mock",
+        engine="easyocr",
         elapsed_ms=5.0,
         image_size=(60, 60),
     )

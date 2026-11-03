@@ -106,6 +106,21 @@ def test_read_with_mock_detector_injection() -> None:
     assert result["total"] == "12.50"
 
 
+def test_read_ignores_promotional_qr_and_decodes_at_code() -> None:
+    """read() skips promotional non-AT QR codes and captures the fiscal AT QR code."""
+
+    class MultiMockDetector:
+        def detectAndDecodeMulti(self, image: np.ndarray) -> tuple[bool, list[str], Any, Any]:
+            return True, ["https://continente.pt/app", "A:518396894*O:12.50"], None, None
+
+    img = np.full((50, 50, 3), 255, dtype=np.uint8)
+    result = read(img, detector=MultiMockDetector())
+
+    assert result is not None
+    assert result["nif_comerciante"] == "518396894"
+    assert result["total"] == "12.50"
+
+
 def test_main_cli_missing_or_empty_receipts_dir(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """main prints friendly error when receipts directory is missing or empty."""
     settings = load_settings(repo_root=tmp_path)

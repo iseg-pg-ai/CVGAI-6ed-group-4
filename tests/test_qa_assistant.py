@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
 from pathlib import Path
 from typing import Any
@@ -33,7 +32,7 @@ def sample_ocr_doc() -> OcrDocument:
         OcrLine(id=2, text="NIF: 500100144", confidence=0.95, bbox=BBox(10, 40, 90, 60)),
         OcrLine(id=3, text="TOTAL A PAGAR: 16,10 EUR", confidence=0.99, bbox=BBox(10, 100, 110, 130)),
     ]
-    return OcrDocument(lines=lines, engine="test", elapsed_ms=2.0, image_size=(150, 150))
+    return OcrDocument(lines=lines, engine="easyocr", elapsed_ms=2.0, image_size=(150, 150))
 
 
 def test_ask_found_with_valid_lines(sample_ocr_doc: OcrDocument) -> None:
@@ -56,7 +55,7 @@ def test_ask_found_with_valid_lines(sample_ocr_doc: OcrDocument) -> None:
 
 def test_ask_empty_document() -> None:
     """ask handles empty OCR document gracefully without calling LLM."""
-    doc = OcrDocument(lines=[], engine="test", elapsed_ms=0.0, image_size=(100, 100))
+    doc = OcrDocument(lines=[], engine="easyocr", elapsed_ms=0.0, image_size=(100, 100))
     client = MockLLMClient("should not be called")
 
     answer = ask("Qual é o total?", doc, client=client)
@@ -114,9 +113,14 @@ def test_missing_keys_raises_qa_response_error(sample_ocr_doc: OcrDocument) -> N
         ask("Qual é o total?", sample_ocr_doc, client=client)
 
 
-def test_main_cli_preview(receipts_tmp: Path) -> None:
-    """CLI main runs without exception with test settings override."""
+def test_main_cli_preview(
+    receipts_tmp: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI main runs cleanly with mocked OCR and LLM client."""
     from src.settings import load_settings
+    from src.types import BBox, OcrDocument, OcrLine
 
     receipt_img = receipts_tmp / "test_receipt.jpg"
     import cv2
@@ -126,5 +130,20 @@ def test_main_cli_preview(receipts_tmp: Path) -> None:
 
     override = load_settings(repo_root=receipts_tmp)
 
-    with contextlib.suppress(Exception):
-        main(argv=["--file", str(receipt_img), "--question", "Total?"], settings_override=override)
+    fake_doc = OcrDocument(
+        lines=[OcrLine(id=1, text="TOTAL 16.10", confidence=0.9, bbox=BBox(0, 0, 10, 10))],
+        engine="easyocr",
+        elapsed_ms=1.0,
+        image_size=(100, 100),
+    )
+    monkeypatch.setattr("src.ocr_engine.EasyOCREngine.read", lambda self, img: fake_doc)
+    monkeypatch.setattr(
+        "src.llm_client.OpenAICompatibleClient.complete",
+        lambda self, sys, user, schema=None, **kwargs: (
+            '{"answer": "O total é 16.10", "status": "ENCONTRADO", "linhas": [1]}'
+        ),
+    )
+
+    main(argv=["--file", str(receipt_img), "--question", "Total?"], settings_override=override)
+    captured = capsys.readouterr().out
+    assert "--- Q&A Result" in captured

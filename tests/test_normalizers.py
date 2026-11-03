@@ -133,6 +133,7 @@ def test_parse_moeda_additional(raw: str, expected: Decimal | None) -> None:
         ("Data: 24/10/2026", date(2026, 10, 24)),
         ("Data: 24.10.2026", date(2026, 10, 24)),
         ("Hora: 14:30 Data: 2026-10-24", date(2026, 10, 24)),
+        ("Ref: 99999999 Data: 2026-10-24", date(2026, 10, 24)),
         ("Data: 31/02/2024", None),
     ],
 )
@@ -174,6 +175,7 @@ def test_normalizar_entidade_legal_suffixes() -> None:
     )
     assert normalizar_entidade("Pingo Doce SA") == "pingo doce"
     assert normalizar_entidade("X, L.da") == "x", "Dotted 'L.da' must be removed like 'Lda'"
+    assert normalizar_entidade("JRN DOCARIAS, SOCIEDADE UNIPESSOAL LDA") == "jrn docarias"
 
 
 @pytest.mark.parametrize(
