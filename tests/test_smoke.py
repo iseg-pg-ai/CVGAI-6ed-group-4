@@ -144,8 +144,8 @@ def test_shared_contract_constants() -> None:
     assert FIELD_NAMES == ("entidade", "nif_comerciante", "nif_cliente", "data", "total")
     assert GROUPS == ("direito", "amarrotado")
     assert OCR_ENGINES == ("easyocr", "tesseract")
-    assert LLM_PROVIDERS == ("llm_local", "llm_gemini", "llm_openai")
-    assert EXTRACTION_METHODS == ("regex", "llm_local", "llm_gemini", "llm_openai")
+    assert LLM_PROVIDERS == ("llm_local", "llm_gemini")
+    assert EXTRACTION_METHODS == ("regex", "llm_local", "llm_gemini")
     assert CONSUMIDOR_FINAL_NIF == "999999990"
     assert date(2000, 1, 1) == EARLIEST_PLAUSIBLE_DATE
     assert IMAGE_EXTENSIONS == (".jpg", ".jpeg", ".png")

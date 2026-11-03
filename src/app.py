@@ -204,9 +204,6 @@ def process_document(
         elif extractor_name == "LLM Cloud (Gemini)":
             client = build_client(provider="llm_gemini", settings=settings)
             extraction = extract_llm(ocr_doc, qr=qr_data, client=client)
-        elif extractor_name == "LLM Cloud (OpenAI)":
-            client = build_client(provider="llm_openai", settings=settings)
-            extraction = extract_llm(ocr_doc, qr=qr_data, client=client)
         else:
             client = build_client(provider="llm_local", settings=settings)
             extraction = extract_llm(ocr_doc, qr=qr_data, client=client)
@@ -308,7 +305,6 @@ def answer_question(
     provider_map = {
         "LLM Local (llama.cpp)": "llm_local",
         "LLM Cloud (Gemini)": "llm_gemini",
-        "LLM Cloud (OpenAI)": "llm_openai",
     }
     provider = provider_map.get(provider_choice, "llm_local")
 
@@ -381,7 +377,7 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
         found = sorted(
             [str(p) for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
         )
-        example_files = [[p] for p in found[:6]]
+        example_files = [[p] for p in found[:26]]
 
     with gr.Blocks(title="Leitor Inteligente de Documentos Visuais") as demo:
         gr.Markdown(
@@ -421,7 +417,6 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
                                 "Regex Baseline",
                                 "LLM Local (llama.cpp)",
                                 "LLM Cloud (Gemini)",
-                                "LLM Cloud (OpenAI)",
                             ],
                             value="Regex Baseline",
                             label="Metodo de Extracao",
@@ -457,7 +452,6 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
                         choices=[
                             "LLM Local (llama.cpp)",
                             "LLM Cloud (Gemini)",
-                            "LLM Cloud (OpenAI)",
                         ],
                         value="LLM Local (llama.cpp)",
                         label="Modelo LLM para Q&A",

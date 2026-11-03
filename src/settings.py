@@ -33,8 +33,6 @@ class Settings:
         llama_timeout_s: Timeout in seconds for local model inferences.
         gemini_api_key: Google Gemini API key or None when disabled.
         gemini_model: Gemini model identifier.
-        openai_api_key: OpenAI API key or None when disabled.
-        openai_model: OpenAI model identifier.
         ocr_engine: Active OCR engine ('easyocr' or 'tesseract').
         easyocr_langs: Tuple of language codes for EasyOCR.
         tesseract_cmd: Explicit path to the tesseract executable or None for PATH lookup.
@@ -54,8 +52,6 @@ class Settings:
     llama_timeout_s: float
     gemini_api_key: str | None
     gemini_model: str
-    openai_api_key: str | None
-    openai_model: str
     ocr_engine: OcrEngineType
     easyocr_langs: tuple[str, ...]
     tesseract_cmd: Path | None
@@ -117,9 +113,6 @@ def load_settings(repo_root: Path | None = None) -> Settings:
     gemini_api_key = _normalize_optional_str(_get_val("GEMINI_API_KEY", "") or None)
     gemini_model = _get_val("GEMINI_MODEL", "gemini-2.5-flash").strip()
 
-    openai_api_key = _normalize_optional_str(_get_val("OPENAI_API_KEY", "") or None)
-    openai_model = _get_val("OPENAI_MODEL", "gpt-4o-mini").strip()
-
     raw_engine = _get_val("OCR_ENGINE", "easyocr").strip().lower()
     if raw_engine in ("easyocr", "tesseract"):
         ocr_engine: OcrEngineType = raw_engine  # type: ignore[assignment]
@@ -164,8 +157,6 @@ def load_settings(repo_root: Path | None = None) -> Settings:
         llama_timeout_s=llama_timeout_s,
         gemini_api_key=gemini_api_key,
         gemini_model=gemini_model,
-        openai_api_key=openai_api_key,
-        openai_model=openai_model,
         ocr_engine=ocr_engine,
         easyocr_langs=easyocr_langs,
         tesseract_cmd=tesseract_cmd,

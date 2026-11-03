@@ -55,8 +55,6 @@ def mock_app_settings(tmp_path: Path) -> Settings:
         llama_timeout_s=30.0,
         gemini_api_key=None,
         gemini_model="gemini",
-        openai_api_key=None,
-        openai_model="gpt",
         ocr_engine="easyocr",
         easyocr_langs=("pt", "en"),
         tesseract_cmd=None,

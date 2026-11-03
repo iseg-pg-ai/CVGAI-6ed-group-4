@@ -15,6 +15,7 @@ dependencies = [
     # Headless, not contrib: EasyOCR hard-pins opencv-python-headless, and installing two
     # distributions that both own the `cv2` module corrupts the installation. Verified that
     # QRCodeDetector (and aruco) are present in the headless build on OpenCV 5.
+    # OpenAI Python SDK is used as the client for local llama-server (OpenAI-compatible HTTP API)
     "openai>=3.42.0",
     "opencv-python-headless>=4.10",
     "pillow>=11.0",

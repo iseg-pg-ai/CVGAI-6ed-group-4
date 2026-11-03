@@ -773,7 +773,7 @@ Orquestrar a avaliação fim a fim do pipeline sobre todos os documentos do gold
 **Assinaturas a implementar em `src/evaluate.py`:**
 
 ```python
-MethodName = Literal["regex", "llm_local", "llm_gemini", "llm_openai"]
+MethodName = Literal["regex", "llm_local", "llm_gemini"]
 
 
 def avaliar_registo(
@@ -791,7 +791,7 @@ def avaliar_registo(
         registo: Ground-truth reference record for one receipt.
         receipts_dir: Directory containing the receipt image files.
         ocr_engine: Initialised OCR engine instance (EasyOCR or Tesseract).
-        method: Extraction method ('regex', 'llm_local', 'llm_gemini', or 'llm_openai').
+        method: Extraction method ('regex', 'llm_local', or 'llm_gemini').
         llm_client: Optional injected LLM client (used when method != 'regex').
         preprocess_opts: Optional OpenCV preprocessing options. When None, default options apply.
 
@@ -847,7 +847,7 @@ def main(
 5. Ler o QR Code (para paridade de assinatura): `qr_data = read_qr(prep.image, raw_image=raw_image)`.
 6. Extrair os 5 campos estruturados:
    - Se `method == "regex"`: chamar `extract_regex(doc, qr=qr_data)`.
-   - Caso contrário (`"llm_local"`, `"llm_gemini"`, `"llm_openai"`): se `llm_client` for `None`, construir com `build_client(method)`; chamar `extract_llm(doc, qr=qr_data, client=llm_client)`.
+   - Caso contrário (`"llm_local"`, `"llm_gemini"`): se `llm_client` for `None`, construir com `build_client(method)`; chamar `extract_llm(doc, qr=qr_data, client=llm_client)`.
 7. Pontuar contra a verdade de referência: `matches = pontuar_registo(registo, extraction)`.
 8. Devolver `(extraction, matches)`.
 
@@ -865,7 +865,7 @@ Usar `argparse.ArgumentParser` com as seguintes flags:
 - `--receipts-dir` (`type=Path`, `default=settings.receipts_dir`): pasta das imagens.
 - `--output-dir` (`type=Path`, `default=settings.results_dir`): diretoria onde serão escritos `metrics.csv` e `metrics.md`.
 - `--engine` (`choices=("easyocr", "tesseract")`, `default=settings.ocr_engine`): motor OCR a utilizar.
-- `--method` (`choices=("regex", "llm_local", "llm_gemini", "llm_openai")`, `default="regex"`): método de extração a avaliar.
+- `--method` (`choices=("regex", "llm_local", "llm_gemini")`, `default="regex"`): método de extração a avaliar.
 - `--no-preprocess` (`action="store_true"`): quando ativo, passa `PreprocessOptions(rotation_deg=0, auto_crop=False, remove_shadows=False, clahe_clip_limit=0.0, auto_orient_osd=False)`.
 
 Comportamento de `main()`:

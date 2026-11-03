@@ -120,9 +120,8 @@ estas chaves:
 def _object_schema(properties: dict[str, Any]) -> dict[str, Any]:
     """Build a closed object schema with every property required.
 
-    ``additionalProperties: false`` is mandatory for OpenAI's strict mode and is tolerated by
-    the Gemini client (verified against ``google.genai.types.GenerateContentConfig``). Without
-    it the OpenAI request fails with a 400 and silently falls back to the local model.
+    ``additionalProperties: false`` ensures strict schema enforcement and is supported by
+    local llama-server grammar constraints as well as sanitized by the Gemini client.
 
     Args:
         properties: Property schemas, keyed by property name.
@@ -540,7 +539,7 @@ def main(
     parser.add_argument(
         "--provider",
         type=str,
-        choices=("llm_local", "llm_gemini", "llm_openai"),
+        choices=("llm_local", "llm_gemini"),
         default="llm_local",
         help="LLM provider to query (cloud providers fall back to local)",
     )

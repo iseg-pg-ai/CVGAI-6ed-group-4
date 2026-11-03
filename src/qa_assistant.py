@@ -279,7 +279,7 @@ def main(
     parser.add_argument(
         "--provider",
         type=str,
-        choices=("llm_local", "llm_gemini", "llm_openai"),
+        choices=("llm_local", "llm_gemini"),
         default="llm_local",
         help="LLM provider to query",
     )

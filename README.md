@@ -37,7 +37,7 @@ EasyOCR, que descarrega os pesos na primeira execução):
 | `src/ocr_engine.py` | EasyOCR com caixas delimitadoras e IDs de linha | `uv run python -m src.ocr_engine` |
 | `src/ocr_tesseract.py` | Motor OCR comparativo, com agregação de palavras em linhas | `uv run python -m src.ocr_tesseract` |
 | `src/qr_reader.py` | Leitura do QR da AT para validação cruzada | `uv run python -m src.qr_reader` |
-| `src/llm_client.py` | Clientes local, Gemini e OpenAI com failover | `uv run python -m src.llm_client` |
+| `src/llm_client.py` | Clientes local e Gemini com failover | `uv run python -m src.llm_client` |
 | `src/extractor_regex.py` | Extrator por regex (baseline) | `uv run python -m src.extractor_regex` |
 | `src/extractor_llm.py` | Extrator por LLM, local ou cloud, com JSON validado | `uv run python -m src.extractor_llm --provider llm_local` |
 | `src/evidence.py` | Destaque e recorte da região comprovativa | `uv run python -m src.evidence -l 1,2,3` |
@@ -51,7 +51,7 @@ escolhe outro ficheiro e `--save` escreve o resultado em disco em vez de abrir a
 
 Por construir: runner do benchmark oficial (`src/evaluate.py`, WP-15) e mini-apresentação (WP-18).
 O extrator por LLM e o assistente de Q&A podem correr contra um `llama-server` local
-(`scripts/run_llama_server.sh`) ou contra chaves de API (`GEMINI_API_KEY` ou `OPENAI_API_KEY`) no `.env`.
+(`scripts/run_llama_server.sh`) ou contra a chave de API da Google (`GEMINI_API_KEY`) no `.env`.
 
 O corpus conta com 27 imagens recolhidas em `data/receipts/` (`01_...` a `27_...`) e
 `data/ground_truth.csv` contém os registos correspondentes (WP-17 em curso de validação).

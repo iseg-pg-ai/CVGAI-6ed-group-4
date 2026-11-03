@@ -1,8 +1,8 @@
 """Unified language model client supporting local and cloud backends with failover.
 
-Provides a uniform interface for local llama-server instances (Qwen2.5-3B), Google Gemini,
-and OpenAI, handling structured JSON schemas and automatic fallback to local inference on
-network, timeout, or quota failures.
+Provides a uniform interface for local llama-server instances (Qwen2.5-3B) and Google Gemini,
+handling structured JSON schemas and automatic fallback to local inference on network, timeout,
+or quota failures.
 
 Ref: Docs/Planning/implementation_plan.md, section 7, WP-08.
 """
@@ -64,7 +64,7 @@ class LLMClient(Protocol):
 class OpenAICompatibleClient:
     """Client for backends adhering to the OpenAI /v1/chat/completions specification.
 
-    Serves both local llama-server instances and official OpenAI endpoints.
+    Serves local llama-server instances.
     """
 
     def __init__(
@@ -79,7 +79,7 @@ class OpenAICompatibleClient:
         """Initialise the OpenAI-compatible client.
 
         Args:
-            provider: Identifier of the provider, e.g. 'llm_local' or 'llm_openai'.
+            provider: Identifier of the provider, e.g. 'llm_local'.
             base_url: Target API endpoint URL.
             api_key: API authorization key.
             model: Model name string.
@@ -255,7 +255,7 @@ class FailoverLLMClient:
         """Initialise the failover wrapper.
 
         Args:
-            provider: Advertised provider name (e.g. 'llm_gemini' or 'llm_openai').
+            provider: Advertised provider name (e.g. 'llm_gemini').
             primary: Primary cloud client instance or None when unconfigured.
             fallback: Robust local client instance (llama-server).
             has_api_key: Whether a valid API key was provided for the primary client.
@@ -323,7 +323,7 @@ def build_client(
     """Factory creating configured LLM clients with failover safety.
 
     Args:
-        provider: Provider identifier ('llm_local', 'llm_gemini', or 'llm_openai').
+        provider: Provider identifier ('llm_local' or 'llm_gemini').
         settings: Optional Settings instance. When None, get_settings() is used.
         primary_client: Optional injected primary client for unit testing.
         fallback_client: Optional injected fallback client for unit testing.
@@ -346,26 +346,6 @@ def build_client(
     match provider:
         case "llm_local":
             return local_client
-
-        case "llm_openai":
-            has_key = bool(cfg.openai_api_key) or primary_client is not None
-            openai_client = primary_client or (
-                OpenAICompatibleClient(
-                    provider="llm_openai",
-                    base_url="https://api.openai.com/v1",
-                    api_key=cfg.openai_api_key or "sk-dummy-unconfigured",
-                    model=cfg.openai_model,
-                    timeout_s=min(25.0, cfg.llama_timeout_s),
-                )
-                if has_key
-                else None
-            )
-            return FailoverLLMClient(
-                provider="llm_openai",
-                primary=openai_client,
-                fallback=local_client,
-                has_api_key=has_key,
-            )
 
         case "llm_gemini":
             has_key = bool(cfg.gemini_api_key) or primary_client is not None
@@ -404,7 +384,7 @@ def main(
     parser.add_argument(
         "--provider",
         "-p",
-        choices=["llm_local", "llm_gemini", "llm_openai"],
+        choices=["llm_local", "llm_gemini"],
         default="llm_local",
         help="LLM provider backend to query",
     )

@@ -36,12 +36,12 @@ OcrEngineName = Literal["easyocr", "tesseract"]
 OCR_ENGINES: tuple[OcrEngineName, ...] = ("easyocr", "tesseract")
 
 #: Supported LLM provider backend identifiers.
-ProviderName = Literal["llm_local", "llm_gemini", "llm_openai"]
-LLM_PROVIDERS: tuple[ProviderName, ...] = ("llm_local", "llm_gemini", "llm_openai")
+ProviderName = Literal["llm_local", "llm_gemini"]
+LLM_PROVIDERS: tuple[ProviderName, ...] = ("llm_local", "llm_gemini")
 
 #: Supported extraction method identifiers.
-MethodName = Literal["regex", "llm_local", "llm_gemini", "llm_openai"]
-EXTRACTION_METHODS: tuple[MethodName, ...] = ("regex", "llm_local", "llm_gemini", "llm_openai")
+MethodName = Literal["regex", "llm_local", "llm_gemini"]
+EXTRACTION_METHODS: tuple[MethodName, ...] = ("regex", "llm_local", "llm_gemini")
 
 #: AT sentinel printed in the B field of a final-consumer invoice (passes NIF check digit).
 CONSUMIDOR_FINAL_NIF = "999999990"
@@ -181,7 +181,7 @@ class Extraction:
         data: Date of issue.
         total: Total amount paid.
         method: Which extractor produced this result, e.g. ``"regex"``, ``"llm_local"``,
-            ``"llm_gemini"`` or ``"llm_openai"``.
+            or ``"llm_gemini"``.
         elapsed_ms: Wall-clock time of the extraction, in milliseconds.
         raw_response: Raw model response, kept for debugging and for the report appendix.
     """
