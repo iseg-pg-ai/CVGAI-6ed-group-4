@@ -22,20 +22,21 @@ import cv2
 import gradio as gr
 import numpy as np
 
-from src.evidence import crop, draw_all_ocr_boxes, highlight
-from src.extractor_llm import extract as extract_llm
-from src.extractor_regex import extract as extract_regex
-from src.llm_client import build_client
-from src.ocr_engine import EasyOCREngine
-from src.ocr_tesseract import TesseractEngine
-from src.preprocessing import PreprocessOptions, PreprocessResult, preprocess
-from src.qa_assistant import ask as ask_qa
-from src.qr_reader import read as read_qr
-from src.settings import get_settings
-from src.types import IMAGE_EXTENSIONS, Extraction, OcrDocument, OcrEngine
+from src.core.settings import get_settings
+from src.core.types import IMAGE_EXTENSIONS, ROTATION_CHOICES, Extraction, OcrDocument, OcrEngine
+from src.extraction.llm import extract as extract_llm
+from src.extraction.llm_client import build_client
+from src.extraction.qa_assistant import ask as ask_qa
+from src.extraction.regex import extract as extract_regex
+from src.ocr.easyocr import EasyOCREngine
+from src.ocr.tesseract import TesseractEngine
+from src.vision.evidence import crop, draw_all_ocr_boxes, highlight
+from src.vision.preprocessing import PreprocessOptions, PreprocessResult, preprocess
+from src.vision.qr_reader import read as read_qr
 
 if TYPE_CHECKING:
-    from src.settings import Settings
+    from src.core.settings import Settings
+
 
 # In-memory thread-safe caches
 _CACHE_LOCK = threading.Lock()
@@ -350,7 +351,7 @@ def load_benchmark_report(settings: Settings | None = None) -> tuple[str, list[s
             "### Relatorio de Avaliacao de Desempenho (Pendente de Execucao)\n\n"
             "O benchmark oficial sobre o golden set pode ser executado com o comando:\n\n"
             "```bash\n"
-            "uv run python -m src.evaluate\n"
+            "uv run python -m src.evaluation.evaluate\n"
             "```\n\n"
             "Os resultados discriminados por metodo (Regex vs LLM) e por grupo (direito vs amarrotado) "
             "serao gerados em `results/metrics.md` e `results/metrics.csv`."
@@ -402,7 +403,7 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
 
                     with gr.Accordion("Parametros de Pre-processamento (OpenCV)", open=False):
                         rot_choice = gr.Radio(
-                            choices=["auto", "0", "90", "180", "270"],
+                            choices=list(ROTATION_CHOICES),
                             value="auto",
                             label="Rotacao (Orientacao)",
                         )

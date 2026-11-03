@@ -10,11 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from src.golden_set import GoldenSetError, carregar_ground_truth, validar_ground_truth
-from src.settings import get_settings
-from src.types import GroundTruthRecord
+from src.core.settings import get_settings
+from src.core.types import GROUND_TRUTH_COLUMNS, GroundTruthRecord
+from src.evaluation.golden_set import GoldenSetError, carregar_ground_truth, validar_ground_truth
 
-CSV_COLUMNS = ["filename", "grupo", "entidade", "nif_comerciante", "nif_cliente", "data", "total"]
+CSV_COLUMNS = list(GROUND_TRUTH_COLUMNS)
 VALID_ROW = ["receipt.jpg", "direito", "Pingo Doce", "500100144", "123456789", "2026-10-24", "16.10"]
 
 
@@ -39,7 +39,7 @@ def test_valid_rows_are_converted_to_typed_records(tmp_path: Path, monkeypatch: 
     csv_path = tmp_path / "data" / "ground_truth.csv"
     write_csv(csv_path, [VALID_ROW])
     configured = replace(get_settings(), receipts_dir=receipts_dir)
-    monkeypatch.setattr("src.golden_set.get_settings", lambda: configured)
+    monkeypatch.setattr("src.evaluation.golden_set.get_settings", lambda: configured)
 
     records = carregar_ground_truth(csv_path)
 
@@ -64,7 +64,9 @@ def test_optional_empty_fields_become_none(tmp_path: Path, monkeypatch: pytest.M
     (receipts_dir / "receipt.jpg").touch()
     csv_path = tmp_path / "truth.csv"
     write_csv(csv_path, [["receipt.jpg", "amarrotado", "", "", "", "", ""]])
-    monkeypatch.setattr("src.golden_set.get_settings", lambda: replace(get_settings(), receipts_dir=receipts_dir))
+    monkeypatch.setattr(
+        "src.evaluation.golden_set.get_settings", lambda: replace(get_settings(), receipts_dir=receipts_dir)
+    )
 
     record = carregar_ground_truth(csv_path)[0]
 
@@ -151,7 +153,7 @@ def test_loader_raises_aggregated_golden_set_error(tmp_path: Path, monkeypatch: 
     csv_path = tmp_path / "truth.csv"
     write_csv(csv_path, [["", "invalido", "", "", "", "", ""]])
     monkeypatch.setattr(
-        "src.golden_set.get_settings",
+        "src.evaluation.golden_set.get_settings",
         lambda: replace(get_settings(), receipts_dir=tmp_path / "receipts"),
     )
 

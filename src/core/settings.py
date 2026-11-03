@@ -16,7 +16,7 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-from src.types import OcrEngineName
+from src.core.types import OCR_ENGINES, OcrEngineName
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ def load_settings(repo_root: Path | None = None) -> Settings:
     Returns:
         A validated, immutable Settings instance.
     """
-    root = (repo_root or Path(__file__).resolve().parents[1]).resolve()
+    root = (repo_root or Path(__file__).resolve().parents[2]).resolve()
     env_file = root / ".env"
     file_vars: dict[str, str | None] = dotenv_values(dotenv_path=env_file) if env_file.is_file() else {}
 
@@ -114,7 +114,7 @@ def load_settings(repo_root: Path | None = None) -> Settings:
     gemini_model = _get_val("GEMINI_MODEL", "gemini-3.5-flash").strip()
 
     raw_engine = _get_val("OCR_ENGINE", "easyocr").strip().lower()
-    if raw_engine in ("easyocr", "tesseract"):
+    if raw_engine in OCR_ENGINES:
         ocr_engine: OcrEngineType = raw_engine  # type: ignore[assignment]
     else:
         logger.warning("Unrecognised OCR_ENGINE '%s'; defaulting to 'easyocr'.", raw_engine)

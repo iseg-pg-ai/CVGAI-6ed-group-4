@@ -12,10 +12,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.types import FIELD_NAMES, GROUPS, GroundTruthRecord
+from src.core.types import FIELD_NAMES, GROUPS, GroundTruthRecord
 
 if TYPE_CHECKING:
-    from src.settings import Settings
+    from src.core.settings import Settings
+
 
 _FIELD_LABELS = {
     "entidade": "entidade",
@@ -112,8 +113,8 @@ def main(
         argv: Optional CLI arguments. Defaults to sys.argv[1:].
         settings_override: Optional custom settings instance.
     """
-    from src.golden_set import GoldenSetError, carregar_ground_truth
-    from src.settings import get_settings
+    from src.core.settings import get_settings
+    from src.evaluation.golden_set import GoldenSetError, carregar_ground_truth
 
     settings = settings_override or get_settings()
     parser = argparse.ArgumentParser(description="Summarize receipt corpus statistics")

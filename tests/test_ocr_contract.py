@@ -15,9 +15,9 @@ import cv2
 import numpy as np
 import pytest
 
-from src.ocr_engine import EasyOCREngine, main
-from src.settings import load_settings
-from src.types import BBox, OcrDocument, OcrEngine, OcrLine
+from src.core.settings import load_settings
+from src.core.types import BBox, OcrDocument, OcrEngine, OcrLine
+from src.ocr.easyocr import EasyOCREngine, main
 
 
 class MockReader:
@@ -171,7 +171,7 @@ def test_main_cli_execution_with_mock(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """main executes end-to-end when using an injected mock engine."""
-    from src import ocr_engine
+    from src.ocr import easyocr
 
     img_path = tmp_path / "receipt.jpg"
     synthetic = np.full((120, 80, 3), 200, dtype=np.uint8)
@@ -188,7 +188,7 @@ def test_main_cli_execution_with_mock(
         def read(self, image: np.ndarray) -> OcrDocument:
             return self._real.read(image)
 
-    monkeypatch.setattr(ocr_engine, "EasyOCREngine", FakeEngine)
+    monkeypatch.setattr(easyocr, "EasyOCREngine", FakeEngine)
 
     main(argv=["--file", str(img_path), "--no-preprocess"])
 

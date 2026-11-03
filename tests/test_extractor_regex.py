@@ -3,7 +3,7 @@
 Every case builds a synthetic :class:`OcrDocument`; no image is decoded and nothing touches
 ``data/receipts``. Several tests pin behaviours that are easy to regress and expensive to
 notice in a benchmark: the consumer-final sentinel, the duplicate-NIF rule, and the fact that
-:func:`src.normalizers.parse_moeda` would read a quantity as the total.
+:func:`src.core.normalizers.parse_moeda` would read a quantity as the total.
 
 Ref: Docs/Planning/implementation_plan.md, section 5 (WP-09).
 """
@@ -17,8 +17,8 @@ import cv2
 import numpy as np
 import pytest
 
-from src.extractor_regex import CONSUMIDOR_FINAL_NIF, extract, main
-from src.types import BBox, OcrDocument, OcrLine
+from src.core.types import BBox, OcrDocument, OcrLine
+from src.extraction.regex import CONSUMIDOR_FINAL_NIF, extract, main
 
 #: Vertical step between synthetic lines.
 SPACING = 20
@@ -363,7 +363,7 @@ def test_main_cli_prints_the_extracted_fields(
         def read(self, image: np.ndarray) -> OcrDocument:
             return _document(["PINGO DOCE", "NIF: 500100144", "TOTAL 16,10"])
 
-    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", FakeEngine)
+    monkeypatch.setattr("src.ocr.easyocr.EasyOCREngine", FakeEngine)
 
     main(argv=["--file", str(img_path), "--engine", "easyocr", "--no-preprocess"])
 
@@ -384,7 +384,7 @@ def test_main_cli_missing_file(tmp_path: Path, capsys: pytest.CaptureFixture[str
 
 def test_main_cli_missing_receipts_dir(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """An absent receipts directory is reported instead of raising."""
-    from src.settings import load_settings
+    from src.core.settings import load_settings
 
     settings = load_settings(repo_root=tmp_path)
 

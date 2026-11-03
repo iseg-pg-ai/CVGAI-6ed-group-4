@@ -14,22 +14,18 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from src.normalizers import validar_nif
-from src.settings import Settings, get_settings
-from src.types import (
+from src.core.normalizers import validar_nif
+from src.core.settings import Settings, get_settings
+from src.core.types import (
     CONSUMIDOR_FINAL_NIF,
     EARLIEST_PLAUSIBLE_DATE,
-    FIELD_NAMES,
+    GROUND_TRUTH_COLUMNS,
     GROUPS,
     GroundTruthRecord,
     GroupName,
 )
 
-_CSV_COLUMNS = (
-    "filename",
-    "grupo",
-    *FIELD_NAMES,
-)
+_CSV_COLUMNS = GROUND_TRUTH_COLUMNS
 
 
 @dataclass(frozen=True, slots=True)

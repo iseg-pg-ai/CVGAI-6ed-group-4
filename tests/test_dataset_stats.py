@@ -10,9 +10,9 @@ from typing import Literal
 
 import pytest
 
-from src.dataset_stats import imprimir_resumo, main, resumo
-from src.settings import get_settings
-from src.types import GroundTruthRecord
+from src.core.settings import get_settings
+from src.core.types import GroundTruthRecord
+from src.evaluation.dataset_stats import imprimir_resumo, main, resumo
 
 
 def _record(
@@ -157,7 +157,7 @@ def test_main_cli_execution_with_custom_csv(
     )
 
     settings = replace(get_settings(), receipts_dir=receipts_dir, ground_truth_path=csv_path)
-    monkeypatch.setattr("src.golden_set.get_settings", lambda: settings)
+    monkeypatch.setattr("src.evaluation.golden_set.get_settings", lambda: settings)
 
     main(argv=["--csv", str(csv_path)], settings_override=settings)
 
@@ -176,7 +176,7 @@ def test_main_cli_handles_invalid_csv(
     csv_path.write_text("bad_header\n", encoding="utf-8")
 
     settings = replace(get_settings(), receipts_dir=receipts_dir, ground_truth_path=csv_path)
-    monkeypatch.setattr("src.golden_set.get_settings", lambda: settings)
+    monkeypatch.setattr("src.evaluation.golden_set.get_settings", lambda: settings)
 
     main(argv=["--csv", str(csv_path)], settings_override=settings)
 

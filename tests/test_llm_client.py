@@ -13,7 +13,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.llm_client import (
+from src.core.settings import Settings
+from src.extraction.llm_client import (
     FailoverLLMClient,
     GeminiClient,
     LLMClient,
@@ -21,7 +22,6 @@ from src.llm_client import (
     build_client,
     main,
 )
-from src.settings import Settings
 
 
 def make_test_settings(
@@ -238,7 +238,7 @@ def test_openai_compatible_client_raises_llm_connection_error() -> None:
     """OpenAICompatibleClient converts connection refused into LLMConnectionError."""
     import openai
 
-    from src.llm_client import LLMConnectionError
+    from src.extraction.llm_client import LLMConnectionError
 
     mock_inner = MagicMock()
     mock_inner.chat.completions.create.side_effect = openai.APIConnectionError(request=MagicMock())
@@ -259,7 +259,7 @@ def test_openai_compatible_client_raises_llm_quota_error() -> None:
     """OpenAICompatibleClient converts rate limit errors into LLMQuotaError."""
     import openai
 
-    from src.llm_client import LLMQuotaError
+    from src.extraction.llm_client import LLMQuotaError
 
     mock_inner = MagicMock()
     mock_inner.chat.completions.create.side_effect = openai.RateLimitError(
@@ -280,7 +280,7 @@ def test_openai_compatible_client_raises_llm_quota_error() -> None:
 
 def test_failover_raises_connection_error_when_fallback_fails() -> None:
     """FailoverLLMClient raises LLMConnectionError when both primary and fallback fail."""
-    from src.llm_client import LLMConnectionError
+    from src.extraction.llm_client import LLMConnectionError
 
     mock_fallback = MagicMock(spec=LLMClient)
     mock_fallback.provider = "llm_local"
@@ -299,7 +299,7 @@ def test_failover_raises_connection_error_when_fallback_fails() -> None:
 
 def test_main_cli_execution(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     """main CLI utility connects and prints response from mock client."""
-    from src import llm_client
+    from src.extraction import llm_client
 
     class FakeClient:
         provider = "llm_local"
@@ -321,8 +321,8 @@ def test_main_cli_handles_connection_error_gracefully(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """main CLI utility catches LLMConnectionError and prints actionable advice to stderr."""
-    from src import llm_client
-    from src.llm_client import LLMConnectionError
+    from src.extraction import llm_client
+    from src.extraction.llm_client import LLMConnectionError
 
     class FailingClient:
         provider = "llm_local"

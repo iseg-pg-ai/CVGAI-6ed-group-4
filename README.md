@@ -29,22 +29,22 @@ EasyOCR, que descarrega os pesos na primeira execução):
 
 | Módulo | Estado | Pré-visualização |
 | :--- | :--- | :--- |
-| `src/types.py` | Contratos de dados fechados | — |
-| `src/settings.py` | Configuração e caminhos a partir do `.env` | — |
-| `src/normalizers.py` | Normalização e comparação de campos | — |
-| `src/golden_set.py` | Validação e carregamento do golden set | `uv run python -m src.golden_set` |
-| `src/preprocessing.py` | Redimensionamento, orientação, recorte, sombras, CLAHE | `uv run python -m src.preprocessing` |
-| `src/ocr_engine.py` | EasyOCR com caixas delimitadoras e IDs de linha | `uv run python -m src.ocr_engine` |
-| `src/ocr_tesseract.py` | Motor OCR comparativo, com agregação de palavras em linhas | `uv run python -m src.ocr_tesseract` |
-| `src/qr_reader.py` | Leitura do QR da AT para validação cruzada | `uv run python -m src.qr_reader` |
-| `src/llm_client.py` | Clientes local e Gemini com failover | `uv run python -m src.llm_client` |
-| `src/extractor_regex.py` | Extrator por regex (baseline) | `uv run python -m src.extractor_regex` |
-| `src/extractor_llm.py` | Extrator por LLM, local ou cloud, com JSON validado | `uv run python -m src.extractor_llm --provider llm_local` |
-| `src/evidence.py` | Destaque e recorte da região comprovativa | `uv run python -m src.evidence -l 1,2,3` |
-| `src/qa_assistant.py` | Assistente de Q&A com fundamentação em linhas citadas | `uv run python -m src.qa_assistant` |
-| `src/scoring.py` | Pontuação contra a verdade de referência e agregação de métricas | — |
-| `src/dataset_stats.py` | Estatísticas do corpus por grupo, comerciante e campo | `uv run python -m src.dataset_stats` |
-| `src/evaluate.py` | Runner do benchmark oficial sobre o golden set | `uv run python -m src.evaluate` |
+| `src/core/types.py` | Contratos de dados fechados | — |
+| `src/core/settings.py` | Configuração e caminhos a partir do `.env` | — |
+| `src/core/normalizers.py` | Normalização e comparação de campos | — |
+| `src/evaluation/golden_set.py` | Validação e carregamento do golden set | `uv run python -m src.evaluation.golden_set` |
+| `src/vision/preprocessing.py` | Redimensionamento, orientação, recorte, sombras, CLAHE | `uv run python -m src.vision.preprocessing` |
+| `src/ocr/easyocr.py` | EasyOCR com caixas delimitadoras e IDs de linha | `uv run python -m src.ocr.easyocr` |
+| `src/ocr/tesseract.py` | Motor OCR comparativo, com agregação de palavras em linhas | `uv run python -m src.ocr.tesseract` |
+| `src/vision/qr_reader.py` | Leitura do QR da AT para validação cruzada | `uv run python -m src.vision.qr_reader` |
+| `src/extraction/llm_client.py` | Clientes local e Gemini com failover | `uv run python -m src.extraction.llm_client` |
+| `src/extraction/regex.py` | Extrator por regex (baseline) | `uv run python -m src.extraction.regex` |
+| `src/extraction/llm.py` | Extrator por LLM, local ou cloud, com JSON validado | `uv run python -m src.extraction.llm --provider llm_local` |
+| `src/vision/evidence.py` | Destaque e recorte da região comprovativa | `uv run python -m src.vision.evidence -l 1,2,3` |
+| `src/extraction/qa_assistant.py` | Assistente de Q&A com fundamentação em linhas citadas | `uv run python -m src.extraction.qa_assistant` |
+| `src/evaluation/scoring.py` | Pontuação contra a verdade de referência e agregação de métricas | — |
+| `src/evaluation/dataset_stats.py` | Estatísticas do corpus por grupo, comerciante e campo | `uv run python -m src.evaluation.dataset_stats` |
+| `src/evaluation/evaluate.py` | Runner do benchmark oficial sobre o golden set | `uv run python -m src.evaluation.evaluate` |
 | `src/app.py` | Aplicação interativa Gradio (3 separadores) | `uv run python -m src.app` |
 
 Cada módulo CLI opera sobre o primeiro talão de `data/receipts/`; a flag `--file`
@@ -130,7 +130,7 @@ sudo pacman -S zbar
 brew install zbar
 ```
 
-Sem ela, o `pyzbar` não importa e o `src.qr_reader` recorre sozinho ao `cv2.QRCodeDetector`, que
+Sem ela, o `pyzbar` não importa e o `src.vision.qr_reader` recorre sozinho ao `cv2.QRCodeDetector`, que
 lê os QR do golden set. Nenhum teste depende do `pyzbar`.
 
 #### llama-server (LLM local)
@@ -245,23 +245,23 @@ Além da interface Gradio, cada fase do pipeline tem uma entrada de linha de com
 janela com o resultado sobre o primeiro talão de `data/receipts/` ou imprime o resultado na consola:
 
 ```bash
-bash scripts/check_golden_set.sh      # validação do golden set e estatísticas do corpus
-uv run python -m src.preprocessing    # antes vs depois do OpenCV
-uv run python -m src.ocr_engine       # linhas numeradas prontas para o prompt
-uv run python -m src.ocr_tesseract    # OCR alternativo via Tesseract
-uv run python -m src.qr_reader        # campos do QR da AT, quando o talão tiver um
-uv run python -m src.extractor_regex  # extração estruturada baseline
-uv run python -m src.evidence         # caixas do OCR e destaque das linhas citadas
-uv run python -m src.qa_assistant     # pergunta de teste ao assistente
-uv run python -m src.evaluate         # runner do benchmark oficial sobre o golden set
+bash scripts/check_golden_set.sh          # validação do golden set e estatísticas do corpus
+uv run python -m src.vision.preprocessing # antes vs depois do OpenCV
+uv run python -m src.ocr.easyocr          # linhas numeradas prontas para o prompt
+uv run python -m src.ocr.tesseract        # OCR alternativo via Tesseract
+uv run python -m src.vision.qr_reader     # campos do QR da AT, quando o talão tiver um
+uv run python -m src.extraction.regex     # extração estruturada baseline
+uv run python -m src.vision.evidence      # caixas do OCR e destaque das linhas citadas
+uv run python -m src.extraction.qa_assistant # pergunta de teste ao assistente
+uv run python -m src.evaluation.evaluate  # runner do benchmark oficial sobre o golden set
 ```
 
 Flags comuns: `--file caminho/para/talao.jpg` escolhe a imagem e `--save saida.png` escreve o
-resultado em disco em vez de abrir a janela. O `src.evidence` acrescenta `--lines 1,2,3` para
+resultado em disco em vez de abrir a janela. O `src.vision.evidence` acrescenta `--lines 1,2,3` para
 escolher as linhas a destacar e a recortar; sem a flag, usa até três linhas que contenham
 `TOTAL`, `NIF`, `NIPC` ou `CONTRIBUINTE` e, se não houver nenhuma, as duas primeiras. O
-`src.preprocessing` aceita `--rotate`, `--no-crop`, `--no-shadows`, `--no-osd` e `--deskew` /
-`--no-deskew`; o `src.ocr_engine` aceita `--gpu` e `--no-preprocess`; o `src.qr_reader` aceita
+`src.vision.preprocessing` aceita `--rotate`, `--no-crop`, `--no-shadows`, `--no-osd` e `--deskew` /
+`--no-deskew`; o `src.ocr.easyocr` aceita `--gpu` e `--no-preprocess`; o `src.vision.qr_reader` aceita
 `--no-preprocess`.
 
 ### Aplicação Gradio
@@ -350,22 +350,11 @@ do `pyright`.
 
 ```text
 src/
-  types.py          contratos de dados partilhados (fonte de verdade)
-  settings.py       leitura do .env e resolução de caminhos
-  normalizers.py    normalização pura de texto, moeda, datas e NIF
-  golden_set.py     carregamento e validação estrita do CSV de referência
-  preprocessing.py  OpenCV: orientação, recorte, sombras, CLAHE
-  ocr_engine.py     EasyOCR com caixas delimitadoras e IDs de linha
-  ocr_tesseract.py  backend Tesseract OCR com agregação de palavras
-  qr_reader.py      leitura e validação cruzada do QR da AT
-  llm_client.py     clientes LLM (local e Gemini) com failover
-  extractor_regex.py baseline de extração estruturada por expressões regulares
-  extractor_llm.py  extrator por LLM com ancoragem determinística de evidência
-  evidence.py       destaque e recorte da região comprovativa
-  qa_assistant.py   assistente verificável de perguntas e respostas
-  scoring.py        cálculo de taxas de acerto, falsos positivos e omissões
-  dataset_stats.py  estatísticas do corpus por grupo, emitente e presença de campos
-  evaluate.py       runner do benchmark oficial sobre o golden set
+  core/             contratos de dados, configurações e normalizadores puros
+  vision/           OpenCV: pré-processamento, leitura do QR AT e evidência visual
+  ocr/              motores OCR (EasyOCR, Tesseract) e factory unificada
+  extraction/       extração estruturada (regex, LLM local/cloud) e assistente Q&A
+  evaluation/       validação do golden set, pontuação, estatísticas e benchmark runner
   app.py            aplicação interativa Gradio com 3 separadores
 tests/              suite pytest com 291 testes, offline e determinística
 data/               imagens do golden set e verdade de referência

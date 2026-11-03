@@ -1,7 +1,7 @@
 """Evidence-grounded question answering assistant for receipts and simplified invoices.
 
 Answers natural language questions about a recognised receipt using the OCR text and spatial
-line identifiers, returning a structured :class:`src.types.Answer` with presence status and
+line identifiers, returning a structured :class:`src.core.types.Answer` with presence status and
 supporting line IDs for visual highlighting.
 
 Ref: Docs/Planning/implementation_plan.md, section 7, WP-12.
@@ -15,14 +15,23 @@ import logging
 import re
 import sys
 from collections.abc import Sequence
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, cast
 
-from src.types import IMAGE_EXTENSIONS, Answer, OcrDocument, OcrLine, ProviderName
+from src.core.types import (
+    ANSWER_STATUSES,
+    LLM_PROVIDERS,
+    OCR_ENGINES,
+    Answer,
+    AnswerStatus,
+    OcrDocument,
+    OcrLine,
+    ProviderName,
+)
 
 if TYPE_CHECKING:
-    from src.llm_client import LLMClient
-    from src.settings import Settings
+    from src.core.settings import Settings
+    from src.extraction.llm_client import LLMClient
+
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +60,7 @@ QA_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "answer": {"type": "string"},
-        "status": {"type": "string", "enum": ["ENCONTRADO", "AUSENTE NO DOCUMENTO"]},
+        "status": {"type": "string", "enum": list(ANSWER_STATUSES)},
         "linhas": {
             "type": "array",
             "items": {"type": "integer"},
@@ -195,7 +204,7 @@ def ask(
         QAResponseError: When the model response cannot be parsed.
     """
     if client is None:
-        from src.llm_client import build_client
+        from src.extraction.llm_client import build_client
 
         client = build_client()
 
@@ -227,9 +236,7 @@ def ask(
         else:
             is_found = False
 
-    status: Literal["ENCONTRADO", "AUSENTE NO DOCUMENTO"] = (
-        "ENCONTRADO" if is_found and filtered_ids else "AUSENTE NO DOCUMENTO"
-    )
+    status: AnswerStatus = "ENCONTRADO" if is_found and filtered_ids else "AUSENTE NO DOCUMENTO"
     if status == "AUSENTE NO DOCUMENTO" and is_found:
         answer_text = "A informação solicitada não foi encontrada ou não pôde ser comprovada no documento."
 
@@ -252,13 +259,11 @@ def main(
         argv: Optional command-line arguments. Defaults to sys.argv[1:].
         settings_override: Optional custom Settings. When None, get_settings() is used.
     """
-    import cv2
-
-    from src.llm_client import LLMError, build_client
-    from src.ocr_engine import EasyOCREngine
-    from src.ocr_tesseract import TesseractEngine
-    from src.preprocessing import PreprocessOptions, preprocess
-    from src.settings import get_settings
+    from src.core.cli_utils import resolve_and_load_receipt
+    from src.core.settings import get_settings
+    from src.extraction.llm_client import LLMError, build_client
+    from src.ocr import build_ocr_engine
+    from src.vision.preprocessing import PreprocessOptions, preprocess
 
     parser = argparse.ArgumentParser(description="Evidence-grounded Q&A assistant preview")
     parser.add_argument("--file", "-f", type=str, default=None, help="Receipt image path")
@@ -272,14 +277,14 @@ def main(
     parser.add_argument(
         "--engine",
         type=str,
-        choices=("easyocr", "tesseract"),
+        choices=OCR_ENGINES,
         default=None,
         help="OCR engine to use",
     )
     parser.add_argument(
         "--provider",
         type=str,
-        choices=("llm_local", "llm_gemini"),
+        choices=LLM_PROVIDERS,
         default="llm_local",
         help="LLM provider to query",
     )
@@ -290,30 +295,10 @@ def main(
 
     settings = settings_override or get_settings()
 
-    target_path: Path | None = None
-    if args.file:
-        candidate = Path(args.file)
-        if not candidate.is_file():
-            print(f"Error: Specified file not found: {candidate}")
-            return
-        target_path = candidate
-    else:
-        if not settings.receipts_dir.is_dir():
-            print(f"Receipts directory not found: {settings.receipts_dir}")
-            return
-        receipt_files = sorted(
-            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
-        )
-        if not receipt_files:
-            print(f"No receipt images found in {settings.receipts_dir}")
-            return
-        target_path = receipt_files[0]
-
-    print(f"Loading receipt: {target_path.name}")
-    raw_image = cv2.imread(str(target_path))
-    if raw_image is None:
-        print(f"Error: Unable to read image file: {target_path}")
+    loaded = resolve_and_load_receipt(args.file, settings)
+    if loaded is None:
         return
+    target_path, raw_image = loaded
 
     if args.no_preprocess:
         image_to_read = raw_image
@@ -321,8 +306,7 @@ def main(
         print("Preprocessing receipt...")
         image_to_read = preprocess(raw_image, PreprocessOptions()).image
 
-    engine_name = args.engine or settings.ocr_engine
-    engine = TesseractEngine() if engine_name == "tesseract" else EasyOCREngine(langs=settings.easyocr_langs)
+    engine = build_ocr_engine(args.engine, settings)
 
     print(f"Running OCR with {engine.name}...")
     doc = engine.read(image_to_read)

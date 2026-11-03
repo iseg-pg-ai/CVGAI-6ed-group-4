@@ -12,9 +12,9 @@ Three behaviours are worth stating up front, because they are easy to get wrong:
   measured on the OCR text alone, and payment-terminal slips carry no QR at all.
 - The consumer-final sentinel (``999999990``) is a structurally valid NIF: it passes the
   modulo-11 check digit. It is therefore rejected by an explicit constant and not by
-  :func:`src.normalizers.validar_nif`.
+  :func:`src.core.normalizers.validar_nif`.
 - The total is read with this module's own money pattern rather than
-  :func:`src.normalizers.parse_moeda`, because the latter returns the *first* number in a
+  :func:`src.core.normalizers.parse_moeda`, because the latter returns the *first* number in a
   string and would read ``"TOTAL 2 UN 16,10"`` as ``2``.
 
 Ref: Docs/Planning/implementation_plan.md, section 5 (WP-09).
@@ -29,14 +29,14 @@ import time
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.normalizers import limpar_texto, normalizar_entidade, parse_data, parse_moeda, parse_nif, validar_nif
-from src.types import (
+from src.core.cli_utils import format_extraction_field
+from src.core.normalizers import limpar_texto, normalizar_entidade, parse_data, parse_moeda, parse_nif, validar_nif
+from src.core.types import (
     CONSUMIDOR_FINAL_NIF,
     EARLIEST_PLAUSIBLE_DATE,
-    IMAGE_EXTENSIONS,
+    OCR_ENGINES,
     Extraction,
     FieldValue,
     OcrDocument,
@@ -44,11 +44,14 @@ from src.types import (
 )
 
 if TYPE_CHECKING:
-    from src.settings import Settings
+    from src.core.settings import Settings
+
+_format_field = format_extraction_field
+
 
 #: Nine digits with optional single spaces or tabs between them.
 #:
-#: Same shape as the pattern inside :func:`src.normalizers.parse_nif`, repeated here because
+#: Same shape as the pattern inside :func:`src.core.normalizers.parse_nif`, repeated here because
 #: that helper only ever returns the first match and one receipt line can carry two NIFs (the
 #: merchant's and the customer's). Canonicalisation still goes through ``parse_nif``.
 _NIF_SCAN = re.compile(r"(?<!\d)\d(?:[ \t]*\d){8}(?!\d)")
@@ -95,7 +98,7 @@ _HEADER_BAND_RATIO = 0.4
 def _fold(text: str) -> str:
     """Return the keyword-comparable form of a line.
 
-    Reuses :func:`src.normalizers.normalizar_entidade`, which the project defines as
+    Reuses :func:`src.core.normalizers.normalizar_entidade`, which the project defines as
     "lowercase, no accents, no punctuation, whitespace collapsed". That is exactly what word
     matching needs, and it avoids a second canonicalisation routine that could drift from it.
 
@@ -272,7 +275,7 @@ def _header_band(lines: Sequence[OcrLine], image_size: tuple[int, int]) -> list[
 def _is_plausible_date(parsed: date) -> bool:
     """Reject dates a receipt cannot carry.
 
-    Hyphenated dates are read as ``YY-MM-DD`` by :func:`src.normalizers.parse_data`, so a
+    Hyphenated dates are read as ``YY-MM-DD`` by :func:`src.core.normalizers.parse_data`, so a
     receipt printed as ``DD-MM-YY`` can be misread into the next decade. An issue date in the
     future is impossible, which makes the upper bound a cheap way to drop those misreads and
     fall through to the next candidate line.
@@ -363,21 +366,6 @@ def extract(doc: OcrDocument, qr: dict[str, str] | None = None) -> Extraction:
     )
 
 
-def _format_field(name: str, field: FieldValue) -> str:
-    """Render one field as an aligned row for the command-line preview.
-
-    Args:
-        name: Column name of the field.
-        field: Field value to render.
-
-    Returns:
-        A single printable line.
-    """
-    value = field.value if field.value is not None else "-"
-    line = f"line {field.line_id}" if field.line_id is not None else "no line"
-    return f"  {name:<16} {field.status:<11} {line:<9} {value}"
-
-
 def main(
     argv: Sequence[str] | None = None,
     settings_override: Settings | None = None,
@@ -388,19 +376,17 @@ def main(
         argv: Optional command-line arguments. Defaults to ``sys.argv[1:]``.
         settings_override: Optional custom Settings. When None, ``get_settings()`` is used.
     """
-    import cv2
-
-    from src.ocr_engine import EasyOCREngine
-    from src.ocr_tesseract import TesseractEngine
-    from src.preprocessing import PreprocessOptions, preprocess
-    from src.settings import get_settings
+    from src.core.cli_utils import resolve_and_load_receipt
+    from src.core.settings import get_settings
+    from src.ocr import build_ocr_engine
+    from src.vision.preprocessing import PreprocessOptions, preprocess
 
     parser = argparse.ArgumentParser(description="Regex baseline extractor preview")
     parser.add_argument("--file", "-f", type=str, default=None, help="Receipt image path")
     parser.add_argument(
         "--engine",
         type=str,
-        choices=("easyocr", "tesseract"),
+        choices=OCR_ENGINES,
         default=None,
         help="OCR engine to use (defaults to the configured one)",
     )
@@ -411,30 +397,10 @@ def main(
 
     settings = settings_override or get_settings()
 
-    target_path: Path | None = None
-    if args.file:
-        candidate = Path(args.file)
-        if not candidate.is_file():
-            print(f"Error: Specified file not found: {candidate}")
-            return
-        target_path = candidate
-    else:
-        if not settings.receipts_dir.is_dir():
-            print(f"Receipts directory not found: {settings.receipts_dir}")
-            return
-        receipt_files = sorted(
-            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
-        )
-        if not receipt_files:
-            print(f"No receipt images found in {settings.receipts_dir}")
-            return
-        target_path = receipt_files[0]
-
-    print(f"Loading receipt: {target_path.name}")
-    raw_image = cv2.imread(str(target_path))
-    if raw_image is None:
-        print(f"Error: Unable to read image file: {target_path}")
+    loaded = resolve_and_load_receipt(args.file, settings)
+    if loaded is None:
         return
+    target_path, raw_image = loaded
 
     if args.no_preprocess:
         image_to_read = raw_image
@@ -442,8 +408,7 @@ def main(
         print("Preprocessing receipt...")
         image_to_read = preprocess(raw_image, PreprocessOptions()).image
 
-    engine_name = args.engine or settings.ocr_engine
-    engine = TesseractEngine() if engine_name == "tesseract" else EasyOCREngine(langs=settings.easyocr_langs)
+    engine = build_ocr_engine(args.engine, settings)
 
     print(f"Running OCR with {engine.name}...")
     doc = engine.read(image_to_read)

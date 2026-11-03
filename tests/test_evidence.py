@@ -9,9 +9,9 @@ import cv2
 import numpy as np
 import pytest
 
-from src.evidence import crop, draw_all_ocr_boxes, highlight, main
-from src.settings import load_settings
-from src.types import BBox, OcrDocument, OcrLine
+from src.core.settings import load_settings
+from src.core.types import BBox, OcrDocument, OcrLine
+from src.vision.evidence import crop, draw_all_ocr_boxes, highlight, main
 
 
 @pytest.fixture
@@ -165,7 +165,7 @@ def test_main_cli_execution_and_save(
         def read(self, image: np.ndarray) -> OcrDocument:
             return sample_ocr_doc
 
-    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", FakeEngine)
+    monkeypatch.setattr("src.ocr.easyocr.EasyOCREngine", FakeEngine)
 
     main(argv=["--file", str(img_path), "--lines", "1,2", "--save", str(out_path)])
 

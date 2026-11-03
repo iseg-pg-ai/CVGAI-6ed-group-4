@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import pytest
 
-from src.preprocessing import (
+from src.vision.preprocessing import (
     PreprocessOptions,
     PreprocessResult,
     attenuate_shadows,
@@ -159,8 +159,8 @@ def test_preprocess_empty_image_raises_value_error() -> None:
 
 def test_main_handles_missing_or_empty_receipts_dir(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """main prints a friendly message when receipts directory is missing or empty."""
-    from src.preprocessing import main
-    from src.settings import load_settings
+    from src.core.settings import load_settings
+    from src.vision.preprocessing import main
 
     # Missing directory case
     settings = load_settings(repo_root=tmp_path)
@@ -179,8 +179,8 @@ def test_main_executes_on_receipt_image(tmp_path: Path, monkeypatch: pytest.Monk
     """main loads the first image, preprocesses it, and triggers the visual display fallback."""
     from PIL import Image
 
-    from src.preprocessing import main
-    from src.settings import load_settings
+    from src.core.settings import load_settings
+    from src.vision.preprocessing import main
 
     receipts_dir = tmp_path / "data" / "receipts"
     receipts_dir.mkdir(parents=True, exist_ok=True)
@@ -205,7 +205,7 @@ def test_main_executes_on_receipt_image(tmp_path: Path, monkeypatch: pytest.Monk
 
 def test_detect_orientation_osd_handles_missing_binary(monkeypatch: pytest.MonkeyPatch) -> None:
     """detect_orientation_osd returns 0 safely when tesseract is not in PATH."""
-    from src.preprocessing import detect_orientation_osd
+    from src.vision.preprocessing import detect_orientation_osd
 
     monkeypatch.setattr("shutil.which", lambda _name: None)
     img = np.zeros((100, 100, 3), dtype=np.uint8)
@@ -216,7 +216,7 @@ def test_detect_orientation_osd_parses_rotation(monkeypatch: pytest.MonkeyPatch)
     """detect_orientation_osd parses Rotate: 180 when confidence exceeds threshold."""
     import subprocess
 
-    from src.preprocessing import detect_orientation_osd
+    from src.vision.preprocessing import detect_orientation_osd
 
     mock_stdout = b"Rotate: 180\nOrientation confidence: 4.5\nScript: Latin\n"
 
@@ -234,7 +234,7 @@ def test_detect_orientation_osd_ignores_low_confidence(monkeypatch: pytest.Monke
     """detect_orientation_osd returns 0 when confidence is below min_confidence."""
     import subprocess
 
-    from src.preprocessing import detect_orientation_osd
+    from src.vision.preprocessing import detect_orientation_osd
 
     mock_stdout = b"Rotate: 180\nOrientation confidence: 0.8\nScript: Latin\n"
 
@@ -252,7 +252,7 @@ def test_main_cli_file_and_rotate_flags(tmp_path: Path, monkeypatch: pytest.Monk
     """main honors explicit --file and --rotate CLI arguments."""
     from PIL import Image
 
-    from src.preprocessing import main
+    from src.vision.preprocessing import main
 
     img_path = tmp_path / "custom_receipt.jpg"
     synthetic = np.full((120, 80, 3), 180, dtype=np.uint8)
@@ -274,7 +274,7 @@ def test_main_cli_file_and_rotate_flags(tmp_path: Path, monkeypatch: pytest.Monk
 
 def test_main_cli_save_flag(tmp_path: Path) -> None:
     """main with --save writes side-by-side comparison image to disk."""
-    from src.preprocessing import main
+    from src.vision.preprocessing import main
 
     img_path = tmp_path / "receipt_to_save.jpg"
     out_path = tmp_path / "comparison.png"

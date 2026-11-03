@@ -11,10 +11,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.types import Extraction, FieldValue
+from src.core.types import GROUND_TRUTH_COLUMNS, Extraction, FieldValue
 
 #: Header of ``data/ground_truth.csv``, in the mandatory order.
-GROUND_TRUTH_HEADER = "filename,grupo,entidade,nif_comerciante,nif_cliente,data,total"
+GROUND_TRUTH_HEADER = ",".join(GROUND_TRUTH_COLUMNS)
 
 #: Minimal but valid set of rows, used by the golden-set tests.
 VALID_ROWS = [

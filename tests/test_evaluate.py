@@ -14,10 +14,10 @@ import cv2
 import numpy as np
 import pytest
 
-from src.evaluate import avaliar_corpus, avaliar_registo, main
-from src.preprocessing import PreprocessOptions
-from src.settings import load_settings
-from src.types import BBox, Extraction, GroundTruthRecord, OcrDocument, OcrLine
+from src.core.settings import load_settings
+from src.core.types import BBox, Extraction, GroundTruthRecord, OcrDocument, OcrLine
+from src.evaluation.evaluate import avaliar_corpus, avaliar_registo, main
+from src.vision.preprocessing import PreprocessOptions
 
 OCR_TEXT = ["PINGO DOCE, S.A.", "NIF: 500 100 144", "Data: 26-10-27", "TOTAL 16,10 EUR"]
 LLM_PAYLOAD = {
@@ -101,7 +101,7 @@ def _write_image(path: Path) -> None:
 @pytest.fixture(autouse=True)
 def no_qr_decode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep the QR stage deterministic while preserving its call in the pipeline."""
-    monkeypatch.setattr("src.qr_reader.read", lambda image, raw_image=None: None)
+    monkeypatch.setattr("src.vision.qr_reader.read", lambda image, raw_image=None: None)
 
 
 def test_avaliar_registo_regex_pipeline_completo(tmp_path: Path) -> None:
@@ -203,7 +203,7 @@ def test_avaliar_corpus_reutiliza_um_cliente_llm(tmp_path: Path, monkeypatch: py
         builds.append(provider)
         return client
 
-    monkeypatch.setattr("src.llm_client.build_client", build_client)
+    monkeypatch.setattr("src.extraction.llm_client.build_client", build_client)
 
     results = avaliar_corpus(
         [_record("receipt-a.jpg"), _record("receipt-b.jpg", "amarrotado")],
@@ -247,7 +247,7 @@ def test_main_cli_executa_offline_com_doubles(
         receipts_dir=receipts_dir,
         results_dir=output_dir,
     )
-    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", FakeOcrEngine)
+    monkeypatch.setattr("src.ocr.easyocr.EasyOCREngine", FakeOcrEngine)
 
     main(
         argv=[
@@ -308,9 +308,9 @@ def test_main_cli_engine_tesseract_e_metodo_llm(
         results_dir=output_dir,
     )
 
-    monkeypatch.setattr("src.ocr_tesseract.TesseractEngine", FakeOcrEngine)
+    monkeypatch.setattr("src.ocr.tesseract.TesseractEngine", FakeOcrEngine)
     client = FakeLLMClient()
-    monkeypatch.setattr("src.llm_client.build_client", lambda *args, **kwargs: client)
+    monkeypatch.setattr("src.extraction.llm_client.build_client", lambda *args, **kwargs: client)
 
     main(
         argv=[
@@ -340,7 +340,7 @@ def test_main_cli_erro_llm_tratado_sem_traceback(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A connection error from the LLM client is caught and printed cleanly."""
-    from src.llm_client import LLMConnectionError
+    from src.extraction.llm_client import LLMConnectionError
 
     receipts_dir = tmp_path / "receipts"
     receipts_dir.mkdir()
@@ -356,13 +356,13 @@ def test_main_cli_erro_llm_tratado_sem_traceback(
         results_dir=output_dir,
     )
 
-    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", FakeOcrEngine)
+    monkeypatch.setattr("src.ocr.easyocr.EasyOCREngine", FakeOcrEngine)
 
     class ErrorClient:
         def complete(self, *args: Any, **kwargs: Any) -> str:
             raise LLMConnectionError("Connection refused on 8080")
 
-    monkeypatch.setattr("src.llm_client.build_client", lambda *args, **kwargs: ErrorClient())
+    monkeypatch.setattr("src.extraction.llm_client.build_client", lambda *args, **kwargs: ErrorClient())
 
     main(
         argv=[
@@ -437,7 +437,7 @@ def test_main_cli_com_flag_limit(
         results_dir=output_dir,
     )
     engine = FakeOcrEngine()
-    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", lambda *args, **kwargs: engine)
+    monkeypatch.setattr("src.ocr.easyocr.EasyOCREngine", lambda *args, **kwargs: engine)
 
     main(
         argv=[

@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.normalizers import (
+from src.core.normalizers import (
     limpar_texto,
     normalizar_entidade,
     parse_data,

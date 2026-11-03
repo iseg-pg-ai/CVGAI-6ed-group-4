@@ -12,20 +12,19 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TypedDict
 
-from src.normalizers import valores_equivalentes
-from src.types import FIELD_NAMES, GROUPS, Extraction, GroundTruthRecord, MatchResult
-
-_RESULT_COLUMNS = (
-    "filename",
-    "grupo",
-    "campo",
-    "esperado",
-    "obtido",
-    "acertou",
-    "falso_positivo",
-    "omissao",
+from src.core.normalizers import valores_equivalentes
+from src.core.types import (
+    FIELD_NAMES,
+    GROUPS,
+    MATCH_RESULT_COLUMNS,
+    METRIC_NAMES,
+    Extraction,
+    GroundTruthRecord,
+    MatchResult,
 )
-_METRIC_NAMES = ("taxa_acerto", "taxa_falso_positivo", "taxa_omissao")
+
+_RESULT_COLUMNS = MATCH_RESULT_COLUMNS
+_METRIC_NAMES = METRIC_NAMES
 
 
 class MetricRates(TypedDict):

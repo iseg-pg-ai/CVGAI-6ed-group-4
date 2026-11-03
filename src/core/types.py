@@ -16,6 +16,11 @@ import numpy as np
 
 #: Outcome of trying to read one field from a document.
 Status = Literal["ENCONTRADO", "AUSENTE", "INVALIDO"]
+STATUSES: tuple[Status, ...] = ("ENCONTRADO", "AUSENTE", "INVALIDO")
+
+#: Outcome of answering a natural-language question over a document.
+AnswerStatus = Literal["ENCONTRADO", "AUSENTE NO DOCUMENTO"]
+ANSWER_STATUSES: tuple[AnswerStatus, ...] = ("ENCONTRADO", "AUSENTE NO DOCUMENTO")
 
 #: Canonical extraction field names and their runtime order.
 FieldName = Literal["entidade", "nif_comerciante", "nif_cliente", "data", "total"]
@@ -26,6 +31,29 @@ FIELD_NAMES: tuple[FieldName, ...] = (
     "data",
     "total",
 )
+
+#: Mandatory CSV columns for data/ground_truth.csv, matching GroundTruthRecord.
+GROUND_TRUTH_COLUMNS: tuple[str, ...] = (
+    "filename",
+    "grupo",
+    *FIELD_NAMES,
+)
+
+#: Mandatory CSV columns for results/metrics.csv, matching MatchResult.
+MATCH_RESULT_COLUMNS: tuple[str, ...] = (
+    "filename",
+    "grupo",
+    "campo",
+    "esperado",
+    "obtido",
+    "acertou",
+    "falso_positivo",
+    "omissao",
+)
+
+#: Canonical evaluation metric rate keys.
+MetricName = Literal["taxa_acerto", "taxa_falso_positivo", "taxa_omissao"]
+METRIC_NAMES: tuple[MetricName, ...] = ("taxa_acerto", "taxa_falso_positivo", "taxa_omissao")
 
 #: Receipt physical condition groups in the corpus.
 GroupName = Literal["direito", "amarrotado"]
@@ -42,6 +70,10 @@ LLM_PROVIDERS: tuple[ProviderName, ...] = ("llm_local", "llm_gemini")
 #: Supported extraction method identifiers.
 MethodName = Literal["regex", "llm_local", "llm_gemini"]
 EXTRACTION_METHODS: tuple[MethodName, ...] = ("regex", "llm_local", "llm_gemini")
+
+#: Supported image rotation overrides in preprocessing and UI controls.
+RotationOption = Literal["auto", 0, 90, 180, 270]
+ROTATION_CHOICES: tuple[str, ...] = ("auto", "0", "90", "180", "270")
 
 #: AT sentinel printed in the B field of a final-consumer invoice (passes NIF check digit).
 CONSUMIDOR_FINAL_NIF = "999999990"
@@ -277,6 +309,6 @@ class Answer:
 
     question: str
     answer: str
-    status: Literal["ENCONTRADO", "AUSENTE NO DOCUMENTO"]
+    status: AnswerStatus
     line_ids: list[int]
     provider: ProviderName

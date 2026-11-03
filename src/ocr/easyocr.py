@@ -13,13 +13,12 @@ import sys
 import time
 import warnings
 from collections.abc import Sequence
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
 
-from src.types import IMAGE_EXTENSIONS, BBox, OcrDocument, OcrLine
+from src.core.types import BBox, OcrDocument, OcrLine
 
 # Suppress upstream EasyOCR/PyTorch internal deprecation and CPU-pin warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="torch.*")
@@ -27,7 +26,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="easyocr.*
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="torch.*")
 
 if TYPE_CHECKING:
-    from src.settings import Settings
+    from src.core.settings import Settings
 
 
 class EasyOCREngine:
@@ -189,8 +188,9 @@ def main(
         argv: Optional command-line arguments. Defaults to sys.argv[1:].
         settings_override: Optional custom Settings. When None, get_settings() is used.
     """
-    from src.preprocessing import PreprocessOptions, preprocess
-    from src.settings import get_settings
+    from src.core.cli_utils import resolve_and_load_receipt
+    from src.core.settings import get_settings
+    from src.vision.preprocessing import PreprocessOptions, preprocess
 
     parser = argparse.ArgumentParser(description="EasyOCR document reading preview")
     parser.add_argument("--file", "-f", type=str, default=None, help="Specific receipt image path")
@@ -202,30 +202,10 @@ def main(
 
     settings = settings_override or get_settings()
 
-    target_path: Path | None = None
-    if args.file:
-        candidate = Path(args.file)
-        if not candidate.is_file():
-            print(f"Error: Specified file not found: {candidate}")
-            return
-        target_path = candidate
-    else:
-        if not settings.receipts_dir.is_dir():
-            print(f"Receipts directory not found: {settings.receipts_dir}")
-            return
-        receipt_files = sorted(
-            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
-        )
-        if not receipt_files:
-            print(f"No receipt images found in {settings.receipts_dir}")
-            return
-        target_path = receipt_files[0]
-
-    print(f"Loading receipt: {target_path.name}")
-    raw_image = cv2.imread(str(target_path))
-    if raw_image is None:
-        print(f"Error: Unable to read image file: {target_path}")
+    loaded = resolve_and_load_receipt(args.file, settings)
+    if loaded is None:
         return
+    target_path, raw_image = loaded
 
     if args.no_preprocess:
         image_to_read = raw_image

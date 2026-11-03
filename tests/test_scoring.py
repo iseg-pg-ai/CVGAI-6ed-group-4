@@ -7,8 +7,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-from src.scoring import agregar, escrever_tabelas, pontuar_registo
-from src.types import Extraction, FieldValue, GroundTruthRecord, MatchResult
+from src.core.types import Extraction, FieldValue, GroundTruthRecord, MatchResult
+from src.evaluation.scoring import agregar, escrever_tabelas, pontuar_registo
 
 
 def _record(*, customer_nif: str | None = None) -> GroundTruthRecord:
@@ -96,7 +96,7 @@ def test_pontuar_registo_marks_false_positive_and_omission_separately() -> None:
 
 def test_pontuar_registo_rejects_invalido_status() -> None:
     """A field marked INVALIDO never scores acertou=True when an expected value exists."""
-    from src.types import FieldValue
+    from src.core.types import FieldValue
 
     ext = _extraction()
     ext = Extraction(

@@ -16,10 +16,12 @@ import time
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Protocol
 
+from src.core.types import LLM_PROVIDERS
+
 if TYPE_CHECKING:
     import numpy as np
 
-    from src.settings import Settings
+    from src.core.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +333,7 @@ def build_client(
     Returns:
         Configured LLMClient instance satisfying the protocol.
     """
-    from src.settings import get_settings
+    from src.core.settings import get_settings
 
     cfg = settings or get_settings()
 
@@ -384,7 +386,7 @@ def main(
     parser.add_argument(
         "--provider",
         "-p",
-        choices=["llm_local", "llm_gemini"],
+        choices=LLM_PROVIDERS,
         default="llm_local",
         help="LLM provider backend to query",
     )

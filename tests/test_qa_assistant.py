@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
-from src.qa_assistant import QAResponseError, ask, main
-from src.types import BBox, OcrDocument, OcrLine
+from src.core.types import BBox, OcrDocument, OcrLine
+from src.extraction.qa_assistant import QAResponseError, ask, main
 
 
 class MockLLMClient:
@@ -119,8 +119,8 @@ def test_main_cli_preview(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """CLI main runs cleanly with mocked OCR and LLM client."""
-    from src.settings import load_settings
-    from src.types import BBox, OcrDocument, OcrLine
+    from src.core.settings import load_settings
+    from src.core.types import BBox, OcrDocument, OcrLine
 
     receipt_img = receipts_tmp / "test_receipt.jpg"
     import cv2
@@ -136,9 +136,9 @@ def test_main_cli_preview(
         elapsed_ms=1.0,
         image_size=(100, 100),
     )
-    monkeypatch.setattr("src.ocr_engine.EasyOCREngine.read", lambda self, img: fake_doc)
+    monkeypatch.setattr("src.ocr.easyocr.EasyOCREngine.read", lambda self, img: fake_doc)
     monkeypatch.setattr(
-        "src.llm_client.OpenAICompatibleClient.complete",
+        "src.extraction.llm_client.OpenAICompatibleClient.complete",
         lambda self, sys, user, schema=None, **kwargs: (
             '{"answer": "O total é 16.10", "status": "ENCONTRADO", "linhas": [1]}'
         ),

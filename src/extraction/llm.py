@@ -2,7 +2,7 @@
 
 This is approach B of ``PROJECT_PLAN.md`` (section 4, level 2): the OCR supplies text and
 coordinates, the model supplies semantic understanding, and the result comes back as strict
-JSON. Works with every backend of :mod:`src.llm_client`, so the local and cloud runs differ
+JSON. Works with every backend of :mod:`src.extraction.llm_client`, so the local and cloud runs differ
 only in the client instance, never in the prompt or the post-processing.
 
 Three details drive the implementation and are easy to get wrong:
@@ -14,12 +14,12 @@ Three details drive the implementation and are easy to get wrong:
   ``presente``. No unions, no optionals, because ``json-schema-to-grammar`` only supports a
   subset of the specification.
 - The model can still be wrong. Invalid NIFs are downgraded to ``INVALIDO`` by
-  :func:`src.normalizers.validar_nif`, dates and totals are re-parsed with the pure
+  :func:`src.core.normalizers.validar_nif`, dates and totals are re-parsed with the pure
   normalisers instead of trusting the string, and a hallucinated line number is dropped when
   it does not exist in the document.
 
 The AT payload is accepted in the signature for parity with the regex baseline and is never
-used to fill a field, for the same reason documented in :mod:`src.extractor_regex`.
+used to fill a field, for the same reason documented in :mod:`src.extraction.regex`.
 
 Ref: Docs/Planning/implementation_plan.md, section 7, WP-10.
 """
@@ -33,10 +33,10 @@ import sys
 import time
 from collections.abc import Sequence
 from datetime import date
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from src.normalizers import (
+from src.core.cli_utils import format_extraction_field
+from src.core.normalizers import (
     limpar_texto,
     normalizar_entidade,
     parse_data,
@@ -44,11 +44,12 @@ from src.normalizers import (
     parse_nif,
     validar_nif,
 )
-from src.types import (
+from src.core.types import (
     CONSUMIDOR_FINAL_NIF,
     EARLIEST_PLAUSIBLE_DATE,
     FIELD_NAMES,
-    IMAGE_EXTENSIONS,
+    LLM_PROVIDERS,
+    OCR_ENGINES,
     Extraction,
     FieldValue,
     MethodName,
@@ -57,8 +58,11 @@ from src.types import (
 )
 
 if TYPE_CHECKING:
-    from src.llm_client import LLMClient
-    from src.settings import Settings
+    from src.core.settings import Settings
+    from src.extraction.llm_client import LLMClient
+
+_format_field = format_extraction_field
+
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +155,7 @@ class LLMResponseError(RuntimeError):
     """Raised when the model output cannot be turned into an extraction.
 
     A malformed response is not a transport failure, so it does not reuse
-    :class:`src.llm_client.LLMError`. It is raised instead of degrading to five ``AUSENTE``
+    :class:`src.extraction.llm_client.LLMError`. It is raised instead of degrading to five ``AUSENTE``
     fields because a silent empty result is indistinguishable from a model that read nothing,
     and would be scored as five omissions in the benchmark.
     """
@@ -457,7 +461,7 @@ def extract(
     Args:
         doc: Recognised document, produced by either OCR engine.
         qr: Optional AT payload, accepted for interface parity and never read.
-        client: Configured client. When ``None``, :func:`src.llm_client.build_client` builds
+        client: Configured client. When ``None``, :func:`src.extraction.llm_client.build_client` builds
             the default provider from the environment. Pass one explicitly in tests.
 
     Returns:
@@ -469,7 +473,7 @@ def extract(
     started = time.perf_counter()
 
     if client is None:
-        from src.llm_client import build_client
+        from src.extraction.llm_client import build_client
 
         client = build_client()
 
@@ -494,21 +498,6 @@ def extract(
     )
 
 
-def _format_field(name: str, field: FieldValue) -> str:
-    """Render one field as an aligned row for the command-line preview.
-
-    Args:
-        name: Column name of the field.
-        field: Field value to render.
-
-    Returns:
-        A single printable line.
-    """
-    value = field.value if field.value is not None else "-"
-    line = f"line {field.line_id}" if field.line_id is not None else "no line"
-    return f"  {name:<16} {field.status:<11} {line:<9} {value}"
-
-
 def main(
     argv: Sequence[str] | None = None,
     settings_override: Settings | None = None,
@@ -519,27 +508,25 @@ def main(
         argv: Optional command-line arguments. Defaults to ``sys.argv[1:]``.
         settings_override: Optional custom Settings. When None, ``get_settings()`` is used.
     """
-    import cv2
-
-    from src.llm_client import LLMError, build_client
-    from src.ocr_engine import EasyOCREngine
-    from src.ocr_tesseract import TesseractEngine
-    from src.preprocessing import PreprocessOptions, preprocess
-    from src.settings import get_settings
+    from src.core.cli_utils import resolve_and_load_receipt
+    from src.core.settings import get_settings
+    from src.extraction.llm_client import LLMError, build_client
+    from src.ocr import build_ocr_engine
+    from src.vision.preprocessing import PreprocessOptions, preprocess
 
     parser = argparse.ArgumentParser(description="LLM extractor preview")
     parser.add_argument("--file", "-f", type=str, default=None, help="Receipt image path")
     parser.add_argument(
         "--engine",
         type=str,
-        choices=("easyocr", "tesseract"),
+        choices=OCR_ENGINES,
         default=None,
         help="OCR engine to use (defaults to the configured one)",
     )
     parser.add_argument(
         "--provider",
         type=str,
-        choices=("llm_local", "llm_gemini"),
+        choices=LLM_PROVIDERS,
         default="llm_local",
         help="LLM provider to query (cloud providers fall back to local)",
     )
@@ -551,30 +538,10 @@ def main(
 
     settings = settings_override or get_settings()
 
-    target_path: Path | None = None
-    if args.file:
-        candidate = Path(args.file)
-        if not candidate.is_file():
-            print(f"Error: Specified file not found: {candidate}")
-            return
-        target_path = candidate
-    else:
-        if not settings.receipts_dir.is_dir():
-            print(f"Receipts directory not found: {settings.receipts_dir}")
-            return
-        receipt_files = sorted(
-            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
-        )
-        if not receipt_files:
-            print(f"No receipt images found in {settings.receipts_dir}")
-            return
-        target_path = receipt_files[0]
-
-    print(f"Loading receipt: {target_path.name}")
-    raw_image = cv2.imread(str(target_path))
-    if raw_image is None:
-        print(f"Error: Unable to read image file: {target_path}")
+    loaded = resolve_and_load_receipt(args.file, settings)
+    if loaded is None:
         return
+    target_path, raw_image = loaded
 
     if args.no_preprocess:
         image_to_read = raw_image
@@ -582,8 +549,7 @@ def main(
         print("Preprocessing receipt...")
         image_to_read = preprocess(raw_image, PreprocessOptions()).image
 
-    engine_name = args.engine or settings.ocr_engine
-    engine = TesseractEngine() if engine_name == "tesseract" else EasyOCREngine(langs=settings.easyocr_langs)
+    engine = build_ocr_engine(args.engine, settings)
 
     print(f"Running OCR with {engine.name}...")
     doc = engine.read(image_to_read)

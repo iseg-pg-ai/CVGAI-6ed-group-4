@@ -1,6 +1,6 @@
 """Offline tests for the LLM extractor.
 
-Every test injects a fake client that satisfies :class:`src.llm_client.LLMClient`; no request
+Every test injects a fake client that satisfies :class:`src.extraction.llm_client.LLMClient`; no request
 leaves the process. The payloads are the shapes a model actually returns, including the two
 failure modes that matter: a contradiction between ``presente`` and the value, and a line
 number that does not exist in the document.
@@ -19,9 +19,9 @@ import cv2
 import numpy as np
 import pytest
 
-from src.extractor_llm import FIELD_NAMES, SCHEMA, SYSTEM_PROMPT, LLMResponseError, extract, main
-from src.llm_client import LLMClient, LLMConnectionError
-from src.types import BBox, OcrDocument, OcrLine
+from src.core.types import BBox, OcrDocument, OcrLine
+from src.extraction.llm import FIELD_NAMES, SCHEMA, SYSTEM_PROMPT, LLMResponseError, extract, main
+from src.extraction.llm_client import LLMClient, LLMConnectionError
 
 #: A complete response, used as the base for the negative cases.
 RECEIPT = {
@@ -328,7 +328,7 @@ def test_spelled_out_date_is_invalid() -> None:
 
     The prompt asks for ``AAAA-MM-DD``, so a model that answers "27 de outubro de 2026" has
     broken the output contract and is reported as invalid rather than guessed at. Widening
-    :func:`src.normalizers.parse_data` to month names is a WP-02 change, not a WP-10 one.
+    :func:`src.core.normalizers.parse_data` to month names is a WP-02 change, not a WP-10 one.
     """
     extraction = extract(_document(RECEIPT_DOC), client=FakeClient(_variant(data="27 de outubro de 2026")))
 
@@ -576,8 +576,8 @@ def test_main_cli_prints_the_extraction(
         def read(self, image: np.ndarray) -> OcrDocument:
             return _document(RECEIPT_DOC)
 
-    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", FakeEngine)
-    monkeypatch.setattr("src.llm_client.build_client", lambda *_a, **_k: FakeClient(RECEIPT))
+    monkeypatch.setattr("src.ocr.easyocr.EasyOCREngine", FakeEngine)
+    monkeypatch.setattr("src.extraction.llm_client.build_client", lambda *_a, **_k: FakeClient(RECEIPT))
 
     main(argv=["--file", str(img_path), "--engine", "easyocr", "--no-preprocess"])
 
@@ -607,8 +607,8 @@ def test_main_cli_reports_an_unreachable_model(
         def complete(self, system: str, user: str, schema: dict[str, Any] | None = None) -> str:
             raise LLMConnectionError("Connection refused.")
 
-    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", FakeEngine)
-    monkeypatch.setattr("src.llm_client.build_client", lambda *_a, **_k: DownClient(RECEIPT))
+    monkeypatch.setattr("src.ocr.easyocr.EasyOCREngine", FakeEngine)
+    monkeypatch.setattr("src.extraction.llm_client.build_client", lambda *_a, **_k: DownClient(RECEIPT))
 
     main(argv=["--file", str(img_path), "--engine", "easyocr", "--no-preprocess"])
 
@@ -631,8 +631,8 @@ def test_main_cli_reports_an_unusable_response(
         def read(self, image: np.ndarray) -> OcrDocument:
             return _document(RECEIPT_DOC)
 
-    monkeypatch.setattr("src.ocr_engine.EasyOCREngine", FakeEngine)
-    monkeypatch.setattr("src.llm_client.build_client", lambda *_a, **_k: FakeClient("sem json"))
+    monkeypatch.setattr("src.ocr.easyocr.EasyOCREngine", FakeEngine)
+    monkeypatch.setattr("src.extraction.llm_client.build_client", lambda *_a, **_k: FakeClient("sem json"))
 
     main(argv=["--file", str(img_path), "--engine", "easyocr", "--no-preprocess"])
 

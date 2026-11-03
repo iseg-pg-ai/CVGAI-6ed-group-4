@@ -11,12 +11,20 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.types import EXTRACTION_METHODS, OCR_ENGINES, Extraction, GroundTruthRecord, MatchResult, MethodName, OcrEngine
+from src.core.types import (
+    EXTRACTION_METHODS,
+    OCR_ENGINES,
+    Extraction,
+    GroundTruthRecord,
+    MatchResult,
+    MethodName,
+    OcrEngine,
+)
 
 if TYPE_CHECKING:
-    from src.llm_client import LLMClient
-    from src.preprocessing import PreprocessOptions
-    from src.settings import Settings
+    from src.core.settings import Settings
+    from src.extraction.llm_client import LLMClient
+    from src.vision.preprocessing import PreprocessOptions
 
 
 def avaliar_registo(
@@ -49,10 +57,10 @@ def avaliar_registo(
     """
     import cv2
 
-    from src.extractor_regex import extract as extract_regex
-    from src.preprocessing import PreprocessOptions, preprocess
-    from src.qr_reader import read as read_qr
-    from src.scoring import pontuar_registo
+    from src.evaluation.scoring import pontuar_registo
+    from src.extraction.regex import extract as extract_regex
+    from src.vision.preprocessing import PreprocessOptions, preprocess
+    from src.vision.qr_reader import read as read_qr
 
     image_path = receipts_dir / registo.filename
     if not image_path.is_file():
@@ -80,8 +88,8 @@ def avaliar_registo(
     if method == "regex":
         extraction = extract_regex(doc, qr=qr_data)
     else:
-        from src.extractor_llm import extract as extract_llm
-        from src.llm_client import build_client
+        from src.extraction.llm import extract as extract_llm
+        from src.extraction.llm_client import build_client
 
         client = llm_client or build_client(method, settings=settings)
         extraction = extract_llm(doc, qr=qr_data, client=client)
@@ -120,7 +128,7 @@ def avaliar_corpus(
         Combined list of ``MatchResult`` objects across all evaluated receipts (5 per receipt).
     """
     if method != "regex" and llm_client is None:
-        from src.llm_client import build_client
+        from src.extraction.llm_client import build_client
 
         llm_client = build_client(method, settings=settings)
 
@@ -141,7 +149,7 @@ def avaliar_corpus(
         all_results.extend(matches)
 
     if destino_resultados is not None:
-        from src.scoring import escrever_tabelas
+        from src.evaluation.scoring import escrever_tabelas
 
         preproc_active = (
             "desativado"
@@ -172,14 +180,13 @@ def main(
         argv: Optional CLI arguments, primarily for tests.
         settings_override: Optional custom Settings instance.
     """
-    from src.extractor_llm import LLMResponseError
-    from src.golden_set import GoldenSetError, carregar_ground_truth
-    from src.llm_client import LLMError
-    from src.ocr_engine import EasyOCREngine
-    from src.ocr_tesseract import TesseractEngine
-    from src.preprocessing import PreprocessOptions
-    from src.scoring import agregar
-    from src.settings import get_settings
+    from src.core.settings import get_settings
+    from src.evaluation.golden_set import GoldenSetError, carregar_ground_truth
+    from src.evaluation.scoring import agregar
+    from src.extraction.llm import LLMResponseError
+    from src.extraction.llm_client import LLMError
+    from src.ocr import build_ocr_engine
+    from src.vision.preprocessing import PreprocessOptions
 
     settings = settings_override or get_settings()
     parser = argparse.ArgumentParser(description="Evaluate receipt extraction against the golden set")
@@ -217,10 +224,7 @@ def main(
         print(f"Limite ativo: a avaliar apenas os primeiros {len(records)} registos.")
 
     print(f"A inicializar motor OCR ({args.engine})...")
-    if args.engine == "tesseract":
-        ocr_engine: OcrEngine = TesseractEngine(tesseract_cmd=settings.tesseract_cmd)
-    else:
-        ocr_engine = EasyOCREngine(langs=settings.easyocr_langs, gpu=args.gpu)
+    ocr_engine = build_ocr_engine(args.engine, settings, gpu=args.gpu)
 
     preprocess_opts = (
         PreprocessOptions(
