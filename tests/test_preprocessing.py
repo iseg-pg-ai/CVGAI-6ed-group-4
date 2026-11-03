@@ -13,7 +13,10 @@ from src.preprocessing import (
     PreprocessResult,
     attenuate_shadows,
     crop_receipt,
+    deskew_image,
+    detect_upside_down_qr,
     enhance_contrast_clahe,
+    estimate_skew_angle,
     order_corner_points,
     orient_image,
     preprocess,
@@ -263,7 +266,7 @@ def test_main_cli_file_and_rotate_flags(tmp_path: Path, monkeypatch: pytest.Monk
 
     monkeypatch.setattr(Image.Image, "show", fake_show)
 
-    main(argv=["--file", str(img_path), "--rotate", "180", "--no-osd"])
+    main(argv=["--file", str(img_path), "--rotate", "180", "--no-osd", "--no-deskew"])
 
     assert len(shown_titles) == 1
     assert "custom_receipt.jpg" in shown_titles[0]
@@ -284,3 +287,134 @@ def test_main_cli_save_flag(tmp_path: Path) -> None:
     saved = cv2.imread(str(out_path))
     assert saved is not None
     assert saved.shape[0] == 1000
+
+
+def test_order_corner_points_handles_steeply_tilted_quad() -> None:
+    """Tilted rectangles past 45 degrees produce 4 distinct, cyclically ordered corners."""
+    rect = ((500.0, 500.0), (200.0, 600.0), 45.0)
+    box = cv2.boxPoints(rect)
+    ordered = order_corner_points(box)
+
+    assert ordered.shape == (4, 2)
+    # Check that all 4 points are pairwise distinct
+    for i in range(4):
+        for j in range(i + 1, 4):
+            dist = np.linalg.norm(ordered[i] - ordered[j])
+            assert dist > 10.0, f"Vertices {i} and {j} are too close (collapsed quad)"
+
+    # Verify cyclic sides: (0, 1) and (2, 3) must be equal, (1, 2) and (3, 0) must be equal
+    w1 = np.linalg.norm(ordered[1] - ordered[0])
+    w2 = np.linalg.norm(ordered[3] - ordered[2])
+    h1 = np.linalg.norm(ordered[2] - ordered[1])
+    h2 = np.linalg.norm(ordered[0] - ordered[3])
+    np.testing.assert_allclose(w1, w2, atol=1e-3)
+    np.testing.assert_allclose(h1, h2, atol=1e-3)
+
+
+def test_crop_receipt_straightens_diagonal_receipt_on_light_background() -> None:
+    """A diagonal receipt ribbon on a beige canvas is detected and perspective-warped."""
+    canvas = np.full((1000, 1200, 3), 130, dtype=np.uint8)  # Beige table
+    # Draw tilted white receipt (250x700 at -25 degrees)
+    rect = ((600.0, 500.0), (250.0, 700.0), -25.0)
+    box = cv2.boxPoints(rect).astype(np.int32)
+    cv2.fillPoly(canvas, [box], (245, 245, 245))
+
+    cropped = crop_receipt(canvas, min_area_ratio=0.10)
+
+    # Output must be straightened into a portrait image close to (700, 250)
+    h, w = cropped.shape[:2]
+    assert h > w
+    assert 650 <= h <= 750
+    assert 220 <= w <= 280
+
+
+def test_crop_receipt_min_area_rect_fallback_on_non_4_vertex_contour() -> None:
+    """Contour with serrated/clipped corner falls back to minAreaRect 4-point warp."""
+    canvas = np.zeros((1000, 1000, 3), dtype=np.uint8)
+    # Create a 5-point polygon (rectangle with one corner cut off)
+    polygon = np.array(
+        [[200, 200], [600, 200], [600, 700], [500, 800], [200, 800]],
+        dtype=np.int32,
+    )
+    cv2.fillPoly(canvas, [polygon], (255, 255, 255))
+
+    cropped = crop_receipt(canvas, min_area_ratio=0.15)
+
+    h, w = cropped.shape[:2]
+    assert h > w
+    assert 550 <= h <= 650
+    assert 350 <= w <= 450
+
+
+def test_estimate_skew_angle_returns_zero_on_blank_image() -> None:
+    """estimate_skew_angle safely returns 0.0 on blank or tiny images."""
+    blank = np.full((100, 100, 3), 255, dtype=np.uint8)
+    assert estimate_skew_angle(blank) == 0.0
+
+    tiny = np.zeros((10, 10, 3), dtype=np.uint8)
+    assert estimate_skew_angle(tiny) == 0.0
+
+
+def test_deskew_image_corrects_tilted_text_lines() -> None:
+    """deskew_image detects text line tilt and rotates baselines toward horizontal."""
+    canvas = np.full((500, 400, 3), 240, dtype=np.uint8)
+    for y in range(80, 420, 25):
+        cv2.putText(canvas, "FATURA-RECIBO 2026/001 TOTAL 15.50", (30, y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
+
+    # Rotate by -12 degrees
+    center = (200.0, 250.0)
+    rot_mat = cv2.getRotationMatrix2D(center, -12.0, 1.0)
+    tilted = cv2.warpAffine(canvas, rot_mat, (400, 500), borderValue=(240, 240, 240))
+
+    deskewed, applied_angle = deskew_image(tilted, min_angle_deg=0.5)
+
+    assert abs(applied_angle - 12.0) < 3.0
+    # Remaining skew on deskewed image should be negligible
+    remaining_skew = estimate_skew_angle(deskewed)
+    assert abs(remaining_skew) < 2.0
+
+
+def test_detect_upside_down_qr_checks_vertical_position(monkeypatch: pytest.MonkeyPatch) -> None:
+    """detect_upside_down_qr returns True when QR centroid is in the upper 45%."""
+    portrait = np.zeros((800, 400, 3), dtype=np.uint8)
+
+    # Case 1: QR code detected at top (y = 100) -> upside down
+    top_points = np.array([[[150, 80], [250, 80], [250, 180], [150, 180]]], dtype=np.float32)
+
+    class MockDetectorTop:
+        def detect(self, _img: np.ndarray) -> tuple[bool, np.ndarray]:
+            return True, top_points
+
+    monkeypatch.setattr("cv2.QRCodeDetector", MockDetectorTop)
+    assert detect_upside_down_qr(portrait) is True
+
+    # Case 2: QR code detected at bottom (y = 650) -> right side up
+    bottom_points = np.array([[[150, 600], [250, 600], [250, 700], [150, 700]]], dtype=np.float32)
+
+    class MockDetectorBottom:
+        def detect(self, _img: np.ndarray) -> tuple[bool, np.ndarray]:
+            return True, bottom_points
+
+    monkeypatch.setattr("cv2.QRCodeDetector", MockDetectorBottom)
+    assert detect_upside_down_qr(portrait) is False
+
+
+def test_crop_receipt_ignores_off_center_textured_background() -> None:
+    """crop_receipt keeps the centered neutral white receipt and ignores saturated wood-grain borders."""
+    # Warm saturated wood-like background (BGR: low blue, medium green, high red)
+    canvas = np.full((800, 600, 3), (60, 120, 175), dtype=np.uint8)
+    # Add dense wood-grain stripes on the right side (x = 420..600)
+    for y in range(0, 800, 6):
+        cv2.line(canvas, (420, y), (599, min(799, y + 30)), (40, 90, 140), 2)
+
+    # Centered neutral white receipt (x = 120..420, y = 40..760)
+    cv2.rectangle(canvas, (120, 40), (420, 760), (240, 240, 240), thickness=-1)
+
+    cropped = crop_receipt(canvas, min_area_ratio=0.15)
+    h, w = cropped.shape[:2]
+
+    # Should isolate the 300x720 receipt without picking the striped wood margin
+    assert 680 <= h <= 760
+    assert 280 <= w <= 330
+    # Center of cropped image must be bright white paper
+    assert float(cropped[h // 2, w // 2].mean()) > 220.0

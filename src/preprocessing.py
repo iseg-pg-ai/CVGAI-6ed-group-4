@@ -44,6 +44,9 @@ class PreprocessOptions:
         clahe_tile_grid_size: Grid size for CLAHE adaptive histogram equalization.
         auto_orient_osd: Whether to probe Tesseract OSD to automatically detect and correct
             180-degree upside-down flips when rotation_deg is 'auto'.
+        auto_deskew: Whether to apply continuous text-line deskew using OpenCV morphology
+            and Hough transform. Defaults to False because adaptive 4-point cropping already
+            straightens angled receipts while preserving unwarped pixels on upright receipts.
     """
 
     max_side: int = 1280
@@ -53,6 +56,7 @@ class PreprocessOptions:
     clahe_clip_limit: float = 2.0
     clahe_tile_grid_size: tuple[int, int] = (8, 8)
     auto_orient_osd: bool = True
+    auto_deskew: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,25 +126,183 @@ def orient_image(image: np.ndarray, rotation_deg: RotationOption = "auto") -> tu
 def order_corner_points(pts: np.ndarray) -> np.ndarray:
     """Order 4 (x, y) coordinates into [top-left, top-right, bottom-right, bottom-left].
 
+    Uses clockwise angle sorting around the quadrilateral centroid so that strongly
+    tilted rectangles never assign the same vertex to two corners.
+
     Args:
         pts: Array of shape (4, 2) containing point coordinates.
 
     Returns:
-        Array of shape (4, 2) ordered consistently for perspective transform.
+        Array of shape (4, 2) in float32 ordered [top-left, top-right, bottom-right, bottom-left].
     """
-    rect = np.zeros((4, 2), dtype=np.float32)
+    pts_f = pts.reshape(4, 2).astype(np.float32)
+    center = pts_f.mean(axis=0)
 
-    # Top-left has smallest x + y; bottom-right has largest x + y
-    s = pts.sum(axis=1)
-    rect[0] = pts[np.argmin(s)]
-    rect[2] = pts[np.argmax(s)]
+    angles = np.arctan2(pts_f[:, 1] - center[1], pts_f[:, 0] - center[0])
+    cw_pts = pts_f[np.argsort(angles)]
 
-    # Top-right has smallest y - x; bottom-left has largest y - x
-    diff = np.diff(pts, axis=1)
-    rect[1] = pts[np.argmin(diff)]
-    rect[3] = pts[np.argmax(diff)]
+    start_idx = int(np.argmin(cw_pts.sum(axis=1)))
+    return np.roll(cw_pts, -start_idx, axis=0).astype(np.float32)
 
-    return rect
+
+def _compute_paper_border_value(image: np.ndarray, mask: np.ndarray | None = None) -> tuple[int, ...] | int:
+    """Compute a neutral background fill color from paper pixels to avoid BORDER_REPLICATE streaks."""
+    if image.ndim == 2:
+        if mask is not None and np.any(mask > 0):
+            return int(np.median(image[mask > 0]))
+        return int(np.median(image))
+    if mask is not None and np.any(mask > 0):
+        med = np.median(image[mask > 0], axis=0)
+    else:
+        med = np.median(image.reshape(-1, image.shape[2]), axis=0)
+    return tuple(int(round(float(x))) for x in med)
+
+
+def _warp_perspective_quad(
+    image: np.ndarray,
+    corners: np.ndarray,
+    border_value: tuple[int, ...] | int = (240, 240, 240),
+) -> np.ndarray:
+    """Warp 4 corner points into a straightened portrait BGR image via perspective transform.
+
+    Args:
+        image: Source BGR image.
+        corners: Array of 4 (x, y) corner coordinates.
+        border_value: Constant fill color for any out-of-bounds border pixels.
+
+    Returns:
+        Perspective-warped upright image with height >= width.
+    """
+    rect = order_corner_points(corners)
+    tl, tr, br, bl = rect
+
+    width_a = float(np.linalg.norm(br - bl))
+    width_b = float(np.linalg.norm(tr - tl))
+    target_width = max(int(round(max(width_a, width_b))), 1)
+
+    height_a = float(np.linalg.norm(tr - br))
+    height_b = float(np.linalg.norm(tl - bl))
+    target_height = max(int(round(max(height_a, height_b))), 1)
+
+    dst = np.array(
+        [
+            [0, 0],
+            [target_width - 1, 0],
+            [target_width - 1, target_height - 1],
+            [0, target_height - 1],
+        ],
+        dtype=np.float32,
+    )
+
+    transform_matrix = cv2.getPerspectiveTransform(rect, dst)
+    warped = cv2.warpPerspective(
+        image,
+        transform_matrix,
+        (target_width, target_height),
+        flags=cv2.INTER_CUBIC,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=border_value,  # type: ignore[arg-type]
+    )
+
+    warped_h, warped_w = warped.shape[:2]
+    if warped_w > warped_h:
+        warped = cv2.rotate(warped, cv2.ROTATE_90_CLOCKWISE)
+
+    return warped
+
+
+def _crop_receipt_with_status(
+    image: np.ndarray,
+    min_area_ratio: float = 0.20,
+    min_tilt_for_perspective_deg: float = 5.0,
+) -> tuple[np.ndarray, bool]:
+    """Adaptively segment receipt paper and either slice losslessly or warp perspective.
+
+    Segments neutral bright paper (high HSV Value, low Saturation) covering the image center.
+    When the receipt is nearly upright (tilt < min_tilt_for_perspective_deg), applies a lossless
+    axis-aligned bounding-box crop so crumpled paper is neither sheared nor resampled. When
+    genuinely angled (tilt >= min_tilt_for_perspective_deg), applies a padded 4-point perspective
+    transform with constant paper-colored border fill.
+
+    Returns:
+        Tuple of (cropped_or_original_image, did_crop_boolean).
+    """
+    height, width = image.shape[:2]
+    total_area = float(height * width)
+    min_area = total_area * min_area_ratio
+    max_area = total_area * 0.96
+
+    if image.ndim == 3:
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        v_chan = hsv[:, :, 2].astype(np.float32)
+        s_chan = hsv[:, :, 1].astype(np.float32)
+        paper_score = np.clip(v_chan - 1.2 * s_chan, 0, 255).astype(np.uint8)
+    else:
+        paper_score = image.copy()
+
+    # Uniform image check (avoids false Otsu split on flat synthetic canvases)
+    if int(paper_score.max()) - int(paper_score.min()) < 20:
+        return image.copy(), False
+
+    blurred = cv2.GaussianBlur(paper_score, (11, 11), 0)
+    close_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
+    paper_closed = cv2.morphologyEx(blurred, cv2.MORPH_CLOSE, close_kernel)
+    _, otsu_mask = cv2.threshold(paper_closed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    contours, _ = cv2.findContours(otsu_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return image.copy(), False
+
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)
+    center_pt = (width / 2.0, height / 2.0)
+    min_center_dist = -0.10 * min(width, height)
+
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < min_area:
+            break
+        if area > max_area:
+            continue
+
+        hull = cv2.convexHull(contour)
+        if cv2.pointPolygonTest(hull, center_pt, True) < min_center_dist:
+            continue
+
+        rot_rect = cv2.minAreaRect(hull)
+        (cx, cy), (rect_w, rect_h), ang = rot_rect
+        rect_area = rect_w * rect_h
+        if rect_area < min_area or rect_area > max_area:
+            continue
+
+        solidity = area / max(rect_area, 1.0)
+        if solidity < 0.65:
+            continue
+
+        abs_ang = abs(ang) % 90.0
+        tilt_deg = min(abs_ang, 90.0 - abs_ang)
+
+        if tilt_deg >= min_tilt_for_perspective_deg:
+            # Tilted receipt: pad rotated box outward by 6% so edge characters are never cut
+            padded_rect = ((cx, cy), (rect_w * 1.06, rect_h * 1.06), ang)
+            box_pts = cv2.boxPoints(padded_rect)
+            border_val = _compute_paper_border_value(image, otsu_mask)
+            warped = _warp_perspective_quad(image, box_pts, border_value=border_val)
+            return warped, True
+
+        # Upright receipt: lossless axis-aligned bounding-box crop
+        bx, by, bw, bh = cv2.boundingRect(hull)
+        pad_x = int(round(bw * 0.015))
+        pad_y = int(round(bh * 0.015))
+        x1 = max(0, bx - pad_x)
+        y1 = max(0, by - pad_y)
+        x2 = min(width, bx + bw + pad_x)
+        y2 = min(height, by + bh + pad_y)
+        cropped = image[y1:y2, x1:x2].copy()
+        if cropped.shape[1] > cropped.shape[0]:
+            cropped = cv2.rotate(cropped, cv2.ROTATE_90_CLOCKWISE)
+        return cropped, True
+
+    return image.copy(), False
 
 
 def crop_receipt(image: np.ndarray, min_area_ratio: float = 0.20) -> np.ndarray:
@@ -155,66 +317,131 @@ def crop_receipt(image: np.ndarray, min_area_ratio: float = 0.20) -> np.ndarray:
     Returns:
         Warped rectangular receipt or uncropped image if detection fails.
     """
-    height, width = image.shape[:2]
-    total_area = height * width
-    min_area = total_area * min_area_ratio
+    warped, _ = _crop_receipt_with_status(image, min_area_ratio=min_area_ratio)
+    return warped
 
+
+def estimate_skew_angle(image: np.ndarray, max_skew_deg: float = 25.0) -> float:
+    """Estimate dominant text-line skew angle in degrees using OpenCV morphology and Hough lines.
+
+    Args:
+        image: BGR or grayscale receipt image.
+        max_skew_deg: Maximum absolute skew angle in degrees to consider.
+
+    Returns:
+        Estimated skew angle in degrees in [-max_skew_deg, max_skew_deg], or 0.0 when no text
+        lines are detected.
+    """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
+    h, w = gray.shape[:2]
+    if h < 32 or w < 32:
+        return 0.0
 
-    # Dilate edges to bridge faint thermal paper boundaries
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    dilated = cv2.dilate(edges, kernel, iterations=1)
+    bh_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, bh_kernel)
+    if int(blackhat.max()) < 15:
+        return 0.0
 
-    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return image.copy()
+    _, binary = cv2.threshold(blackhat, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    contours = sorted(contours, key=cv2.contourArea, reverse=True)
+    strip_w = max(15, w // 25)
+    connect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (strip_w, 1))
+    connected = cv2.dilate(binary, connect_kernel, iterations=1)
 
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area < min_area:
-            break
+    lines = cv2.HoughLinesP(
+        connected,
+        rho=1.0,
+        theta=np.pi / 180.0,
+        threshold=40,
+        minLineLength=max(30, w // 8),
+        maxLineGap=max(10, w // 30),
+    )
+    if lines is None:
+        return 0.0
 
-        perimeter = cv2.arcLength(contour, closed=True)
-        approx = cv2.approxPolyDP(contour, 0.02 * perimeter, closed=True)
+    angles: list[float] = []
+    for line in lines.reshape(-1, 4):
+        x1, y1, x2, y2 = line
+        dx = float(x2 - x1)
+        dy = float(y2 - y1)
+        if np.hypot(dx, dy) < 1.0:
+            continue
+        angle = float(np.degrees(np.arctan2(dy, dx)))
+        if -max_skew_deg <= angle <= max_skew_deg:
+            angles.append(angle)
 
-        if len(approx) == 4 and cv2.isContourConvex(approx):
-            pts = approx.reshape(4, 2).astype(np.float32)
-            rect = order_corner_points(pts)
-            tl, tr, br, bl = rect
+    if len(angles) < 3:
+        return 0.0
+    return float(np.median(angles))
 
-            width_a = np.linalg.norm(br - bl)
-            width_b = np.linalg.norm(tr - tl)
-            target_width = max(int(round(max(width_a, width_b))), 1)
 
-            height_a = np.linalg.norm(tr - br)
-            height_b = np.linalg.norm(tl - bl)
-            target_height = max(int(round(max(height_a, height_b))), 1)
+def deskew_image(
+    image: np.ndarray,
+    min_angle_deg: float = 0.5,
+    max_skew_deg: float = 25.0,
+) -> tuple[np.ndarray, float]:
+    """Deskew receipt image continuously using OpenCV affine rotation around text baselines.
 
-            dst = np.array(
-                [
-                    [0, 0],
-                    [target_width - 1, 0],
-                    [target_width - 1, target_height - 1],
-                    [0, target_height - 1],
-                ],
-                dtype=np.float32,
-            )
+    Args:
+        image: Source image (BGR or grayscale).
+        min_angle_deg: Minimum absolute angle required to trigger resampling.
+        max_skew_deg: Maximum allowed skew angle in degrees.
 
-            transform_matrix = cv2.getPerspectiveTransform(rect, dst)
-            warped = cv2.warpPerspective(image, transform_matrix, (target_width, target_height), flags=cv2.INTER_CUBIC)
+    Returns:
+        Tuple of (deskewed_image, applied_angle_deg).
+    """
+    angle = estimate_skew_angle(image, max_skew_deg=max_skew_deg)
+    if abs(angle) < min_angle_deg:
+        return image.copy(), 0.0
 
-            # Ensure portrait orientation for receipts
-            warped_h, warped_w = warped.shape[:2]
-            if warped_w > warped_h:
-                warped = cv2.rotate(warped, cv2.ROTATE_90_CLOCKWISE)
+    h, w = image.shape[:2]
+    center = (w / 2.0, h / 2.0)
+    rot_mat = cv2.getRotationMatrix2D(center, angle, 1.0)
 
-            return warped
+    cos_a = abs(float(rot_mat[0, 0]))
+    sin_a = abs(float(rot_mat[0, 1]))
+    new_w = max(1, int(round((h * sin_a) + (w * cos_a))))
+    new_h = max(1, int(round((h * cos_a) + (w * sin_a))))
+    rot_mat[0, 2] += (new_w / 2.0) - center[0]
+    rot_mat[1, 2] += (new_h / 2.0) - center[1]
 
-    return image.copy()
+    border_val = _compute_paper_border_value(image)
+    deskewed = cv2.warpAffine(
+        image,
+        rot_mat,
+        (new_w, new_h),
+        flags=cv2.INTER_CUBIC,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=border_val,  # type: ignore[arg-type]
+    )
+    return deskewed, angle
+
+
+def detect_upside_down_qr(image: np.ndarray) -> bool:
+    """Detect 180-degree upside-down orientation via OpenCV QR code footer location.
+
+    On Portuguese fiscal receipts, the AT QR code is printed in the footer (bottom half).
+    If a QR code is detected in the upper 45% of a portrait image, the receipt is upside-down.
+
+    Args:
+        image: Portrait BGR or grayscale receipt image.
+
+    Returns:
+        True when a QR code is detected in the top 45% of the image, False otherwise.
+    """
+    h, w = image.shape[:2]
+    if h <= w:
+        return False
+    detector = cv2.QRCodeDetector()
+    try:
+        found, points = detector.detect(image)
+    except cv2.error:
+        return False
+    if not found or points is None or points.size == 0:
+        return False
+    pts = points.reshape(-1, 2)
+    center_y = float(pts[:, 1].mean())
+    return center_y < (h * 0.45)
 
 
 def attenuate_shadows(gray: np.ndarray, kernel_size: int = 25) -> np.ndarray:
@@ -338,13 +565,38 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
     raw_resized = resize_max_side(bgr, max_side=options.max_side)
     steps: dict[str, np.ndarray] = {"bruta": raw_resized.copy()}
 
-    # Step 2: Orientation (Stage 1: Aspect ratio heuristic)
-    oriented, effective_rotation = orient_image(raw_resized, rotation_deg=options.rotation_deg)
-    steps["rodada"] = oriented.copy()
-
-    # Step 3: Cropping
-    cropped = crop_receipt(oriented) if options.auto_crop else oriented.copy()
-    steps["recortada"] = cropped.copy()
+    # Step 2 & 3: Orientation, 4-point perspective crop, and continuous deskew
+    if options.rotation_deg != "auto":
+        oriented, effective_rotation = orient_image(raw_resized, rotation_deg=options.rotation_deg)
+        cropped = crop_receipt(oriented) if options.auto_crop else oriented.copy()
+        if options.auto_deskew:
+            cropped, _ = deskew_image(cropped)
+        steps["rodada"] = oriented.copy()
+        steps["recortada"] = cropped.copy()
+    else:
+        if options.auto_crop:
+            cropped, did_crop = _crop_receipt_with_status(raw_resized)
+            if did_crop:
+                oriented = cropped.copy()
+                effective_rotation = 90 if raw_resized.shape[1] > raw_resized.shape[0] else 0
+                if options.auto_deskew:
+                    cropped, _ = deskew_image(cropped)
+                steps["rodada"] = oriented.copy()
+                steps["recortada"] = cropped.copy()
+            else:
+                oriented, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
+                cropped = crop_receipt(oriented)
+                if options.auto_deskew:
+                    cropped, _ = deskew_image(cropped)
+                steps["rodada"] = oriented.copy()
+                steps["recortada"] = cropped.copy()
+        else:
+            oriented, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
+            cropped = oriented.copy()
+            if options.auto_deskew:
+                cropped, _ = deskew_image(cropped)
+            steps["rodada"] = oriented.copy()
+            steps["recortada"] = cropped.copy()
 
     # Step 4: Shadow attenuation and CLAHE contrast enhancement
     gray = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
@@ -358,18 +610,26 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
 
     filtered_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
-    # Step 5: Semantic flip verification via Tesseract OSD (Stage 2)
+    # Step 5: Semantic flip verification via OpenCV QR footer heuristic and Tesseract OSD fallback
     if options.rotation_deg == "auto" and options.auto_orient_osd:
-        osd_rotate = detect_orientation_osd(filtered_bgr)
-        if osd_rotate == 180:
+        if detect_upside_down_qr(cropped) or detect_upside_down_qr(filtered_bgr):
             filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_180)
+            steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_180)
             effective_rotation = (effective_rotation + 180) % 360
-        elif osd_rotate == 90:
-            filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_CLOCKWISE)
-            effective_rotation = (effective_rotation + 90) % 360
-        elif osd_rotate == 270:
-            filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            effective_rotation = (effective_rotation + 270) % 360
+        else:
+            osd_rotate = detect_orientation_osd(filtered_bgr, min_confidence=3.0)
+            if osd_rotate == 180:
+                filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_180)
+                steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_180)
+                effective_rotation = (effective_rotation + 180) % 360
+            elif osd_rotate == 90:
+                filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_CLOCKWISE)
+                steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_90_CLOCKWISE)
+                effective_rotation = (effective_rotation + 90) % 360
+            elif osd_rotate == 270:
+                filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_90_COUNTERCLOCKWISE)
+                effective_rotation = (effective_rotation + 270) % 360
 
     steps["filtrada"] = filtered_bgr.copy()
 
@@ -409,6 +669,8 @@ def main(
     parser.add_argument("--no-crop", action="store_true", help="Disable receipt boundary cropping")
     parser.add_argument("--no-shadows", action="store_true", help="Disable crease shadow attenuation")
     parser.add_argument("--no-osd", action="store_true", help="Disable automatic Tesseract OSD flip")
+    parser.add_argument("--deskew", action="store_true", help="Enable continuous text-line deskew")
+    parser.add_argument("--no-deskew", action="store_true", help="Disable continuous text-line deskew")
     parser.add_argument("--save", "-s", type=str, default=None, help="Save side-by-side comparison image to path")
 
     effective_argv = list(argv) if argv is not None else (sys.argv[1:] if __name__ == "__main__" else [])
@@ -447,6 +709,7 @@ def main(
         auto_crop=not args.no_crop,
         remove_shadows=not args.no_shadows,
         auto_orient_osd=not args.no_osd,
+        auto_deskew=bool(args.deskew and not args.no_deskew),
     )
 
     result = preprocess(raw_image, opts=opts)
