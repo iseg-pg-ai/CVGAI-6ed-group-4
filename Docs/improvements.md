@@ -11,10 +11,9 @@ Domain: Smart Reader for Portuguese Receipts and Simplified Invoices (CVGAI 6th 
 This document provides an exhaustive, module-by-module technical audit of the codebase, identifying functional gaps, edge-case vulnerabilities, architectural inconsistencies, and necessary improvements across all pipeline stages.
 
 ### Status Summary
-- **Implemented Modules & Scripts**: `src/types.py`, `src/settings.py`, `src/normalizers.py`, `src/golden_set.py`, `src/preprocessing.py`, `src/ocr_engine.py`, `src/ocr_tesseract.py`, `src/qr_reader.py`, `src/llm_client.py`, `src/extractor_regex.py`, `src/extractor_llm.py`, `src/evidence.py`, `src/qa_assistant.py`, `src/scoring.py`, `src/dataset_stats.py`, `src/app.py`, `scripts/run_llama_server.{sh,ps1,bat}`, `scripts/check_golden_set.sh`.
-- **Addressed Technical Audits**: The module-level robustness fixes, typing enforcements, and script alignments identified in Section 4 were implemented across commits `66209907`, `3d4c7805`, and `8ae84b28`.
+- **Implemented Modules & Scripts**: `src/core/types.py`, `src/core/settings.py`, `src/core/normalizers.py`, `src/core/cli_utils.py`, `src/evaluation/golden_set.py`, `src/vision/preprocessing.py`, `src/ocr/easyocr.py`, `src/ocr/tesseract.py`, `src/ocr/__init__.py`, `src/vision/qr_reader.py`, `src/extraction/llm_client.py`, `src/extraction/regex.py`, `src/extraction/llm.py`, `src/vision/evidence.py`, `src/extraction/qa_assistant.py`, `src/evaluation/scoring.py`, `src/evaluation/dataset_stats.py`, `src/evaluation/evaluate.py`, `src/app.py`, `scripts/run_llama_server.{sh,ps1,bat}`, `scripts/check_golden_set.sh`.
+- **Addressed Technical Audits**: The module-level robustness fixes, typing enforcements, and script alignments identified in Section 4 were implemented across commits `66209907`, `3d4c7805`, and `8ae84b28`, followed by the modular subpackage refactoring into domain namespaces.
 - **Remaining Work Packages**:
-  - `src/evaluate.py` & `tests/test_evaluate.py` (WP-15 - Automated Benchmark Runner)
   - `data/ground_truth.csv` annotations audit (WP-17 - semantic alignment of `entidade` trading names)
   - `Docs/Presentation/` (WP-18 - Golden Set and Project Slide Deck)
 
@@ -22,17 +21,13 @@ This document provides an exhaustive, module-by-module technical audit of the co
 
 ## 2. Unfinished Work Packages and Core Functional Gaps
 
-### 2.1 WP-15: Automated Benchmark Runner (`src/evaluate.py` & `tests/test_evaluate.py`)
-- **Current State**: Pending implementation.
-- **Consequence**: Users cannot execute the end-to-end evaluation benchmark over `data/ground_truth.csv` to output `results/metrics.csv` and `results/metrics.md`. Consequently, Tab 3 of the Gradio interface (`src/app.py`) displays only a placeholder notification.
-- **Architectural Requirements & Deficiencies in Existing Plan**:
-  - The specification in `Docs/Planning/implementation_plan.md` (lines 776-876) describes evaluating a single `--engine` and single `--method` per execution, overwriting `results/metrics.csv`.
-  - In contrast, `PROJECT_PLAN.md` (Sections 4 and 5) mandates a comparative assessment across OCR engines (EasyOCR vs. Tesseract) and extraction methods (Regex vs. Local LLM vs. Cloud LLM), reporting both accuracy rates and latency (`elapsed_ms`).
-  - **Improvement**: `evaluate.py` must support an `--all-methods` / `--all-engines` matrix run or persist distinct target files (e.g., `results/metrics_regex_easyocr.csv`, `results/metrics_llm_easyocr.csv`), culminating in an integrated multi-method comparative summary table inside `results/metrics.md`.
+### 2.1 WP-15: Automated Benchmark Runner (`src/evaluation/evaluate.py` & `tests/test_evaluate.py`)
+- **Current State**: Implemented and integrated with full offline test suite.
+- **Capabilities**: Supports evaluating single and matrix benchmark runs across OCR engines and extraction methods, generating `results/metrics.csv` and `results/metrics.md` with complete metadata. Tab 3 of the Gradio interface loads these outputs directly.
 
 ### 2.2 Golden Set Check Utility (`scripts/check_golden_set.sh`)
 - **Current State**: Implemented (commit `3d4c7805`).
-- **Implementation**: Created `scripts/check_golden_set.sh` with strict POSIX flags (`set -euo pipefail`), invoking `python -m src.golden_set` and `python -m src.dataset_stats`. Validates all 27 records and outputs corpus stratification cleanly.
+- **Implementation**: Created `scripts/check_golden_set.sh` with strict POSIX flags (`set -euo pipefail`), invoking `python -m src.evaluation.golden_set` and `python -m src.evaluation.dataset_stats`. Validates all 27 records and outputs corpus stratification cleanly.
 
 ### 2.3 Presentation Deck (`Docs/Presentation/`)
 - **Current State**: WP-18 remains pending.
@@ -291,19 +286,18 @@ A rigorous inspection of `data/ground_truth.csv` against `src/normalizers.py` re
   - `scripts/run_llama_server.*`: Default model aligned with `Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` and `NGL=0`.
   - `scripts/check_golden_set.sh`: Automated POSIX check script for golden set and dataset stats.
 
+  - `src/evaluation/evaluate.py` & `tests/test_evaluate.py`: Automated benchmark runner with offline double tests, metadata tracking, and markdown table writing.
+  - `src/` modularization: Reorganized into 5 domain subpackages (`core`, `vision`, `ocr`, `extraction`, `evaluation`) with deduplicated CLI helpers and centralized contract constants.
+
 ### 5.2 Remaining Deliverables
 1. **Phase 1: Dataset Integrity & Annotations (WP-17)**
    - Re-annotate the `entidade` column in `data/ground_truth.csv` with the actual printed merchant names (e.g. replacing filename slugs like `continente_amadora` with `"MODELO CONTINENTE HIPERMERCADOS S.A."`).
    - Run `bash scripts/check_golden_set.sh` and verify zero validation errors.
 
-2. **Phase 2: Benchmark Runner Implementation (WP-15)**
-   - Implement `src/evaluate.py` according to `implementation_plan.md` Section 6 (WP-15), supporting automated output generation for `results/metrics.csv` and `results/metrics.md`.
-   - Add unit and contract tests in `tests/test_evaluate.py` using offline test doubles.
-
-3. **Phase 3: Presentation Deck (WP-18)**
+2. **Phase 2: Presentation Deck (WP-18)**
    - Build the slide deck in `Docs/Presentation/` following the 6-slide structure in `implementation_plan.md` Section 8.6.
 
-4. **Phase 4: Final Verification & Benchmark Run**
+3. **Phase 3: Final Verification & Benchmark Run**
    - Run the full verification pipeline:
      ```bash
      uv run ruff format --line-length 120 src tests
@@ -313,5 +307,5 @@ A rigorous inspection of `data/ground_truth.csv` against `src/normalizers.py` re
      ```
    - Execute the official benchmark:
      ```bash
-     uv run python -m src.evaluate
+     uv run python -m src.evaluation.evaluate
      ```

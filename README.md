@@ -32,8 +32,10 @@ EasyOCR, que descarrega os pesos na primeira execução):
 | `src/core/types.py` | Contratos de dados fechados | — |
 | `src/core/settings.py` | Configuração e caminhos a partir do `.env` | — |
 | `src/core/normalizers.py` | Normalização e comparação de campos | — |
+| `src/core/cli_utils.py` | Utilitários partilhados de carregamento e formatação CLI | — |
 | `src/evaluation/golden_set.py` | Validação e carregamento do golden set | `uv run python -m src.evaluation.golden_set` |
 | `src/vision/preprocessing.py` | Redimensionamento, orientação, recorte, sombras, CLAHE | `uv run python -m src.vision.preprocessing` |
+| `src/ocr/__init__.py` | Fábrica unificada de motores OCR (`build_ocr_engine`) | — |
 | `src/ocr/easyocr.py` | EasyOCR com caixas delimitadoras e IDs de linha | `uv run python -m src.ocr.easyocr` |
 | `src/ocr/tesseract.py` | Motor OCR comparativo, com agregação de palavras em linhas | `uv run python -m src.ocr.tesseract` |
 | `src/vision/qr_reader.py` | Leitura do QR da AT para validação cruzada | `uv run python -m src.vision.qr_reader` |
@@ -107,7 +109,7 @@ tesseract --version
 tesseract --list-langs     # tem de listar "por"
 ```
 
-O Tesseract também serve de sonda de orientação: `preprocessing.detect_orientation_osd` chama o
+O Tesseract também serve de sonda de orientação: `src.vision.preprocessing.detect_orientation_osd` chama o
 binário em modo `--psm 0` para corrigir fotos de cabeça para baixo. Se o binário não existir, a
 sonda devolve `0` e o pipeline segue apenas com a heurística de proporção, sem falhar.
 
@@ -250,7 +252,9 @@ uv run python -m src.vision.preprocessing # antes vs depois do OpenCV
 uv run python -m src.ocr.easyocr          # linhas numeradas prontas para o prompt
 uv run python -m src.ocr.tesseract        # OCR alternativo via Tesseract
 uv run python -m src.vision.qr_reader     # campos do QR da AT, quando o talão tiver um
+uv run python -m src.extraction.llm_client # teste de ligação ao cliente LLM
 uv run python -m src.extraction.regex     # extração estruturada baseline
+uv run python -m src.extraction.llm       # extração estruturada por LLM
 uv run python -m src.vision.evidence      # caixas do OCR e destaque das linhas citadas
 uv run python -m src.extraction.qa_assistant # pergunta de teste ao assistente
 uv run python -m src.evaluation.evaluate  # runner do benchmark oficial sobre o golden set

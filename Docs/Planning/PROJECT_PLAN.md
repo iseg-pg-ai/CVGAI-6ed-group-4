@@ -57,7 +57,7 @@ O sistema estrutura a informação nos seguintes atributos normalizados:
 - `total`: Valor total a pagar em euros.
 
 ### Fase 4: Assistente de Perguntas e Respostas Verificável (Local vs. Cloud)
-O módulo de inteligência é implementado sobre uma interface unificada (`llm_client.py`), permitindo alternar de fornecedor com um único clique na aplicação:
+O módulo de inteligência é implementado sobre uma interface unificada (`src/extraction/llm_client.py`), permitindo alternar de fornecedor com um único clique na aplicação:
 - **Fornecedor Local (Padrão de Privacidade)**: `llama.cpp` (`llama-server`) em `http://127.0.0.1:8080/v1` com modelo leve (ex.: `Qwen2.5-Coder-3B-Instruct`), 100% offline e em conformidade com a proteção de dados.
 - **Fornecedor Cloud (Demonstração da Matéria)**:
   - **Google Gemini** via `google-genai` (ex.: `gemini-3.5-flash`), replicando `class-code/genAI/gemini_image.py`.
@@ -149,10 +149,10 @@ A aplicação será organizada em três separadores claros para facilitar quer a
 ## 6. Divisão de Trabalho da Equipa
 
 ### Responsabilidades da Parte Técnica (Desenvolvimento do Código)
-- Implementação dos módulos de pré-processamento OpenCV (`preprocessing.py`) com filtros de contraste e atenuação de sombras de vincos.
-- Integração dos motores de OCR e do cliente unificado de linguagem (`llm_client.py`), suportando `llama.cpp` local e API cloud (Gemini) com chave em ficheiro `.env`.
-- Construção da interface gráfica em Gradio (`app.py`).
-- Criação do script de avaliação automatizada sobre a pasta de documentos (`evaluate.py`).
+- Implementação dos módulos de pré-processamento OpenCV (`src/vision/preprocessing.py`) com filtros de contraste e atenuação de sombras de vincos.
+- Integração dos motores de OCR e do cliente unificado de linguagem (`src/extraction/llm_client.py`), suportando `llama.cpp` local e API cloud (Gemini) com chave em ficheiro `.env`.
+- Construção da interface gráfica em Gradio (`src/app.py`).
+- Criação do script de avaliação automatizada sobre a pasta de documentos (`src/evaluation/evaluate.py`).
 
 ### Responsabilidades dos Colegas (Dados, Validação, Relatório e Apresentação)
 1. **Recolha e Catalogação do Dataset (Dias 1 a 3)**:
