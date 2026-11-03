@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from src.settings import Settings, get_settings, load_settings
+from src.core.settings import Settings, get_settings, load_settings
 
 
 def test_default_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

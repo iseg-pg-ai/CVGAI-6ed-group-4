@@ -27,9 +27,9 @@ from src.app import (
     load_benchmark_report,
     process_document,
 )
-from src.preprocessing import PreprocessOptions
-from src.settings import Settings
-from src.types import BBox, OcrDocument, OcrLine
+from src.core.settings import Settings
+from src.core.types import BBox, OcrDocument, OcrLine
+from src.vision.preprocessing import PreprocessOptions
 
 
 @pytest.fixture(autouse=True)
@@ -329,7 +329,7 @@ def test_answer_question_validation_and_error_handling(mock_app_settings: Settin
 def test_answer_question_with_mock_qa(monkeypatch: pytest.MonkeyPatch, mock_app_settings: Settings) -> None:
     """answer_question queries QA assistant and produces grounded visual highlights."""
     from src import app
-    from src.types import Answer
+    from src.core.types import Answer
 
     mock_doc = OcrDocument(
         lines=[OcrLine(id=1, text="Total 16.10", confidence=0.99, bbox=BBox(10, 10, 50, 30))],

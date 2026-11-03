@@ -15,8 +15,8 @@ import cv2
 import numpy as np
 import pytest
 
-from src.qr_reader import main, parse_at_qr_payload, read
-from src.settings import load_settings
+from src.core.settings import load_settings
+from src.vision.qr_reader import main, parse_at_qr_payload, read
 
 
 def test_parse_at_qr_payload_full_valid_string() -> None:

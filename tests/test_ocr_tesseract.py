@@ -8,8 +8,8 @@ import cv2
 import numpy as np
 import pytest
 
-from src.ocr_tesseract import TesseractEngine, main
-from src.types import BBox, OcrDocument, OcrEngine, OcrLine
+from src.core.types import BBox, OcrDocument, OcrEngine, OcrLine
+from src.ocr.tesseract import TesseractEngine, main
 
 
 def _tesseract_data(
@@ -63,7 +63,7 @@ def test_read_groups_words_and_sorts_lines(
         calls.append((image, kwargs))
         return data
 
-    monkeypatch.setattr("src.ocr_tesseract.pytesseract.image_to_data", fake_image_to_data)
+    monkeypatch.setattr("src.ocr.tesseract.pytesseract.image_to_data", fake_image_to_data)
     image = np.zeros((120, 200, 3), dtype=np.uint8)
     image[:, :, 0] = 255
 
@@ -101,7 +101,7 @@ def test_read_clamps_bounding_boxes(
         par_num=["1"],
         line_num=["1"],
     )
-    monkeypatch.setattr("src.ocr_tesseract.pytesseract.image_to_data", lambda *_args, **_kwargs: data)
+    monkeypatch.setattr("src.ocr.tesseract.pytesseract.image_to_data", lambda *_args, **_kwargs: data)
 
     line = TesseractEngine().read(np.zeros((20, 20), dtype=np.uint8)).lines[0]
 
@@ -123,7 +123,7 @@ def test_read_uses_custom_executable_and_restores_global_setting(
         received_cmd.append(pytesseract.pytesseract.tesseract_cmd)
         return data
 
-    monkeypatch.setattr("src.ocr_tesseract.pytesseract.image_to_data", fake_image_to_data)
+    monkeypatch.setattr("src.ocr.tesseract.pytesseract.image_to_data", fake_image_to_data)
 
     result = TesseractEngine(tesseract_cmd=tmp_path / "tesseract.exe").read(np.zeros((10, 10), dtype=np.uint8))
 
@@ -151,7 +151,7 @@ def test_constructor_falls_back_to_settings_tesseract_cmd(
 ) -> None:
     """Omitting tesseract_cmd must use the executable configured in TESSERACT_CMD."""
     configured = tmp_path / "tesseract.exe"
-    monkeypatch.setattr("src.settings.get_settings", lambda: SimpleNamespace(tesseract_cmd=configured))
+    monkeypatch.setattr("src.core.settings.get_settings", lambda: SimpleNamespace(tesseract_cmd=configured))
 
     engine = TesseractEngine()
 
@@ -163,7 +163,7 @@ def test_main_cli_missing_receipts_dir(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """main prints an error when the receipts directory is missing."""
-    from src.settings import load_settings
+    from src.core.settings import load_settings
 
     settings = load_settings(repo_root=tmp_path)
     main(argv=[], settings_override=settings)
@@ -187,7 +187,7 @@ def test_main_cli_execution_with_mock(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """main runs end-to-end when the Tesseract engine is replaced by a fake."""
-    from src import ocr_tesseract
+    from src.ocr import tesseract as ocr_tesseract
 
     img_path = tmp_path / "receipt.jpg"
     cv2.imwrite(str(img_path), np.full((60, 120, 3), 200, dtype=np.uint8))
@@ -233,7 +233,7 @@ def test_read_rejects_malformed_tesseract_output(monkeypatch: pytest.MonkeyPatch
         par_num=["1"],
         line_num=["1"],
     )
-    monkeypatch.setattr("src.ocr_tesseract.pytesseract.image_to_data", lambda *_args, **_kwargs: malformed)
+    monkeypatch.setattr("src.ocr.tesseract.pytesseract.image_to_data", lambda *_args, **_kwargs: malformed)
 
     with pytest.raises(ValueError, match="inconsistent lengths"):
         TesseractEngine().read(np.zeros((10, 10), dtype=np.uint8))

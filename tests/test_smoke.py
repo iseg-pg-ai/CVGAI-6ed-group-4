@@ -15,15 +15,21 @@ import numpy as np
 import pytest
 
 import src
-from src.types import (
+from src.core.types import (
+    ANSWER_STATUSES,
     CONSUMIDOR_FINAL_NIF,
     EARLIEST_PLAUSIBLE_DATE,
     EXTRACTION_METHODS,
     FIELD_NAMES,
+    GROUND_TRUTH_COLUMNS,
     GROUPS,
     IMAGE_EXTENSIONS,
     LLM_PROVIDERS,
+    MATCH_RESULT_COLUMNS,
+    METRIC_NAMES,
     OCR_ENGINES,
+    ROTATION_CHOICES,
+    STATUSES,
     Answer,
     BBox,
     Extraction,
@@ -135,7 +141,7 @@ def test_numpy_is_available() -> None:
 def test_repository_layout(repo_root: Path) -> None:
     """The scaffolding created by WP-00 is present."""
     assert (repo_root / "pyproject.toml").is_file()
-    assert (repo_root / "src" / "types.py").is_file()
+    assert (repo_root / "src" / "core" / "types.py").is_file()
     assert (repo_root / "data" / "ground_truth.csv").is_file()
 
 
@@ -149,3 +155,18 @@ def test_shared_contract_constants() -> None:
     assert CONSUMIDOR_FINAL_NIF == "999999990"
     assert date(2000, 1, 1) == EARLIEST_PLAUSIBLE_DATE
     assert IMAGE_EXTENSIONS == (".jpg", ".jpeg", ".png")
+    assert STATUSES == ("ENCONTRADO", "AUSENTE", "INVALIDO")
+    assert ANSWER_STATUSES == ("ENCONTRADO", "AUSENTE NO DOCUMENTO")
+    assert GROUND_TRUTH_COLUMNS == ("filename", "grupo", "entidade", "nif_comerciante", "nif_cliente", "data", "total")
+    assert MATCH_RESULT_COLUMNS == (
+        "filename",
+        "grupo",
+        "campo",
+        "esperado",
+        "obtido",
+        "acertou",
+        "falso_positivo",
+        "omissao",
+    )
+    assert METRIC_NAMES == ("taxa_acerto", "taxa_falso_positivo", "taxa_omissao")
+    assert ROTATION_CHOICES == ("auto", "0", "90", "180", "270")

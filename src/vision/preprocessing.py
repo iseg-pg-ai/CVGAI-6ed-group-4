@@ -18,17 +18,15 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
-from src.types import IMAGE_EXTENSIONS
+from src.core.types import ROTATION_CHOICES, RotationOption
 
 if TYPE_CHECKING:
-    from src.settings import Settings
-
-RotationOption = Literal["auto", 0, 90, 180, 270]
+    from src.core.settings import Settings
 
 
 @dataclass(frozen=True, slots=True)
@@ -655,14 +653,15 @@ def main(
     """
     from PIL import Image
 
-    from src.settings import get_settings
+    from src.core.cli_utils import resolve_and_load_receipt
+    from src.core.settings import get_settings
 
     parser = argparse.ArgumentParser(description="Receipt image preprocessing preview")
     parser.add_argument("--file", "-f", type=str, default=None, help="Specific receipt image path")
     parser.add_argument(
         "--rotate",
         "-r",
-        choices=["auto", "0", "90", "180", "270"],
+        choices=ROTATION_CHOICES,
         default="auto",
         help="Rotation angle in degrees or 'auto'",
     )
@@ -678,30 +677,10 @@ def main(
 
     settings = settings_override or get_settings()
 
-    target_path: Path | None = None
-    if args.file:
-        candidate = Path(args.file)
-        if not candidate.is_file():
-            print(f"Error: Specified file not found: {candidate}")
-            return
-        target_path = candidate
-    else:
-        if not settings.receipts_dir.is_dir():
-            print(f"Receipts directory not found: {settings.receipts_dir}")
-            return
-        receipt_files = sorted(
-            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
-        )
-        if not receipt_files:
-            print(f"No receipt images found in {settings.receipts_dir}")
-            return
-        target_path = receipt_files[0]
-
-    print(f"Loading receipt: {target_path.name}")
-    raw_image = cv2.imread(str(target_path))
-    if raw_image is None:
-        print(f"Error: Unable to read image file: {target_path}")
+    loaded = resolve_and_load_receipt(args.file, settings)
+    if loaded is None:
         return
+    target_path, raw_image = loaded
 
     rot_opt: RotationOption = "auto" if args.rotate == "auto" else int(args.rotate)  # type: ignore[assignment]
     opts = PreprocessOptions(
