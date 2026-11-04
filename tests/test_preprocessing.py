@@ -8,19 +8,21 @@ import cv2
 import numpy as np
 import pytest
 
+from src.vision.photometry import estimate_skew_angle
 from src.vision.preprocessing import (
     PreprocessOptions,
     PreprocessResult,
+    adjust_ink_contrast,
     attenuate_shadows,
     crop_receipt,
     deskew_image,
     detect_upside_down_qr,
     enhance_contrast_clahe,
-    estimate_skew_angle,
     order_corner_points,
     orient_image,
     preprocess,
     resize_max_side,
+    sharpen_unsharp_mask,
 )
 
 
@@ -418,3 +420,29 @@ def test_crop_receipt_ignores_off_center_textured_background() -> None:
     assert 280 <= w <= 330
     # Center of cropped image must be bright white paper
     assert float(cropped[h // 2, w // 2].mean()) > 220.0
+
+
+def test_adjust_ink_contrast_darkens_midtones_and_preserves_white() -> None:
+    """adjust_ink_contrast with gamma > 1 darkens midtones while keeping 255 unchanged."""
+    gray = np.array([[255, 150, 100]], dtype=np.uint8)
+    adjusted = adjust_ink_contrast(gray, gamma=1.5)
+
+    assert adjusted[0, 0] == 255
+    assert adjusted[0, 1] < 150
+    assert adjusted[0, 2] < 100
+
+    # Neutral gamma returns copy
+    neutral = adjust_ink_contrast(gray, gamma=1.0)
+    np.testing.assert_array_equal(neutral, gray)
+
+
+def test_sharpen_unsharp_mask_increases_edges() -> None:
+    """sharpen_unsharp_mask applies sharpening when strength > 0 and returns copy when 0."""
+    gray = np.zeros((50, 50), dtype=np.uint8)
+    gray[20:30, 20:30] = 200
+
+    sharpened = sharpen_unsharp_mask(gray, strength=1.0)
+    assert sharpened.shape == gray.shape
+
+    unchanged = sharpen_unsharp_mask(gray, strength=0.0)
+    np.testing.assert_array_equal(unchanged, gray)

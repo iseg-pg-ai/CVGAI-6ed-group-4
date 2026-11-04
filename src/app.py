@@ -123,6 +123,7 @@ def _compute_cache_key(image_bgr: np.ndarray, opts: PreprocessOptions, engine_na
     hasher.update(
         f"{image_bgr.shape}:{image_bgr.dtype}:{opts.max_side}:{opts.rotation_deg}:{opts.auto_crop}:"
         f"{opts.remove_shadows}:{opts.clahe_clip_limit}:{opts.clahe_tile_grid_size}:"
+        f"{opts.contrast_gamma}:{opts.sharpen_strength}:{opts.shadow_kernel_size}:"
         f"{opts.auto_orient_osd}:{opts.auto_deskew}:{engine_name.lower()}".encode()
     )
     return hasher.hexdigest()
@@ -177,6 +178,9 @@ def _build_preprocess_options(
     auto_crop: bool,
     remove_shadows: bool,
     clahe_clip: float,
+    gamma: float,
+    sharpen: float,
+    shadow_k: int,
     cfg: Settings,
 ) -> PreprocessOptions:
     """Build PreprocessOptions from Gradio UI controls and application settings."""
@@ -187,6 +191,9 @@ def _build_preprocess_options(
         auto_crop=auto_crop,
         remove_shadows=remove_shadows,
         clahe_clip_limit=clahe_clip,
+        contrast_gamma=gamma,
+        sharpen_strength=sharpen,
+        shadow_kernel_size=int(shadow_k),
         tesseract_cmd=cfg.tesseract_cmd,
     )
 
@@ -197,6 +204,9 @@ def process_document(
     auto_crop: bool,
     remove_shadows: bool,
     clahe_clip: float,
+    gamma: float,
+    sharpen: float,
+    shadow_k: int,
     ocr_engine_name: str,
     extractor_name: str,
     settings: Settings | None = None,
@@ -221,7 +231,7 @@ def process_document(
         return None, None, f"Erro na conversao da imagem: {exc}", [], None, None, None, None, ""
 
     cfg = settings or get_settings()
-    opts = _build_preprocess_options(rotation_str, auto_crop, remove_shadows, clahe_clip, cfg)
+    opts = _build_preprocess_options(rotation_str, auto_crop, remove_shadows, clahe_clip, gamma, sharpen, shadow_k, cfg)
 
     try:
         prep_result, ocr_doc, qr_data = _get_ocr_document(image_bgr, opts, ocr_engine_name, settings=settings)
@@ -301,6 +311,9 @@ def answer_question(
     auto_crop: bool,
     remove_shadows: bool,
     clahe_clip: float,
+    gamma: float,
+    sharpen: float,
+    shadow_k: int,
     ocr_engine_name: str,
     provider_choice: str,
     settings: Settings | None = None,
@@ -323,7 +336,7 @@ def answer_question(
         return "AUSENTE NO DOCUMENTO", f"Erro na conversao da imagem: {exc}", None, None
 
     cfg = settings or get_settings()
-    opts = _build_preprocess_options(rotation_str, auto_crop, remove_shadows, clahe_clip, cfg)
+    opts = _build_preprocess_options(rotation_str, auto_crop, remove_shadows, clahe_clip, gamma, sharpen, shadow_k, cfg)
 
     try:
         prep_result, ocr_doc, _ = _get_ocr_document(image_bgr, opts, ocr_engine_name, settings=settings)

@@ -142,3 +142,46 @@ def enhance_contrast_clahe(
         return gray.copy()
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
     return clahe.apply(gray)
+
+
+def adjust_ink_contrast(
+    gray: np.ndarray,
+    gamma: float = 1.0,
+) -> np.ndarray:
+    """Adjust mid-tone ink density via gamma correction while preserving white paper.
+
+    Values > 1.0 darken faded thermal ink strokes without darkening pure white paper (255);
+    values < 1.0 lighten dark/underexposed images.
+
+    Args:
+        gray: Single-channel grayscale image.
+        gamma: Gamma exponent (1.0 is neutral; > 1.0 darkens mid-tones).
+
+    Returns:
+        Gamma-adjusted grayscale image.
+    """
+    if abs(gamma - 1.0) < 1e-3 or gamma <= 0.0:
+        return gray.copy()
+    lut = np.array([np.clip(((i / 255.0) ** gamma) * 255.0, 0, 255) for i in range(256)], dtype=np.uint8)
+    return cv2.LUT(gray, lut)
+
+
+def sharpen_unsharp_mask(
+    gray: np.ndarray,
+    strength: float = 0.0,
+    sigma: float = 1.2,
+) -> np.ndarray:
+    """Sharpen character strokes via Gaussian unsharp masking.
+
+    Args:
+        gray: Single-channel grayscale image.
+        strength: Sharpening amount (0.0 disables sharpening).
+        sigma: Gaussian blur standard deviation controlling edge radius.
+
+    Returns:
+        Sharpened grayscale image.
+    """
+    if strength <= 0.0:
+        return gray.copy()
+    blurred = cv2.GaussianBlur(gray, (0, 0), sigmaX=sigma)
+    return cv2.addWeighted(gray, 1.0 + strength, blurred, -strength, 0)

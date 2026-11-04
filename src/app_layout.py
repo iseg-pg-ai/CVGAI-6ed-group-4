@@ -100,6 +100,15 @@ def build_blocks(
                         slider_clahe = gr.Slider(
                             minimum=0.0, maximum=5.0, value=2.0, step=0.5, label="Intensidade de Contraste CLAHE"
                         )
+                        slider_gamma = gr.Slider(
+                            minimum=0.5, maximum=2.5, value=1.0, step=0.1, label="Densidade da Tinta (Gamma)"
+                        )
+                        slider_sharpen = gr.Slider(
+                            minimum=0.0, maximum=3.0, value=0.0, step=0.25, label="Nitidez (Unsharp Mask)"
+                        )
+                        slider_shadow_k = gr.Slider(
+                            minimum=11, maximum=51, value=25, step=2, label="Janela de Sombra (Shadow Kernel)"
+                        )
 
                     with gr.Row():
                         ocr_choice = gr.Radio(
@@ -216,8 +225,8 @@ def build_blocks(
         # Wire Events
         # -----------------------------------------------------------------------------
         btn_process.click(
-            fn=lambda img, rot, crop_chk, sh_chk, clahe, ocr_eng, extr: process_document_fn(
-                img, rot, crop_chk, sh_chk, clahe, ocr_eng, extr, settings=settings
+            fn=lambda img, rot, crop_chk, sh_chk, clahe, gamma, sharpen, shadow_k, ocr_eng, extr: process_document_fn(
+                img, rot, crop_chk, sh_chk, clahe, gamma, sharpen, shadow_k, ocr_eng, extr, settings=settings
             ),
             inputs=[
                 input_image,
@@ -225,6 +234,9 @@ def build_blocks(
                 chk_crop,
                 chk_shadows,
                 slider_clahe,
+                slider_gamma,
+                slider_sharpen,
+                slider_shadow_k,
                 ocr_choice,
                 extractor_choice,
             ],
@@ -242,8 +254,8 @@ def build_blocks(
         )
 
         btn_ask.click(
-            fn=lambda q, img, rot, crop_chk, sh_chk, clahe, ocr_eng, prov: answer_question_fn(
-                q, img, rot, crop_chk, sh_chk, clahe, ocr_eng, prov, settings=settings
+            fn=lambda q, img, rot, crop_chk, sh_chk, clahe, gamma, sharpen, shadow_k, ocr_eng, prov: answer_question_fn(
+                q, img, rot, crop_chk, sh_chk, clahe, gamma, sharpen, shadow_k, ocr_eng, prov, settings=settings
             ),
             inputs=[
                 txt_question,
@@ -252,6 +264,9 @@ def build_blocks(
                 chk_crop,
                 chk_shadows,
                 slider_clahe,
+                slider_gamma,
+                slider_sharpen,
+                slider_shadow_k,
                 ocr_choice,
                 qa_provider_choice,
             ],

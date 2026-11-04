@@ -171,6 +171,9 @@ def test_process_document_handles_none_and_invalid_image(mock_app_settings: Sett
         auto_crop=True,
         remove_shadows=True,
         clahe_clip=2.0,
+        gamma=1.0,
+        sharpen=0.0,
+        shadow_k=25,
         ocr_engine_name="EasyOCR",
         extractor_name="Regex Baseline",
         settings=mock_app_settings,
@@ -187,6 +190,9 @@ def test_process_document_handles_none_and_invalid_image(mock_app_settings: Sett
         auto_crop=True,
         remove_shadows=True,
         clahe_clip=2.0,
+        gamma=1.0,
+        sharpen=0.0,
+        shadow_k=25,
         ocr_engine_name="EasyOCR",
         extractor_name="Regex Baseline",
         settings=mock_app_settings,
@@ -237,6 +243,9 @@ def test_process_document_execution_and_rgb_output(
         auto_crop=False,
         remove_shadows=False,
         clahe_clip=0.0,
+        gamma=1.0,
+        sharpen=0.0,
+        shadow_k=25,
         ocr_engine_name="EasyOCR",
         extractor_name="Regex Baseline",
         settings=mock_app_settings,
@@ -300,6 +309,9 @@ def test_process_document_llm_extractor_fallback(monkeypatch: pytest.MonkeyPatch
         auto_crop=False,
         remove_shadows=False,
         clahe_clip=0.0,
+        gamma=1.0,
+        sharpen=0.0,
+        shadow_k=25,
         ocr_engine_name="EasyOCR",
         extractor_name="LLM Local (llama.cpp)",
         settings=mock_app_settings,
@@ -346,6 +358,9 @@ def test_process_document_regex_extractor_emits_no_warning(
         auto_crop=False,
         remove_shadows=False,
         clahe_clip=0.0,
+        gamma=1.0,
+        sharpen=0.0,
+        shadow_k=25,
         ocr_engine_name="EasyOCR",
         extractor_name="Regex Baseline",
         settings=mock_app_settings,
@@ -358,14 +373,25 @@ def test_process_document_regex_extractor_emits_no_warning(
 def test_answer_question_validation_and_error_handling(mock_app_settings: Settings) -> None:
     """answer_question validates missing inputs and catches processing exceptions."""
     status1, ans1, _, _ = answer_question(
-        "", None, "auto", True, True, 2.0, "EasyOCR", "LLM Local (llama.cpp)", settings=mock_app_settings
+        "", None, "auto", True, True, 2.0, 1.0, 0.0, 25, "EasyOCR", "LLM Local (llama.cpp)", settings=mock_app_settings
     )
     assert status1 == "AUSENTE NO DOCUMENTO"
     assert "Nenhum documento" in ans1
 
     dummy_img = np.full((50, 50, 3), 200, dtype=np.uint8)
     status2, ans2, _, _ = answer_question(
-        "   ", dummy_img, "auto", True, True, 2.0, "EasyOCR", "LLM Local (llama.cpp)", settings=mock_app_settings
+        "   ",
+        dummy_img,
+        "auto",
+        True,
+        True,
+        2.0,
+        1.0,
+        0.0,
+        25,
+        "EasyOCR",
+        "LLM Local (llama.cpp)",
+        settings=mock_app_settings,
     )
     assert status2 == "AUSENTE NO DOCUMENTO"
     assert "Por favor introduza" in ans2
@@ -378,6 +404,9 @@ def test_answer_question_validation_and_error_handling(mock_app_settings: Settin
         True,
         True,
         2.0,
+        1.0,
+        0.0,
+        25,
         "EasyOCR",
         "LLM Local (llama.cpp)",
         settings=mock_app_settings,
@@ -421,6 +450,9 @@ def test_answer_question_with_mock_qa(monkeypatch: pytest.MonkeyPatch, mock_app_
         auto_crop=False,
         remove_shadows=False,
         clahe_clip=0.0,
+        gamma=1.0,
+        sharpen=0.0,
+        shadow_k=25,
         ocr_engine_name="EasyOCR",
         provider_choice="LLM Local (llama.cpp)",
         settings=mock_app_settings,

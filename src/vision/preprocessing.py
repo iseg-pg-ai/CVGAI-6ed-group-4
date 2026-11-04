@@ -40,10 +40,11 @@ from src.vision.orientation import (
     resolve_semantic_flip,
 )
 from src.vision.photometry import (
+    adjust_ink_contrast,
     attenuate_shadows,
     deskew_image,
     enhance_contrast_clahe,
-    estimate_skew_angle,
+    sharpen_unsharp_mask,
 )
 
 if TYPE_CHECKING:
@@ -65,7 +66,9 @@ __all__ = [
     "detect_qr_vertical_ratio",
     "detect_upside_down_qr",
     "enhance_contrast_clahe",
-    "estimate_skew_angle",
+    "adjust_ink_contrast",
+    "sharpen_unsharp_mask",
+    "sharpen_unsharp_mask",
     "main",
     "order_corner_points",
     "orient_image",
@@ -100,6 +103,9 @@ class PreprocessOptions:
     remove_shadows: bool = True
     clahe_clip_limit: float = 2.0
     clahe_tile_grid_size: tuple[int, int] = (8, 8)
+    contrast_gamma: float = 1.0
+    sharpen_strength: float = 0.0
+    shadow_kernel_size: int = 25
     auto_orient_osd: bool = True
     auto_deskew: bool = False
     tesseract_cmd: Path | None = None
@@ -175,12 +181,18 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
     # Step 4: Shadow attenuation and CLAHE contrast enhancement
     gray = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
     if options.remove_shadows:
-        gray = attenuate_shadows(gray)
+        gray = attenuate_shadows(gray, kernel_size=options.shadow_kernel_size)
 
     if options.clahe_clip_limit > 0:
         gray = enhance_contrast_clahe(
             gray, clip_limit=options.clahe_clip_limit, tile_grid_size=options.clahe_tile_grid_size
         )
+
+    if options.contrast_gamma != 1.0:
+        gray = adjust_ink_contrast(gray, gamma=options.contrast_gamma)
+
+    if options.sharpen_strength > 0.0:
+        gray = sharpen_unsharp_mask(gray, strength=options.sharpen_strength)
 
     filtered_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
@@ -239,6 +251,10 @@ def main(
     parser.add_argument("--no-osd", action="store_true", help="Disable automatic Tesseract OSD flip")
     parser.add_argument("--deskew", action="store_true", help="Enable continuous text-line deskew")
     parser.add_argument("--no-deskew", action="store_true", help="Disable continuous text-line deskew")
+    parser.add_argument("--clahe", type=float, default=2.0, help="CLAHE contrast limit")
+    parser.add_argument("--gamma", type=float, default=1.0, help="Ink contrast gamma correction")
+    parser.add_argument("--sharpen", type=float, default=0.0, help="Unsharp masking strength")
+    parser.add_argument("--shadow-kernel", type=int, default=25, help="Shadow attenuation kernel size")
     parser.add_argument("--save", "-s", type=str, default=None, help="Save side-by-side comparison image to path")
 
     effective_argv = list(argv) if argv is not None else (sys.argv[1:] if __name__ == "__main__" else [])
@@ -256,6 +272,10 @@ def main(
         rotation_deg=rot_opt,
         auto_crop=not args.no_crop,
         remove_shadows=not args.no_shadows,
+        clahe_clip_limit=args.clahe,
+        contrast_gamma=args.gamma,
+        sharpen_strength=args.sharpen,
+        shadow_kernel_size=args.shadow_kernel,
         auto_orient_osd=not args.no_osd,
         auto_deskew=bool(args.deskew and not args.no_deskew),
     )

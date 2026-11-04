@@ -86,6 +86,14 @@ class Settings(BaseSettings):
         default=2.0,
         validation_alias=AliasChoices("PREPROCESS_CLAHE_CLIP", "clahe_clip_limit"),
     )
+    contrast_gamma: float = Field(
+        default=1.0,
+        validation_alias=AliasChoices("PREPROCESS_GAMMA", "contrast_gamma"),
+    )
+    sharpen_strength: float = Field(
+        default=0.0,
+        validation_alias=AliasChoices("PREPROCESS_SHARPEN", "sharpen_strength"),
+    )
     llama_port: int = Field(
         default=8080,
         validation_alias=AliasChoices("LLAMA_PORT", "PORT", "llama_port"),
@@ -145,10 +153,10 @@ class Settings(BaseSettings):
             return tuple(str(x).strip() for x in v if str(x).strip()) or ("pt", "en")
         return ("pt", "en")
 
-    @field_validator("llama_timeout_s", "clahe_clip_limit", mode="before")
+    @field_validator("llama_timeout_s", "clahe_clip_limit", "contrast_gamma", "sharpen_strength", mode="before")
     @classmethod
     def _safe_float(cls, v: Any, info: ValidationInfo) -> float:
-        defaults = {"llama_timeout_s": 120.0, "clahe_clip_limit": 2.0}
+        defaults = {"llama_timeout_s": 120.0, "clahe_clip_limit": 2.0, "contrast_gamma": 1.0, "sharpen_strength": 0.0}
         try:
             return float(v)
         except (ValueError, TypeError):
