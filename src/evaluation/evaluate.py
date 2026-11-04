@@ -216,6 +216,7 @@ def main(
         argv: Optional CLI arguments, primarily for tests.
         settings_override: Optional custom Settings instance.
     """
+    from src.core.logging import setup_logging
     from src.core.settings import get_settings
     from src.evaluation.golden_set import GoldenSetError, carregar_ground_truth
     from src.evaluation.scoring import agregar
@@ -223,6 +224,8 @@ def main(
     from src.extraction.llm_client import LLMError
     from src.ocr import build_ocr_engine
     from src.vision.preprocessing import PreprocessOptions
+
+    setup_logging()
 
     settings = settings_override or get_settings()
     parser = argparse.ArgumentParser(description="Evaluate receipt extraction against the golden set")

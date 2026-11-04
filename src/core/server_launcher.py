@@ -87,6 +87,10 @@ def main(
     Returns:
         Process exit code (0 for success, non-zero for error).
     """
+    from src.core.logging import setup_logging
+
+    setup_logging()
+
     settings = settings_override or get_settings()
     parser = build_parser()
     args = parser.parse_args(argv)

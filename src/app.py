@@ -381,6 +381,10 @@ def main(
         argv: Optional command-line arguments. Defaults to sys.argv[1:].
         settings_override: Optional custom Settings. When None, get_settings() is used.
     """
+    from src.core.logging import setup_logging
+
+    setup_logging()
+
     parser = argparse.ArgumentParser(description="Launch Gradio receipt assistant app")
     parser.add_argument("--port", type=int, default=7860, help="Server port (default: 7860)")
     parser.add_argument("--share", action="store_true", help="Create public gradio link")
