@@ -20,7 +20,7 @@ import cv2
 import numpy as np
 import pytesseract
 
-from src.core.types import BBox, OcrDocument, OcrLine
+from src.core.types import BBox, OcrDocument, OcrLine, validate_image
 
 if TYPE_CHECKING:
     from src.core.settings import Settings
@@ -80,8 +80,7 @@ class TesseractEngine:
             pytesseract.TesseractNotFoundError: If Tesseract executable is unavailable.
             pytesseract.TesseractError: If Tesseract inference fails.
         """
-        if image is None or image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
-            raise ValueError("Input image must not be empty or zero-sized.")
+        validate_image(image)
         if image.ndim == 2:
             image_for_tesseract = image
         elif image.ndim == 3 and image.shape[2] == 3:

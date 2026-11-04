@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import numpy as np
 
-from src.core.types import CONSUMIDOR_FINAL_NIF
+from src.core.types import CONSUMIDOR_FINAL_NIF, validate_image
 
 if TYPE_CHECKING:
     from src.core.settings import Settings
@@ -118,6 +118,15 @@ def _decode_all_codes(img: np.ndarray, qr_detector: Any) -> list[str]:
     return results
 
 
+def _decode_first_at_qr(img: np.ndarray, qr_detector: Any) -> dict[str, str] | None:
+    """Return the first valid AT QR payload decoded from img, or None."""
+    for text in _decode_all_codes(img, qr_detector):
+        parsed = parse_at_qr_payload(text)
+        if parsed is not None:
+            return parsed
+    return None
+
+
 def _detect_and_heal_qr_regions(gray: np.ndarray, qr_detector: Any) -> dict[str, str] | None:
     """Locate candidate square QR blobs and heal thermal printer dead-pin streaks.
 
@@ -151,20 +160,18 @@ def _detect_and_heal_qr_regions(gray: np.ndarray, qr_detector: Any) -> dict[str,
         crop_gray = gray[y1:y2, x1:x2]
 
         # 1. Direct decode on crop
-        for text in _decode_all_codes(crop_gray, qr_detector):
-            parsed = parse_at_qr_payload(text)
-            if parsed is not None:
-                return parsed
+        parsed = _decode_first_at_qr(crop_gray, qr_detector)
+        if parsed is not None:
+            return parsed
 
         # 2. Local Otsu threshold + horizontal streak healing
         _, bin_crop = cv2.threshold(crop_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         for kw in (1, 2, 3, 4):
             heal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kw, 1))
             healed = cv2.erode(bin_crop, heal_kernel)
-            for text in _decode_all_codes(healed, qr_detector):
-                parsed = parse_at_qr_payload(text)
-                if parsed is not None:
-                    return parsed
+            parsed = _decode_first_at_qr(healed, qr_detector)
+            if parsed is not None:
+                return parsed
 
     return None
 
@@ -191,31 +198,27 @@ def read(
     Raises:
         ValueError: If the input image is empty or has zero area.
     """
-    if image is None or image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
-        raise ValueError("Input image must not be empty or zero-sized.")
+    validate_image(image)
 
     qr_detector = detector or cv2.QRCodeDetector()
 
     # Stage 1: Try direct detection on input image
-    for text in _decode_all_codes(image, qr_detector):
-        parsed = parse_at_qr_payload(text)
-        if parsed is not None:
-            return parsed
+    parsed = _decode_first_at_qr(image, qr_detector)
+    if parsed is not None:
+        return parsed
 
     # Stage 2: Try grayscale if input was 3-channel
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
     if image.ndim == 3:
-        for text in _decode_all_codes(gray, qr_detector):
-            parsed = parse_at_qr_payload(text)
-            if parsed is not None:
-                return parsed
+        parsed = _decode_first_at_qr(gray, qr_detector)
+        if parsed is not None:
+            return parsed
 
     # Stage 3: Try adaptive Gaussian thresholding (recovers faint thermal print)
     thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 21, 5)
-    for text in _decode_all_codes(thresh, qr_detector):
-        parsed = parse_at_qr_payload(text)
-        if parsed is not None:
-            return parsed
+    parsed = _decode_first_at_qr(thresh, qr_detector)
+    if parsed is not None:
+        return parsed
 
     # Stage 4: Try localized candidate blob search with thermal streak healing
     blob_result = _detect_and_heal_qr_regions(gray, qr_detector)

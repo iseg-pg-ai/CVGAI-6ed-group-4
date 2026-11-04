@@ -103,12 +103,21 @@ def load_settings(repo_root: Path | None = None) -> Settings:
             return file_val
         return default
 
+    def _get_int(key: str, default: int) -> int:
+        try:
+            return int(_get_val(key, str(default)))
+        except ValueError:
+            return default
+
+    def _get_float(key: str, default: float) -> float:
+        try:
+            return float(_get_val(key, str(default)))
+        except ValueError:
+            return default
+
     llama_base_url = _get_val("LLAMA_BASE_URL", "http://127.0.0.1:8080/v1").strip()
     llama_model = _get_val("LLAMA_MODEL", "local-llm").strip()
-    try:
-        llama_timeout_s = float(_get_val("LLAMA_TIMEOUT_S", "120"))
-    except ValueError:
-        llama_timeout_s = 120.0
+    llama_timeout_s = _get_float("LLAMA_TIMEOUT_S", 120.0)
 
     gemini_api_key = _normalize_optional_str(_get_val("GEMINI_API_KEY", "") or None)
     gemini_model = _get_val("GEMINI_MODEL", "gemini-3.5-flash").strip()
@@ -131,25 +140,10 @@ def load_settings(repo_root: Path | None = None) -> Settings:
     ground_truth_path = _resolve_path(root, _get_val("GROUND_TRUTH_PATH", "data/ground_truth.csv"))
     results_dir = _resolve_path(root, _get_val("RESULTS_DIR", "results"))
 
-    try:
-        max_side = int(_get_val("PREPROCESS_MAX_SIDE", "1280"))
-    except ValueError:
-        max_side = 1280
-
-    try:
-        clahe_clip_limit = float(_get_val("PREPROCESS_CLAHE_CLIP", "2.0"))
-    except ValueError:
-        clahe_clip_limit = 2.0
-
-    try:
-        llama_port = int(_get_val("LLAMA_PORT", "8080"))
-    except ValueError:
-        llama_port = 8080
-
-    try:
-        llama_ngl = int(_get_val("LLAMA_NGL", "0"))
-    except ValueError:
-        llama_ngl = 0
+    max_side = _get_int("PREPROCESS_MAX_SIDE", 1280)
+    clahe_clip_limit = _get_float("PREPROCESS_CLAHE_CLIP", 2.0)
+    llama_port = _get_int("LLAMA_PORT", 8080)
+    llama_ngl = _get_int("LLAMA_NGL", 0)
 
     return Settings(
         llama_base_url=llama_base_url,

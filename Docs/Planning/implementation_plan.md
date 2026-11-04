@@ -522,12 +522,16 @@ def normalizar_entidade(raw: str) -> str:
     no corporate suffixes (lda, sa, unipessoal), whitespace collapsed."""
 
 
-def valores_equivalentes(campo: str, esperado: str | None, obtido: str | None) -> bool:
+def valores_equivalentes(campo: FieldName, esperado: str | None, obtido: str | None) -> bool:
     """Compare two already-converted values using the per-field rule.
 
     Rules: 'total' compares Decimals; 'data' compares dates; 'nif_*' compares
-    nine-digit strings; 'entidade' compares canonical forms.
-    Two Nones are equivalent.
+    nine-digit strings; 'entidade' compares canonical forms, accepting either
+    form as a token-boundary substring of the other, or a SequenceMatcher ratio
+    of at least ENTITY_SIMILARITY_THRESHOLD (0.72) on the whole forms or on a
+    sliding window of the obtained tokens.
+    Two Nones are equivalent. An unknown field raises ValueError before any
+    absence check.
     """
 ```
 

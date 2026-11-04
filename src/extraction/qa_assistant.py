@@ -10,7 +10,6 @@ Ref: Docs/Planning/implementation_plan.md, section 7, WP-12.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import re
 import sys
@@ -27,6 +26,7 @@ from src.core.types import (
     OcrLine,
     ProviderName,
 )
+from src.extraction.llm_client import build_object_schema, coerce_line_id, parse_json_object
 
 if TYPE_CHECKING:
     from src.core.settings import Settings
@@ -56,19 +56,16 @@ Responde apenas com um objeto JSON válido, sem texto à volta e sem blocos de c
 }"""
 
 
-QA_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
+QA_SCHEMA: dict[str, Any] = build_object_schema(
+    {
         "answer": {"type": "string"},
         "status": {"type": "string", "enum": list(ANSWER_STATUSES)},
         "linhas": {
             "type": "array",
             "items": {"type": "integer"},
         },
-    },
-    "required": ["answer", "status", "linhas"],
-    "additionalProperties": False,
-}
+    }
+)
 
 
 class QAError(RuntimeError):
@@ -80,25 +77,8 @@ class QAResponseError(QAError):
 
 
 def _parse_json_object(raw: str) -> dict[str, Any]:
-    """Recover the JSON object from a model response.
-
-    Tolerates fenced code blocks and prose before or after the JSON object.
-    """
-    text = raw.strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end < start:
-        raise QAResponseError(f"Response contains no JSON object: {text[:200]!r}")
-
-    candidate = text[start : end + 1]
-    try:
-        payload = json.loads(candidate)
-    except json.JSONDecodeError as exc:
-        raise QAResponseError(f"Response is not valid JSON: {exc}") from exc
-
-    if not isinstance(payload, dict):
-        raise QAResponseError(f"Response JSON is a {type(payload).__name__}, expected an object")
-    return payload
+    """Recover the JSON object from a model response."""
+    return parse_json_object(raw, QAResponseError)
 
 
 def _require_shape(payload: dict[str, Any]) -> None:
@@ -114,12 +94,8 @@ def _filter_line_ids(raw_lines: list[Any], valid_ids: set[int]) -> list[int]:
     """Filter and validate line identifiers returned by the model."""
     result: list[int] = []
     for item in raw_lines:
-        line_num: int | None = None
-        if isinstance(item, int):
-            line_num = item
-        elif isinstance(item, str) and item.strip().isdigit():
-            line_num = int(item.strip())
-        if line_num is not None and line_num in valid_ids and line_num not in result:
+        line_num = coerce_line_id(item, valid_ids)
+        if line_num is not None and line_num not in result:
             result.append(line_num)
     return result
 

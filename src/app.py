@@ -22,8 +22,9 @@ import cv2
 import gradio as gr
 import numpy as np
 
+from src.core.cli_utils import list_receipt_images
 from src.core.settings import get_settings
-from src.core.types import IMAGE_EXTENSIONS, ROTATION_CHOICES, Extraction, OcrDocument, OcrEngine
+from src.core.types import ROTATION_CHOICES, Extraction, OcrDocument, OcrEngine, RotationOption
 from src.extraction.llm import extract as extract_llm
 from src.extraction.llm_client import build_client
 from src.extraction.qa_assistant import ask as ask_qa
@@ -153,6 +154,25 @@ def _get_ocr_document(
     return prep_result, ocr_doc, qr_data
 
 
+def _build_preprocess_options(
+    rotation_str: str,
+    auto_crop: bool,
+    remove_shadows: bool,
+    clahe_clip: float,
+    cfg: Settings,
+) -> PreprocessOptions:
+    """Build PreprocessOptions from Gradio UI controls and application settings."""
+    rot_deg: RotationOption = "auto" if rotation_str == "auto" else int(rotation_str)  # type: ignore[assignment]
+    return PreprocessOptions(
+        max_side=cfg.max_side,
+        rotation_deg=rot_deg,
+        auto_crop=auto_crop,
+        remove_shadows=remove_shadows,
+        clahe_clip_limit=clahe_clip,
+        tesseract_cmd=cfg.tesseract_cmd,
+    )
+
+
 def process_document(
     image: np.ndarray | None,
     rotation_str: str,
@@ -183,15 +203,7 @@ def process_document(
         return None, None, f"Erro na conversao da imagem: {exc}", [], None, None, None, None, ""
 
     cfg = settings or get_settings()
-    rot_deg = "auto" if rotation_str == "auto" else int(rotation_str)
-    opts = PreprocessOptions(
-        max_side=cfg.max_side,
-        rotation_deg=rot_deg,  # type: ignore[arg-type]
-        auto_crop=auto_crop,
-        remove_shadows=remove_shadows,
-        clahe_clip_limit=clahe_clip,
-        tesseract_cmd=cfg.tesseract_cmd,
-    )
+    opts = _build_preprocess_options(rotation_str, auto_crop, remove_shadows, clahe_clip, cfg)
 
     try:
         prep_result, ocr_doc, qr_data = _get_ocr_document(image_bgr, opts, ocr_engine_name, settings=settings)
@@ -294,15 +306,7 @@ def answer_question(
         return "AUSENTE NO DOCUMENTO", f"Erro na conversao da imagem: {exc}", None, None
 
     cfg = settings or get_settings()
-    rot_deg = "auto" if rotation_str == "auto" else int(rotation_str)
-    opts = PreprocessOptions(
-        max_side=cfg.max_side,
-        rotation_deg=rot_deg,  # type: ignore[arg-type]
-        auto_crop=auto_crop,
-        remove_shadows=remove_shadows,
-        clahe_clip_limit=clahe_clip,
-        tesseract_cmd=cfg.tesseract_cmd,
-    )
+    opts = _build_preprocess_options(rotation_str, auto_crop, remove_shadows, clahe_clip, cfg)
 
     try:
         prep_result, ocr_doc, _ = _get_ocr_document(image_bgr, opts, ocr_engine_name, settings=settings)
@@ -379,12 +383,7 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
         Configured Gradio Blocks application.
     """
     settings = settings_override or get_settings()
-    example_files: list[list[Any]] = []
-    if settings.receipts_dir.is_dir():
-        found = sorted(
-            [str(p) for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
-        )
-        example_files = [[p] for p in found]
+    example_files: list[list[Any]] = [[str(p)] for p in list_receipt_images(settings.receipts_dir)]
 
     with gr.Blocks(title="Leitor Inteligente de Documentos Visuais") as demo:
         gr.Markdown(

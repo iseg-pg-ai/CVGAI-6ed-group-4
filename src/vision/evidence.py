@@ -17,10 +17,16 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from src.core.types import OcrDocument, OcrLine
+from src.core.types import OcrDocument, OcrLine, validate_image
 
 if TYPE_CHECKING:
     from src.core.settings import Settings
+
+
+def _to_bgr_canvas(image: np.ndarray) -> np.ndarray:
+    """Validate input image and return a 3-channel BGR copy."""
+    validate_image(image)
+    return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR) if image.ndim == 2 else image.copy()
 
 
 def _draw_label_badge(
@@ -85,10 +91,7 @@ def draw_all_ocr_boxes(
     Raises:
         ValueError: If the input image is empty or has zero area.
     """
-    if image is None or image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
-        raise ValueError("Input image must not be empty or zero-sized.")
-
-    canvas = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR) if image.ndim == 2 else image.copy()
+    canvas = _to_bgr_canvas(image)
 
     for line in doc.lines:
         b = line.bbox
@@ -125,10 +128,7 @@ def highlight(
     Raises:
         ValueError: If the input image is empty or has zero area.
     """
-    if image is None or image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
-        raise ValueError("Input image must not be empty or zero-sized.")
-
-    canvas = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR) if image.ndim == 2 else image.copy()
+    canvas = _to_bgr_canvas(image)
     target_set = set(line_ids)
 
     # 1. Draw inactive lines with subtle, thin border
@@ -181,8 +181,7 @@ def crop(
     Raises:
         ValueError: If the input image is empty or has zero area.
     """
-    if image is None or image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
-        raise ValueError("Input image must not be empty or zero-sized.")
+    validate_image(image)
 
     target_set = set(line_ids)
     matching_lines: list[OcrLine] = [line for line in doc.lines if line.id in target_set]
@@ -245,9 +244,6 @@ def main(
     if loaded is None:
         return
     target_path, raw_image = loaded
-    if raw_image is None:
-        print(f"Error: Unable to read image file: {target_path}")
-        return
 
     print("Preprocessing receipt...")
     prep_result = preprocess(raw_image, PreprocessOptions())

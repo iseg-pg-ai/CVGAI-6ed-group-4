@@ -5,12 +5,20 @@ Ref: Docs/Planning/implementation_plan.md, section 4.3.
 
 from __future__ import annotations
 
+import difflib
 import re
 import unicodedata
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from src.core.types import EARLIEST_PLAUSIBLE_DATE, FieldName
+
 VALID_NIF_FIRST_DIGITS = frozenset("12356789")
+
+ENTITY_SUFFIXES = frozenset({"lda", "sa", "unipessoal", "unip", "sociedade", "limitada", "s"})
+MIN_COMPARABLE_LENGTH = 4
+ENTITY_SIMILARITY_THRESHOLD = 0.72
 
 
 def limpar_texto(raw: str) -> str:
@@ -123,6 +131,18 @@ def parse_data(raw: str) -> date | None:
     return None
 
 
+def validar_data(parsed: date) -> bool:
+    """Validate whether a parsed receipt date falls within the plausible issue window.
+
+    Args:
+        parsed: Candidate date object.
+
+    Returns:
+        True if the date is between EARLIEST_PLAUSIBLE_DATE (2000-01-01) and today inclusive.
+    """
+    return EARLIEST_PLAUSIBLE_DATE <= parsed <= date.today()
+
+
 def parse_nif(raw: str) -> str | None:
     """Extract a 9-digit Portuguese NIF sequence from text.
 
@@ -181,18 +201,100 @@ def normalizar_entidade(raw: str) -> str:
         Lower-cased name without accents, punctuation, or recognized corporate suffixes.
     """
     decomposed = unicodedata.normalize("NFD", raw.lower())
-    entity_suffixes = {"lda", "sa", "unipessoal", "unip", "sociedade", "limitada", "s"}
     without_accents = "".join(character for character in decomposed if unicodedata.category(character) != "Mn")
     without_periods = without_accents.replace(".", "")
     words = "".join(
         character if character.isalnum() or character.isspace() else " " for character in without_periods
     ).split()
-    while len(words) > 1 and words[-1] in entity_suffixes:
+    while len(words) > 1 and words[-1] in ENTITY_SUFFIXES:
         words.pop()
     return " ".join(words)
 
 
-def valores_equivalentes(campo: str, esperado: str | None, obtido: str | None) -> bool:
+def _optional_text(value: str | None) -> str | None:
+    """Normalise an optional raw value, treating blanks as absent.
+
+    Args:
+        value: Raw field text or None.
+
+    Returns:
+        Stripped text, or None when the input was absent or whitespace only.
+    """
+    if value is None:
+        return None
+    return value.strip() or None
+
+
+def _parsed_equal(expected: object, obtained: object) -> bool:
+    """Return True only when both parsed values exist and are equal."""
+    return expected is not None and obtained is not None and expected == obtained
+
+
+def _contains_words(haystack: str, needle: str) -> bool:
+    """Return True when needle appears in haystack on token boundaries."""
+    return f" {needle} " in f" {haystack} "
+
+
+def _similar_enough(left: str, right: str) -> bool:
+    """Return True when the similarity ratio reaches ENTITY_SIMILARITY_THRESHOLD."""
+    matcher = difflib.SequenceMatcher(None, left, right)
+    if matcher.quick_ratio() < ENTITY_SIMILARITY_THRESHOLD:
+        return False
+    return matcher.ratio() >= ENTITY_SIMILARITY_THRESHOLD
+
+
+def _entidades_equivalentes(expected: str, obtained: str) -> bool:
+    """Compare merchant names after canonical normalisation, tolerating OCR noise and filler words."""
+    canonical_expected = normalizar_entidade(expected)
+    canonical_obtained = normalizar_entidade(obtained)
+    if not canonical_expected or not canonical_obtained:
+        return False
+    if canonical_expected == canonical_obtained:
+        return True
+    if len(canonical_expected) >= MIN_COMPARABLE_LENGTH and _contains_words(canonical_obtained, canonical_expected):
+        return True
+    if len(canonical_obtained) >= MIN_COMPARABLE_LENGTH and _contains_words(canonical_expected, canonical_obtained):
+        return True
+    if len(canonical_expected) < MIN_COMPARABLE_LENGTH or len(canonical_obtained) < MIN_COMPARABLE_LENGTH:
+        return False
+    if _similar_enough(canonical_expected, canonical_obtained):
+        return True
+    expected_words = canonical_expected.split()
+    obtained_words = canonical_obtained.split()
+    width = len(expected_words)
+    return any(
+        _similar_enough(canonical_expected, " ".join(obtained_words[index : index + width]))
+        for index in range(len(obtained_words) - width + 1)
+    )
+
+
+def _comparar_total(expected: str, obtained: str) -> bool:
+    """Compare two monetary values as parsed Decimals."""
+    return _parsed_equal(parse_moeda(expected), parse_moeda(obtained))
+
+
+def _comparar_data(expected: str, obtained: str) -> bool:
+    """Compare two dates parsed from free text."""
+    return _parsed_equal(parse_data(expected), parse_data(obtained))
+
+
+def _comparar_nif(expected: str, obtained: str) -> bool:
+    """Compare two NIFs after nine-digit extraction."""
+    return _parsed_equal(parse_nif(expected), parse_nif(obtained))
+
+
+Comparador = Callable[[str, str], bool]
+
+_COMPARADORES: dict[FieldName, Comparador] = {
+    "total": _comparar_total,
+    "data": _comparar_data,
+    "nif_comerciante": _comparar_nif,
+    "nif_cliente": _comparar_nif,
+    "entidade": _entidades_equivalentes,
+}
+
+
+def valores_equivalentes(campo: FieldName, esperado: str | None, obtido: str | None) -> bool:
     """Compare two values using the canonical normalisation rule for their field.
 
     Args:
@@ -206,48 +308,13 @@ def valores_equivalentes(campo: str, esperado: str | None, obtido: str | None) -
     Raises:
         ValueError: If campo is not a recognized canonical field name.
     """
-    esperado = esperado.strip() or None if esperado is not None else None
-    obtido = obtido.strip() or None if obtido is not None else None
-
-    if esperado is None or obtido is None:
-        return esperado is None and obtido is None
-
-    if campo == "total":
-        expected_value = parse_moeda(esperado)
-        obtained_value = parse_moeda(obtido)
-    elif campo == "data":
-        expected_value = parse_data(esperado)
-        obtained_value = parse_data(obtido)
-    elif campo in {"nif_comerciante", "nif_cliente"}:
-        expected_value = parse_nif(esperado)
-        obtained_value = parse_nif(obtido)
-    elif campo == "entidade":
-        expected_value = normalizar_entidade(esperado)
-        obtained_value = normalizar_entidade(obtido)
-        if not expected_value or not obtained_value:
-            return False
-        if expected_value == obtained_value:
-            return True
-        if len(expected_value) >= 4 and f" {expected_value} " in f" {obtained_value} ":
-            return True
-        if len(obtained_value) >= 4 and f" {obtained_value} " in f" {expected_value} ":
-            return True
-
-        import difflib
-
-        if len(expected_value) >= 4 and len(obtained_value) >= 4:
-            if difflib.SequenceMatcher(None, expected_value, obtained_value).ratio() >= 0.72:
-                return True
-            exp_words = expected_value.split()
-            obt_words = obtained_value.split()
-            k = len(exp_words)
-            if len(obt_words) >= k:
-                for i in range(len(obt_words) - k + 1):
-                    window = " ".join(obt_words[i : i + k])
-                    if difflib.SequenceMatcher(None, expected_value, window).ratio() >= 0.72:
-                        return True
-        return False
-    else:
+    comparador = _COMPARADORES.get(campo)
+    if comparador is None:
         raise ValueError(f"Unsupported field: {campo}")
 
-    return expected_value is not None and obtained_value is not None and expected_value == obtained_value
+    expected = _optional_text(esperado)
+    obtained = _optional_text(obtido)
+    if expected is None or obtained is None:
+        return expected is None and obtained is None
+
+    return comparador(expected, obtained)

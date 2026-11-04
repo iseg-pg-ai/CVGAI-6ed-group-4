@@ -18,6 +18,20 @@ if TYPE_CHECKING:
     from src.core.types import FieldValue
 
 
+def list_receipt_images(receipts_dir: Path) -> list[Path]:
+    """Return sorted receipt image paths inside a directory.
+
+    Args:
+        receipts_dir: Directory containing receipt images.
+
+    Returns:
+        Sorted list of image file paths matching IMAGE_EXTENSIONS.
+    """
+    if not receipts_dir.is_dir():
+        return []
+    return sorted(p for p in receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS)
+
+
 def resolve_and_load_receipt(
     file_path: str | Path | None,
     settings: Settings,
@@ -42,9 +56,7 @@ def resolve_and_load_receipt(
         if not settings.receipts_dir.is_dir():
             print(f"Receipts directory not found: {settings.receipts_dir}")
             return None
-        receipt_files = sorted(
-            [p for p in settings.receipts_dir.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS]
-        )
+        receipt_files = list_receipt_images(settings.receipts_dir)
         if not receipt_files:
             print(f"No receipt images found in {settings.receipts_dir}")
             return None

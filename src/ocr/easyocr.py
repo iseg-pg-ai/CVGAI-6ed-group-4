@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import numpy as np
 
-from src.core.types import BBox, OcrDocument, OcrLine
+from src.core.types import BBox, OcrDocument, OcrLine, validate_image
 
 # Suppress upstream EasyOCR/PyTorch internal deprecation and CPU-pin warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="torch.*")
@@ -83,8 +83,7 @@ class EasyOCREngine:
         Raises:
             ValueError: If the input image is empty or has zero area.
         """
-        if image is None or image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
-            raise ValueError("Input image must not be empty or zero-sized.")
+        validate_image(image)
 
         bgr = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR) if image.ndim == 2 else image
         height, width = bgr.shape[:2]

@@ -8,6 +8,7 @@ Ref: Docs/Planning/implementation_plan.md, section 6, WP-02.
 
 from datetime import date
 from decimal import Decimal
+from typing import cast
 
 import pytest
 
@@ -20,6 +21,7 @@ from src.core.normalizers import (
     validar_nif,
     valores_equivalentes,
 )
+from src.core.types import FieldName
 
 # ---------------------------------------------------------------------------
 # Acceptance table from implementation_plan.md, section 6 (WP-02)
@@ -81,7 +83,7 @@ def test_acceptance_valores_equivalentes(
     campo: str, esperado: str | None, obtido: str | None, expected_match: bool
 ) -> None:
     """Verifies the three equivalence cases from the specification acceptance table."""
-    result = valores_equivalentes(campo, esperado, obtido)
+    result = valores_equivalentes(cast(FieldName, campo), esperado, obtido)
     assert result is expected_match, (
         f"valores_equivalentes({campo!r}, {esperado!r}, {obtido!r}) returned {result}, expected {expected_match}"
     )
@@ -200,13 +202,21 @@ def test_valores_equivalentes_additional(
     campo: str, esperado: str | None, obtido: str | None, equivalente: bool
 ) -> None:
     """Verifies symmetric handling of blank strings, None, and dotted suffixes."""
-    assert valores_equivalentes(campo, esperado, obtido) is equivalente
+    assert valores_equivalentes(cast(FieldName, campo), esperado, obtido) is equivalente
 
 
-def test_valores_equivalentes_rejeita_campo_desconhecido() -> None:
-    """Raises ValueError when given an unsupported canonical field name."""
+@pytest.mark.parametrize(
+    ("campo", "esperado", "obtido"),
+    [
+        ("desconhecido", "a", "a"),
+        ("desconhecido", None, None),
+        ("desconhecido", "", ""),
+    ],
+)
+def test_valores_equivalentes_rejeita_campo_desconhecido(campo: str, esperado: str | None, obtido: str | None) -> None:
+    """Raises ValueError for unsupported field names, even when both values are absent."""
     with pytest.raises(ValueError, match="Unsupported field"):
-        valores_equivalentes("desconhecido", "a", "a")
+        valores_equivalentes(cast(FieldName, campo), esperado, obtido)
 
 
 def test_parse_moeda_multiple_space_separated_amounts() -> None:

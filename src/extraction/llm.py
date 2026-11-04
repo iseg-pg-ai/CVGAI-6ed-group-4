@@ -27,7 +27,6 @@ Ref: Docs/Planning/implementation_plan.md, section 7, WP-10.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import re
 import sys
@@ -43,11 +42,11 @@ from src.core.normalizers import (
     parse_data,
     parse_moeda,
     parse_nif,
+    validar_data,
     validar_nif,
 )
 from src.core.types import (
     CONSUMIDOR_FINAL_NIF,
-    EARLIEST_PLAUSIBLE_DATE,
     FIELD_NAMES,
     LLM_PROVIDERS,
     OCR_ENGINES,
@@ -57,12 +56,11 @@ from src.core.types import (
     OcrDocument,
     OcrLine,
 )
+from src.extraction.llm_client import build_object_schema, coerce_line_id, parse_json_object
 
 if TYPE_CHECKING:
     from src.core.settings import Settings
     from src.extraction.llm_client import LLMClient
-
-_format_field = format_extraction_field
 
 
 logger = logging.getLogger(__name__)
@@ -122,32 +120,12 @@ estas chaves:
 }"""
 
 
-def _object_schema(properties: dict[str, Any]) -> dict[str, Any]:
-    """Build a closed object schema with every property required.
-
-    ``additionalProperties: false`` ensures strict schema enforcement and is supported by
-    local llama-server grammar constraints as well as sanitized by the Gemini client.
-
-    Args:
-        properties: Property schemas, keyed by property name.
-
-    Returns:
-        A JSON schema object requiring exactly the given properties.
-    """
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": list(properties),
-        "additionalProperties": False,
-    }
-
-
 #: Structured-output schema sent as ``response_format`` or ``response_schema``.
-SCHEMA: dict[str, Any] = _object_schema(
+SCHEMA: dict[str, Any] = build_object_schema(
     {
         **{name: {"type": "string"} for name in FIELD_NAMES},
-        "presente": _object_schema({name: {"type": "boolean"} for name in FIELD_NAMES}),
-        "linhas": _object_schema({name: {"type": "integer"} for name in FIELD_NAMES}),
+        "presente": build_object_schema({name: {"type": "boolean"} for name in FIELD_NAMES}),
+        "linhas": build_object_schema({name: {"type": "integer"} for name in FIELD_NAMES}),
     }
 )
 
@@ -163,35 +141,8 @@ class LLMResponseError(RuntimeError):
 
 
 def _parse_json_object(raw: str) -> dict[str, Any]:
-    """Recover the JSON object from a model response.
-
-    Tolerates the two shapes small models produce in practice: a fenced code block and a
-    sentence of prose before or after the object. Anything that still fails to parse raises.
-
-    Args:
-        raw: Raw text returned by the client.
-
-    Returns:
-        The decoded JSON object.
-
-    Raises:
-        LLMResponseError: When no JSON object can be decoded from the text.
-    """
-    text = raw.strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end < start:
-        raise LLMResponseError(f"Response contains no JSON object: {text[:200]!r}")
-
-    candidate = text[start : end + 1]
-    try:
-        payload = json.loads(candidate)
-    except json.JSONDecodeError as exc:
-        raise LLMResponseError(f"Response is not valid JSON: {exc}") from exc
-
-    if not isinstance(payload, dict):
-        raise LLMResponseError(f"Response JSON is a {type(payload).__name__}, expected an object")
-    return payload
+    """Recover the JSON object from a model response."""
+    return parse_json_object(raw, LLMResponseError)
 
 
 def _require_shape(payload: dict[str, Any]) -> None:
@@ -234,26 +185,8 @@ def _as_text(raw: object) -> str:
 
 
 def _line_id(raw: object, valid_ids: set[int]) -> int | None:
-    """Resolve the line a field claims to come from.
-
-    A number that does not exist in the document is discarded rather than trusted, because a
-    hallucinated identifier would make the interface highlight an unrelated region.
-
-    Args:
-        raw: Value of ``linhas[<field>]`` as decoded from JSON.
-        valid_ids: Identifiers present in the OCR document.
-
-    Returns:
-        The identifier, or ``None`` when it is absent or does not exist.
-    """
-    if raw is None or isinstance(raw, bool):
-        return None
-    if isinstance(raw, int):
-        return raw if raw in valid_ids else None
-    if isinstance(raw, str) and raw.strip().isdigit():
-        candidate = int(raw.strip())
-        return candidate if candidate in valid_ids else None
-    return None
+    """Resolve the line a field claims to come from."""
+    return coerce_line_id(raw, valid_ids)
 
 
 def _build_field(field: str, value: str, line_id: int | None) -> FieldValue:
@@ -293,7 +226,7 @@ def _build_field(field: str, value: str, line_id: int | None) -> FieldValue:
 
     if field == "data":
         parsed = parse_data(cleaned)
-        if parsed is None or not EARLIEST_PLAUSIBLE_DATE <= parsed <= date.today():
+        if parsed is None or not validar_data(parsed):
             return FieldValue(value=cleaned, status="INVALIDO", line_id=line_id)
         return FieldValue(value=parsed.isoformat(), status="ENCONTRADO", line_id=line_id)
 
@@ -418,17 +351,16 @@ def _field_from_payload(payload: dict[str, Any], field: str, lines: Sequence[Ocr
     if not value or value.lower() in {"default", "net", "none", "null", "n/a", "-"}:
         return FieldValue(value=None, status="AUSENTE")
 
-    # If the model marked absent, accept value only if it physically grounds in document text
-    if not (present is True or present == "true"):
-        valid_ids = {line.id for line in lines}
-        temp_field = _build_field(field, value, _line_id(payload["linhas"].get(field), valid_ids))
-        if temp_field.status != "ENCONTRADO":
-            return FieldValue(value=None, status="AUSENTE")
-        if temp_field.line_id is None and _locate_line(field, temp_field.value or "", lines) is None:
-            return FieldValue(value=None, status="AUSENTE")
-
     valid_ids = {line.id for line in lines}
     resolved = _build_field(field, value, _line_id(payload["linhas"].get(field), valid_ids))
+
+    # If the model marked absent, accept value only if it physically grounds in document text
+    if not (present is True or present == "true"):
+        if resolved.status != "ENCONTRADO":
+            return FieldValue(value=None, status="AUSENTE")
+        if resolved.line_id is None and _locate_line(field, resolved.value or "", lines) is None:
+            return FieldValue(value=None, status="AUSENTE")
+
     if resolved.line_id is None:
         located = _locate_line(field, resolved.value or "", lines)
         if located is not None:
@@ -460,15 +392,16 @@ def _reconcile_nifs(
 
     regex_merchant, regex_client = _extract_nifs(doc.lines, doc.image_size)
 
+    def _assign_client_and_fallback_merchant(new_client: FieldValue) -> tuple[FieldValue, FieldValue]:
+        if regex_merchant.status == "ENCONTRADO" and regex_merchant.value != new_client.value:
+            return regex_merchant, new_client
+        return FieldValue(value=None, status="AUSENTE"), new_client
+
     # If regex clearly found a customer NIF that the LLM missed or placed in merchant:
     if regex_client.value is not None and not explicit_client_contradiction:
         # Case A: LLM put the customer NIF into merchant field
         if merchant.value == regex_client.value or bool(merchant.value and merchant.value in regex_client.value):
-            client = regex_client
-            if regex_merchant.status == "ENCONTRADO" and regex_merchant.value != client.value:
-                merchant = regex_merchant
-            else:
-                merchant = FieldValue(value=None, status="AUSENTE")
+            merchant, client = _assign_client_and_fallback_merchant(regex_client)
         # Case B: LLM left client field absent
         elif client.status == "AUSENTE" and merchant.value != regex_client.value:
             client = regex_client
@@ -479,11 +412,7 @@ def _reconcile_nifs(
         and client.status == "AUSENTE"
         and not explicit_client_contradiction
     ):
-        client = merchant
-        if regex_merchant.status == "ENCONTRADO" and regex_merchant.value != client.value:
-            merchant = regex_merchant
-        else:
-            merchant = FieldValue(value=None, status="AUSENTE")
+        merchant, client = _assign_client_and_fallback_merchant(merchant)
 
     # Rule 2: LLM truncated client NIF into merchant field (e.g. 00037191 or 26103456)
     if (
@@ -494,11 +423,7 @@ def _reconcile_nifs(
         and not explicit_client_contradiction
         and bool(merchant.value and merchant.value in regex_client.value)
     ):
-        client = regex_client
-        if regex_merchant.status == "ENCONTRADO" and regex_merchant.value != client.value:
-            merchant = regex_merchant
-        else:
-            merchant = FieldValue(value=None, status="AUSENTE")
+        merchant, client = _assign_client_and_fallback_merchant(regex_client)
 
     # Rule 3: Client is absent but OCR regex found a distinct customer NIF
     if (
@@ -683,7 +608,7 @@ def main(
 
     print(f"\n--- LLM extraction ({extraction.method}, {extraction.elapsed_ms:.2f} ms) ---")
     for name, field in extraction.fields.items():
-        print(_format_field(name, field))
+        print(format_extraction_field(name, field))
 
     if args.show_raw and extraction.raw_response is not None:
         print("\n--- Raw response ---")

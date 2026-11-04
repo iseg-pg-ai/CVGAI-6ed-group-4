@@ -85,6 +85,19 @@ EARLIEST_PLAUSIBLE_DATE = date(2000, 1, 1)
 IMAGE_EXTENSIONS: tuple[str, ...] = (".jpg", ".jpeg", ".png")
 
 
+def validate_image(image: np.ndarray) -> None:
+    """Ensure an image array is non-empty and has positive dimensions.
+
+    Args:
+        image: Input numpy array representing an image.
+
+    Raises:
+        ValueError: If the input image is None, empty, or zero-sized.
+    """
+    if image is None or image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
+        raise ValueError("Input image must not be empty or zero-sized.")
+
+
 @dataclass(frozen=True, slots=True)
 class BBox:
     """Bounding box in pixels, in the reference frame of the processed image.

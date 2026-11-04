@@ -27,15 +27,21 @@ import re
 import sys
 import time
 from collections.abc import Sequence
-from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from src.core.cli_utils import format_extraction_field
-from src.core.normalizers import limpar_texto, normalizar_entidade, parse_data, parse_moeda, parse_nif, validar_nif
+from src.core.normalizers import (
+    limpar_texto,
+    normalizar_entidade,
+    parse_data,
+    parse_moeda,
+    parse_nif,
+    validar_data,
+    validar_nif,
+)
 from src.core.types import (
     CONSUMIDOR_FINAL_NIF,
-    EARLIEST_PLAUSIBLE_DATE,
     OCR_ENGINES,
     Extraction,
     FieldValue,
@@ -45,8 +51,6 @@ from src.core.types import (
 
 if TYPE_CHECKING:
     from src.core.settings import Settings
-
-_format_field = format_extraction_field
 
 
 #: Nine digits with optional single spaces or tabs between them.
@@ -304,23 +308,6 @@ def _header_band(lines: Sequence[OcrLine], image_size: tuple[int, int]) -> list[
     return list(lines[: max(1, len(lines) // 3)])
 
 
-def _is_plausible_date(parsed: date) -> bool:
-    """Reject dates a receipt cannot carry.
-
-    Hyphenated dates are read as ``YY-MM-DD`` by :func:`src.core.normalizers.parse_data`, so a
-    receipt printed as ``DD-MM-YY`` can be misread into the next decade. An issue date in the
-    future is impossible, which makes the upper bound a cheap way to drop those misreads and
-    fall through to the next candidate line.
-
-    Args:
-        parsed: Date returned by the normaliser.
-
-    Returns:
-        Whether the date is inside the plausible window.
-    """
-    return EARLIEST_PLAUSIBLE_DATE <= parsed <= date.today()
-
-
 def _extract_date(lines: Sequence[OcrLine]) -> FieldValue:
     """Pick the first plausible issue date, in ISO form.
 
@@ -332,7 +319,7 @@ def _extract_date(lines: Sequence[OcrLine]) -> FieldValue:
     """
     for line in lines:
         parsed = parse_data(line.text)
-        if parsed is None or not _is_plausible_date(parsed):
+        if parsed is None or not validar_data(parsed):
             continue
         return FieldValue(value=parsed.isoformat(), status="ENCONTRADO", line_id=line.id)
 
@@ -450,7 +437,7 @@ def main(
 
     print(f"\n--- Regex baseline ({len(doc.lines)} lines, {extraction.elapsed_ms:.2f} ms) ---")
     for name, field in extraction.fields.items():
-        print(_format_field(name, field))
+        print(format_extraction_field(name, field))
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from src.core.types import ROTATION_CHOICES, RotationOption
+from src.core.types import ROTATION_CHOICES, RotationOption, validate_image
 
 if TYPE_CHECKING:
     from src.core.settings import Settings
@@ -559,8 +559,7 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
     Raises:
         ValueError: If the input image is empty or has zero area.
     """
-    if image is None or image.size == 0 or image.shape[0] == 0 or image.shape[1] == 0:
-        raise ValueError("Input image must not be empty or zero-sized.")
+    validate_image(image)
 
     options = opts or PreprocessOptions()
 
@@ -582,35 +581,22 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
             cropped = resize_max_side(crop_receipt(oriented_source), max_side=options.max_side)
         else:
             cropped = oriented.copy()
-        if options.auto_deskew:
-            cropped, _ = deskew_image(cropped)
-        steps["rodada"] = oriented.copy()
-        steps["recortada"] = cropped.copy()
-    else:
-        if options.auto_crop:
-            cropped_hires, did_crop = _crop_receipt_with_status(crop_source)
-            if did_crop:
-                cropped = resize_max_side(cropped_hires, max_side=options.max_side)
-                oriented_full, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
-                if options.auto_deskew:
-                    cropped, _ = deskew_image(cropped)
-                steps["rodada"] = oriented_full.copy()
-                steps["recortada"] = cropped.copy()
-            else:
-                oriented, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
-                oriented_source, _ = orient_image(crop_source, rotation_deg="auto")
-                cropped = resize_max_side(crop_receipt(oriented_source), max_side=options.max_side)
-                if options.auto_deskew:
-                    cropped, _ = deskew_image(cropped)
-                steps["rodada"] = oriented.copy()
-                steps["recortada"] = cropped.copy()
+    elif options.auto_crop:
+        cropped_hires, did_crop = _crop_receipt_with_status(crop_source)
+        oriented, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
+        if did_crop:
+            cropped = resize_max_side(cropped_hires, max_side=options.max_side)
         else:
-            oriented, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
-            cropped = oriented.copy()
-            if options.auto_deskew:
-                cropped, _ = deskew_image(cropped)
-            steps["rodada"] = oriented.copy()
-            steps["recortada"] = cropped.copy()
+            oriented_source, _ = orient_image(crop_source, rotation_deg="auto")
+            cropped = resize_max_side(crop_receipt(oriented_source), max_side=options.max_side)
+    else:
+        oriented, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
+        cropped = oriented.copy()
+
+    if options.auto_deskew:
+        cropped, _ = deskew_image(cropped)
+    steps["rodada"] = oriented.copy()
+    steps["recortada"] = cropped.copy()
 
     # Step 4: Shadow attenuation and CLAHE contrast enhancement
     gray = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
@@ -640,18 +626,23 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
         if osd_rotate == 0:
             osd_rotate = detect_orientation_osd(filtered_bgr, min_confidence=2.5, tesseract_cmd=options.tesseract_cmd)
 
-        if not is_confirmed_upright_qr and (is_upside_down_qr or osd_rotate == 180):
-            filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_180)
-            steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_180)
-            effective_rotation = (effective_rotation + 180) % 360
-        elif not is_confirmed_upright_qr and osd_rotate == 90:
-            filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_CLOCKWISE)
-            steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_90_CLOCKWISE)
-            effective_rotation = (effective_rotation + 90) % 360
-        elif not is_confirmed_upright_qr and osd_rotate == 270:
-            filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_90_COUNTERCLOCKWISE)
-            effective_rotation = (effective_rotation + 270) % 360
+        target_rotate = 0
+        if not is_confirmed_upright_qr:
+            if is_upside_down_qr or osd_rotate == 180:
+                target_rotate = 180
+            elif osd_rotate in (90, 270):
+                target_rotate = osd_rotate
+
+        if target_rotate:
+            cv_rot_map = {
+                90: cv2.ROTATE_90_CLOCKWISE,
+                180: cv2.ROTATE_180,
+                270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+            }
+            cv_rot = cv_rot_map[target_rotate]
+            filtered_bgr = cv2.rotate(filtered_bgr, cv_rot)
+            steps["recortada"] = cv2.rotate(steps["recortada"], cv_rot)
+            effective_rotation = (effective_rotation + target_rotate) % 360
 
     steps["filtrada"] = filtered_bgr.copy()
 
