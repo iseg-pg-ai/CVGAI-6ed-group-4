@@ -57,11 +57,11 @@ _format_field = format_extraction_field
 _NIF_SCAN = re.compile(r"(?<!\d)\d(?:[ \t]*\d){8}(?!\d)")
 
 #: Words that identify the customer side of a receipt.
-_CLIENT_MARKER = re.compile(r"\b(?:cliente|adquirente|consumidor|consumidora)\b")
+_CLIENT_MARKER = re.compile(r"\b(?:cliente|adquirente|consumidor|consumidora|n\s+c|cont\s+n\w*|contr|apelido)\b")
 
 #: Words that identify the issuer side of a receipt. Bare ``contribuinte`` belongs here: on
 #: Portuguese receipts it labels the merchant's own NIF far more often than the customer's.
-_MERCHANT_MARKER = re.compile(r"\b(?:nif|nipc|contribuinte|emitente|comerciante|empresa)\b")
+_MERCHANT_MARKER = re.compile(r"\b(?:nif|nipc|contribuinte|emitente|comerciante|empresa|crc)\b")
 
 #: Words that disqualify a line from being the merchant trading name.
 _ENTITY_STOPWORDS = re.compile(
@@ -77,7 +77,7 @@ _ENTITY_STOPWORDS = re.compile(
 #: and breakdown lines such as ``TOTAL IVA 3,02`` out of the result. ``SUBTOTAL`` never
 #: matches because there is no word boundary between ``SUB`` and ``TOTAL``.
 _TOTAL_LINE = re.compile(
-    r"\b(?:(?:VALOR\s+)?TOTAL(?:\s+(?:A\s+PAGAR|LIQUIDO|GERAL|FINAL))?|(?:VALOR\s+)?A\s+PAGAR)\s*[\s:.]*"
+    r"\b(?:(?:VALOR\s+)?(?:TOTAL|[TI17][O0]T[A4]L)(?:\s+(?:(?:A\s+)?PAGAR|PAGO|LIQUIDO|GERAL|FINAL))?|(?:VALOR\s+)?A\s+PAGAR)\s*[\s:.]*"
     r"(?:EUR|EUROS|€)?\s*"
     r"(?P<amount>\d{1,3}(?:[ \u00a0\u202f.]\d{3})*[.,]\d{2}|\d+[.,]\d{2})"
     r"\s*(?:EUR|EUROS|€)?\s*$",
@@ -215,32 +215,64 @@ def _extract_nifs(lines: Sequence[OcrLine], image_size: tuple[int, int]) -> tupl
     client_pairs: list[tuple[str, OcrLine]] = []
     bare_pairs: list[tuple[str, OcrLine]] = []
 
-    for line in lines:
+    for idx, line in enumerate(lines):
         folded = _fold(line.text)
         nifs = [nif for nif in _nifs_in(line.text) if nif != CONSUMIDOR_FINAL_NIF]
         if not nifs:
             continue
 
-        has_client = _CLIENT_MARKER.search(folded) is not None
+        has_preceding_client_context = False
+        for back in range(1, min(9, idx + 1)):
+            back_folded = _fold(lines[idx - back].text)
+            if re.search(r"\b(?:nome|vome|apelido|cliente|morada)\b", back_folded):
+                has_preceding_client_context = True
+                break
+
+        has_client = (_CLIENT_MARKER.search(folded) is not None) or has_preceding_client_context
+        # Exclude customer support phone helplines (e.g. "Apoio ao Cliente: 808 20 45 45")
+        if re.search(r"\b(?:apoio|suporte|linha)\b", folded):
+            has_client = False
         has_merchant = _MERCHANT_MARKER.search(folded) is not None
 
         if has_client:
-            client_pairs.append((nifs[-1], line))
+            valid_c = [n for n in nifs if validar_nif(n)]
+            client_pairs.append((valid_c[-1] if valid_c else nifs[-1], line))
             if has_merchant and len(nifs) > 1:
-                merchant_pairs.append((nifs[0], line))
+                valid_m = [n for n in nifs[:-1] if validar_nif(n)]
+                merchant_pairs.append((valid_m[0] if valid_m else nifs[0], line))
         elif has_merchant:
-            merchant_pairs.append((nifs[0], line))
+            valid_m = [n for n in nifs if validar_nif(n)]
+            merchant_pairs.append((valid_m[0] if valid_m else nifs[0], line))
         else:
             bare_pairs.extend((nif, line) for nif in nifs)
 
     client_nif, client_line = client_pairs[0] if client_pairs else (None, None)
 
     if merchant_pairs:
-        merchant_nif, merchant_line = merchant_pairs[0]
+        # Prefer collective (merchant: 5/6) over individual (customer: 1/2/3) NIFs for merchant
+        coll = [p for p in merchant_pairs if p[0][0] in "56" and validar_nif(p[0])]
+        indiv = [p for p in merchant_pairs if p[0][0] in "123"]
+        if client_nif is None and coll and indiv:
+            merchant_nif, merchant_line = coll[0]
+            client_nif, client_line = indiv[-1]
+        elif coll:
+            merchant_nif, merchant_line = coll[0]
+        else:
+            merchant_nif, merchant_line = merchant_pairs[0]
     else:
         header_ids = {line.id for line in _header_band(lines, image_size)}
-        fallback = [(nif, line) for nif, line in bare_pairs if line.id in header_ids and nif != client_nif]
+        fallback = [
+            (nif, line) for nif, line in bare_pairs if line.id in header_ids and nif != client_nif and validar_nif(nif)
+        ]
         merchant_nif, merchant_line = fallback[0] if fallback else (None, None)
+
+    # Fallback: if merchant_pairs only has an individual NIF (1/2/3) but bare header has a collective NIF (5/6)
+    if merchant_nif is not None and merchant_nif[0] in "123" and client_nif is None:
+        header_ids = {line.id for line in _header_band(lines, image_size)}
+        header_coll = [p for p in bare_pairs if p[1].id in header_ids and p[0][0] in "56"]
+        if header_coll:
+            client_nif, client_line = merchant_nif, merchant_line
+            merchant_nif, merchant_line = header_coll[0]
 
     if client_nif is not None and client_nif == merchant_nif:
         client_nif, client_line = None, None
@@ -322,7 +354,8 @@ def _extract_total(lines: Sequence[OcrLine]) -> FieldValue:
     """
     chosen: tuple[OcrLine, str] | None = None
     for line in lines:
-        match = _TOTAL_LINE.search(limpar_texto(line.text))
+        cleaned = re.sub(r"(\d)\s*([.,])\s*(\d)", r"\1\2\3", limpar_texto(line.text))
+        match = _TOTAL_LINE.search(cleaned)
         if match is not None:
             chosen = (line, match.group("amount"))
 

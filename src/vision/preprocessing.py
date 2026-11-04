@@ -416,31 +416,36 @@ def deskew_image(
     return deskewed, angle
 
 
+def _detect_qr_vertical_ratio(image: np.ndarray) -> float | None:
+    """Return vertical centroid ratio (0.0 to 1.0) of QR code if detected, else None."""
+    h, w = image.shape[:2]
+    if h <= w:
+        return None
+    detector = cv2.QRCodeDetector()
+    try:
+        found, points = detector.detect(image)
+    except cv2.error:
+        return None
+    if not found or points is None or points.size == 0:
+        return None
+    pts = points.reshape(-1, 2)
+    return float(pts[:, 1].mean()) / float(h)
+
+
 def detect_upside_down_qr(image: np.ndarray) -> bool:
     """Detect 180-degree upside-down orientation via OpenCV QR code footer location.
 
     On Portuguese fiscal receipts, the AT QR code is printed in the footer (bottom half).
-    If a QR code is detected in the upper 45% of a portrait image, the receipt is upside-down.
+    If a QR code is detected in the upper 25% of a portrait image, the receipt is upside-down.
 
     Args:
         image: Portrait BGR or grayscale receipt image.
 
     Returns:
-        True when a QR code is detected in the top 45% of the image, False otherwise.
+        True when a QR code is detected in the top 25% of the image, False otherwise.
     """
-    h, w = image.shape[:2]
-    if h <= w:
-        return False
-    detector = cv2.QRCodeDetector()
-    try:
-        found, points = detector.detect(image)
-    except cv2.error:
-        return False
-    if not found or points is None or points.size == 0:
-        return False
-    pts = points.reshape(-1, 2)
-    center_y = float(pts[:, 1].mean())
-    return center_y < (h * 0.45)
+    ratio = _detect_qr_vertical_ratio(image)
+    return ratio is not None and ratio < 0.25
 
 
 def attenuate_shadows(gray: np.ndarray, kernel_size: int = 25) -> np.ndarray:
@@ -455,6 +460,8 @@ def attenuate_shadows(gray: np.ndarray, kernel_size: int = 25) -> np.ndarray:
     """
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
     background = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
+    blur_ksize = kernel_size | 1
+    background = cv2.GaussianBlur(background, (blur_ksize, blur_ksize), 0)
     background = np.maximum(background, 1)
     return cv2.divide(gray, background, scale=255)
 
@@ -563,19 +570,27 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
     # Step 1: Resize
     raw_resized = resize_max_side(bgr, max_side=options.max_side)
     steps: dict[str, np.ndarray] = {"bruta": raw_resized.copy()}
+    crop_source = (
+        resize_max_side(bgr, max_side=max(options.max_side * 2, options.max_side)) if options.auto_crop else raw_resized
+    )
 
     # Step 2 & 3: Orientation, 4-point perspective crop, and continuous deskew
     if options.rotation_deg != "auto":
         oriented, effective_rotation = orient_image(raw_resized, rotation_deg=options.rotation_deg)
-        cropped = crop_receipt(oriented) if options.auto_crop else oriented.copy()
+        if options.auto_crop:
+            oriented_source, _ = orient_image(crop_source, rotation_deg=options.rotation_deg)
+            cropped = resize_max_side(crop_receipt(oriented_source), max_side=options.max_side)
+        else:
+            cropped = oriented.copy()
         if options.auto_deskew:
             cropped, _ = deskew_image(cropped)
         steps["rodada"] = oriented.copy()
         steps["recortada"] = cropped.copy()
     else:
         if options.auto_crop:
-            cropped, did_crop = _crop_receipt_with_status(raw_resized)
+            cropped_hires, did_crop = _crop_receipt_with_status(crop_source)
             if did_crop:
+                cropped = resize_max_side(cropped_hires, max_side=options.max_side)
                 oriented_full, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
                 if options.auto_deskew:
                     cropped, _ = deskew_image(cropped)
@@ -583,7 +598,8 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
                 steps["recortada"] = cropped.copy()
             else:
                 oriented, effective_rotation = orient_image(raw_resized, rotation_deg="auto")
-                cropped = crop_receipt(oriented)
+                oriented_source, _ = orient_image(crop_source, rotation_deg="auto")
+                cropped = resize_max_side(crop_receipt(oriented_source), max_side=options.max_side)
                 if options.auto_deskew:
                     cropped, _ = deskew_image(cropped)
                 steps["rodada"] = oriented.copy()
@@ -608,26 +624,34 @@ def preprocess(image: np.ndarray, opts: PreprocessOptions | None = None) -> Prep
 
     filtered_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
-    # Step 5: Semantic flip verification via OpenCV QR footer heuristic and Tesseract OSD fallback
+    # Step 5: Semantic flip verification via QR position ratio and Tesseract OSD
     if options.rotation_deg == "auto" and options.auto_orient_osd:
-        if detect_upside_down_qr(cropped) or detect_upside_down_qr(filtered_bgr):
+        qr_ratio = _detect_qr_vertical_ratio(cropped)
+        if qr_ratio is None:
+            qr_ratio = _detect_qr_vertical_ratio(filtered_bgr)
+
+        # In Portugal, QR codes are never printed in the header (top 25%).
+        # If detected at ratio < 0.25, the receipt is upside down.
+        # If detected at ratio >= 0.30, it is confirmed right-side up.
+        is_upside_down_qr = (qr_ratio is not None) and (qr_ratio < 0.25)
+        is_confirmed_upright_qr = (qr_ratio is not None) and (qr_ratio >= 0.30)
+
+        osd_rotate = detect_orientation_osd(cropped, min_confidence=2.5, tesseract_cmd=options.tesseract_cmd)
+        if osd_rotate == 0:
+            osd_rotate = detect_orientation_osd(filtered_bgr, min_confidence=2.5, tesseract_cmd=options.tesseract_cmd)
+
+        if not is_confirmed_upright_qr and (is_upside_down_qr or osd_rotate == 180):
             filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_180)
             steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_180)
             effective_rotation = (effective_rotation + 180) % 360
-        else:
-            osd_rotate = detect_orientation_osd(filtered_bgr, min_confidence=3.0, tesseract_cmd=options.tesseract_cmd)
-            if osd_rotate == 180:
-                filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_180)
-                steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_180)
-                effective_rotation = (effective_rotation + 180) % 360
-            elif osd_rotate == 90:
-                filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_CLOCKWISE)
-                steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_90_CLOCKWISE)
-                effective_rotation = (effective_rotation + 90) % 360
-            elif osd_rotate == 270:
-                filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_90_COUNTERCLOCKWISE)
-                effective_rotation = (effective_rotation + 270) % 360
+        elif not is_confirmed_upright_qr and osd_rotate == 90:
+            filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_CLOCKWISE)
+            steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_90_CLOCKWISE)
+            effective_rotation = (effective_rotation + 90) % 360
+        elif not is_confirmed_upright_qr and osd_rotate == 270:
+            filtered_bgr = cv2.rotate(filtered_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            steps["recortada"] = cv2.rotate(steps["recortada"], cv2.ROTATE_90_COUNTERCLOCKWISE)
+            effective_rotation = (effective_rotation + 270) % 360
 
     steps["filtrada"] = filtered_bgr.copy()
 

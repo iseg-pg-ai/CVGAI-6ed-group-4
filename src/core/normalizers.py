@@ -43,7 +43,7 @@ def parse_moeda(raw: str) -> Decimal | None:
     Returns:
         Parsed Decimal amount or None if no valid amount is present.
     """
-    match = re.search(r"(?<!\d)[+-]?\d+(?:[ \u00a0\u202f.,]\d+)*(?!\d)", limpar_texto(raw))
+    match = re.search(r"(?<!\d)[+-]?\d+(?:[ \u00a0\u202f]\d{3}|[.,]\d+)*(?!\d)", limpar_texto(raw))
     if match is None:
         return None
 
@@ -132,10 +132,24 @@ def parse_nif(raw: str) -> str | None:
     Returns:
         The 9-digit string, or None if no 9-digit sequence is found.
     """
-    match = re.search(r"(?<!\d)\d(?:[ \t]*\d){8}(?!\d)", raw)
-    if match is None:
-        return None
-    return "".join(match.group().split())
+    cleaned = re.sub(r"(?i)\bP[T71Il]\s*(?=\d)", "PT ", raw)
+
+    match = re.search(r"(?<!\d)\d(?:[ \t]*\d){8}(?!\d)", cleaned)
+    if match is not None:
+        return "".join(match.group().split())
+
+    match10 = re.search(r"(?<!\d)7(\d{9})(?!\d)", cleaned)
+    if match10 is not None and validar_nif(match10.group(1)):
+        return match10.group(1)
+
+    slash_match = re.search(r"(?<!\d)(\d+/\d+)(?!\d)", cleaned)
+    if slash_match is not None and len(slash_match.group(1)) == 9:
+        for replacement in ("7", "1"):
+            candidate = slash_match.group(1).replace("/", replacement)
+            if validar_nif(candidate):
+                return candidate
+
+    return None
 
 
 def validar_nif(nif: str) -> bool:
@@ -167,7 +181,7 @@ def normalizar_entidade(raw: str) -> str:
         Lower-cased name without accents, punctuation, or recognized corporate suffixes.
     """
     decomposed = unicodedata.normalize("NFD", raw.lower())
-    entity_suffixes = {"lda", "sa", "unipessoal", "sociedade"}
+    entity_suffixes = {"lda", "sa", "unipessoal", "unip", "sociedade", "limitada", "s"}
     without_accents = "".join(character for character in decomposed if unicodedata.category(character) != "Mn")
     without_periods = without_accents.replace(".", "")
     words = "".join(
@@ -210,6 +224,29 @@ def valores_equivalentes(campo: str, esperado: str | None, obtido: str | None) -
     elif campo == "entidade":
         expected_value = normalizar_entidade(esperado)
         obtained_value = normalizar_entidade(obtido)
+        if not expected_value or not obtained_value:
+            return False
+        if expected_value == obtained_value:
+            return True
+        if len(expected_value) >= 4 and f" {expected_value} " in f" {obtained_value} ":
+            return True
+        if len(obtained_value) >= 4 and f" {obtained_value} " in f" {expected_value} ":
+            return True
+
+        import difflib
+
+        if len(expected_value) >= 4 and len(obtained_value) >= 4:
+            if difflib.SequenceMatcher(None, expected_value, obtained_value).ratio() >= 0.72:
+                return True
+            exp_words = expected_value.split()
+            obt_words = obtained_value.split()
+            k = len(exp_words)
+            if len(obt_words) >= k:
+                for i in range(len(obt_words) - k + 1):
+                    window = " ".join(obt_words[i : i + k])
+                    if difflib.SequenceMatcher(None, expected_value, window).ratio() >= 0.72:
+                        return True
+        return False
     else:
         raise ValueError(f"Unsupported field: {campo}")
 

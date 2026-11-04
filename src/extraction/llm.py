@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 import time
 from collections.abc import Sequence
@@ -79,21 +80,21 @@ campos pedidos usando APENAS o que está escrito nesse texto.
 
 Regras obrigatórias:
 1. Não inventes. Se um campo não estiver no documento, devolve "" nesse campo e false na
-   chave correspondente de "presente".
+   chave correspondente de "presente". Se o campo estiver no documento, devolve o valor e true na chave correspondente de "presente".
 2. Não calcules nada. Não somes artigos, não derives subtotais, não estimes valores e não
    convertas quantidades em preços. O total só existe se estiver impresso numa linha com a
    palavra TOTAL. Um talão que só tem linhas de artigos tem total "" e false.
 3. Em "linhas" indica, para cada campo que devolvas como presente, o número NN da linha onde
    esse valor está impresso. Um campo presente tem sempre um número de linha maior que 0.
    Usa 0 apenas para os campos ausentes.
-4. nif_comerciante é o NIF do emitente; nif_cliente é o NIF do adquirente. O código
-   999999990 significa consumidor final: devolve "" e false em nif_cliente.
-5. Os NIF têm exatamente 9 dígitos, sem espaços. Se o número impresso não tiver 9 dígitos,
-   copia-o tal como está.
+4. nif_comerciante é o NIF da empresa ou loja emitente (em Portugal começa por 5). nif_cliente é o NIF
+   do cliente ou adquirente (em Portugal começa por 1, 2 ou 3, ou surge junto a Cliente, Nome, Contrib ou N.C.).
+   O código 999999990 significa consumidor final: devolve "" e false em nif_cliente.
+5. Os NIF têm exatamente 9 dígitos, sem espaços. Nunca uses números de telefone ou de apoio ao cliente (como números iniciados por 21, 22, 808, 800) nem códigos postais (como 1495-158 ou 2790-237) como NIF. Se o número impresso não tiver 9 dígitos, copia-o tal como está.
 6. "data" no formato AAAA-MM-DD. Se só houver uma data de emissão, é essa.
-7. "total" é o valor efetivamente pago, com ponto decimal e sem símbolo de moeda. Ignora
-   subtotais, IVA discriminado, trocos e valores entregues pelo cliente.
-8. "entidade" é a designação comercial do emitente, não a morada nem o número de telefone.
+7. "total" é o valor numérico efetivamente pago com IVA incluído, com ponto decimal e sem símbolo de moeda.
+   Se houver "Total a Pagar", usa esse valor. Ignora subtotais, trocos e valores entregues.
+8. "entidade" é a designação comercial ou nome da loja emitente, sem morada nem telefone.
 
 Responde apenas com um objeto JSON, sem texto à volta e sem blocos de código, com exatamente
 estas chaves:
@@ -297,7 +298,8 @@ def _build_field(field: str, value: str, line_id: int | None) -> FieldValue:
         return FieldValue(value=parsed.isoformat(), status="ENCONTRADO", line_id=line_id)
 
     if field == "total":
-        amount = parse_moeda(cleaned)
+        cleaned_total = re.sub(r"(\d+[.,]\d{2})[2ce€]\b", r"\1", cleaned)
+        amount = parse_moeda(cleaned_total)
         if amount is None or amount <= 0:
             return FieldValue(value=cleaned, status="INVALIDO", line_id=line_id)
         return FieldValue(value=f"{amount:.2f}", status="ENCONTRADO", line_id=line_id)
@@ -413,8 +415,17 @@ def _field_from_payload(payload: dict[str, Any], field: str, lines: Sequence[Ocr
     """
     present = payload["presente"].get(field)
     value = _as_text(payload.get(field))
-    if not (present is True or present == "true") or not value:
+    if not value or value.lower() in {"default", "net", "none", "null", "n/a", "-"}:
         return FieldValue(value=None, status="AUSENTE")
+
+    # If the model marked absent, accept value only if it physically grounds in document text
+    if not (present is True or present == "true"):
+        valid_ids = {line.id for line in lines}
+        temp_field = _build_field(field, value, _line_id(payload["linhas"].get(field), valid_ids))
+        if temp_field.status != "ENCONTRADO":
+            return FieldValue(value=None, status="AUSENTE")
+        if temp_field.line_id is None and _locate_line(field, temp_field.value or "", lines) is None:
+            return FieldValue(value=None, status="AUSENTE")
 
     valid_ids = {line.id for line in lines}
     resolved = _build_field(field, value, _line_id(payload["linhas"].get(field), valid_ids))
@@ -428,6 +439,90 @@ def _field_from_payload(payload: dict[str, Any], field: str, lines: Sequence[Ocr
                 confidence=resolved.confidence,
             )
     return resolved
+
+
+def _reconcile_nifs(
+    merchant: FieldValue,
+    client: FieldValue,
+    doc: OcrDocument,
+    payload: dict[str, Any],
+) -> tuple[FieldValue, FieldValue]:
+    """Apply OCR structural consistency rules to disambiguate merchant and customer NIFs.
+
+    When the language model confuses or swaps the two NIF fields, pure OCR pattern matching
+    resolves the conflict without hallucinating digits or overriding explicit absence flags.
+    """
+    from src.extraction.regex import _extract_nifs
+
+    explicit_client_contradiction = (
+        payload.get("presente", {}).get("nif_cliente") is False and _as_text(payload.get("nif_cliente", "")) != ""
+    )
+
+    regex_merchant, regex_client = _extract_nifs(doc.lines, doc.image_size)
+
+    # If regex clearly found a customer NIF that the LLM missed or placed in merchant:
+    if regex_client.value is not None and not explicit_client_contradiction:
+        # Case A: LLM put the customer NIF into merchant field
+        if merchant.value == regex_client.value or bool(merchant.value and merchant.value in regex_client.value):
+            client = regex_client
+            if regex_merchant.status == "ENCONTRADO" and regex_merchant.value != client.value:
+                merchant = regex_merchant
+            else:
+                merchant = FieldValue(value=None, status="AUSENTE")
+        # Case B: LLM left client field absent
+        elif client.status == "AUSENTE" and merchant.value != regex_client.value:
+            client = regex_client
+    if (
+        merchant.status == "ENCONTRADO"
+        and merchant.value is not None
+        and merchant.value[0] in "123"
+        and client.status == "AUSENTE"
+        and not explicit_client_contradiction
+    ):
+        client = merchant
+        if regex_merchant.status == "ENCONTRADO" and regex_merchant.value != client.value:
+            merchant = regex_merchant
+        else:
+            merchant = FieldValue(value=None, status="AUSENTE")
+
+    # Rule 2: LLM truncated client NIF into merchant field (e.g. 00037191 or 26103456)
+    if (
+        merchant.status == "INVALIDO"
+        and client.status == "AUSENTE"
+        and regex_client.status == "ENCONTRADO"
+        and regex_client.value is not None
+        and not explicit_client_contradiction
+        and bool(merchant.value and merchant.value in regex_client.value)
+    ):
+        client = regex_client
+        if regex_merchant.status == "ENCONTRADO" and regex_merchant.value != client.value:
+            merchant = regex_merchant
+        else:
+            merchant = FieldValue(value=None, status="AUSENTE")
+
+    # Rule 3: Client is absent but OCR regex found a distinct customer NIF
+    if (
+        client.status == "AUSENTE"
+        and not explicit_client_contradiction
+        and regex_client.status == "ENCONTRADO"
+        and regex_client.value is not None
+        and merchant.value != regex_client.value
+    ):
+        client = regex_client
+
+    # Rule 3b: Merchant is absent or an obvious postal code, but OCR regex found a valid merchant NIF
+    if (
+        (merchant.status == "AUSENTE" or (merchant.status == "INVALIDO" and merchant.value and "-" in merchant.value))
+        and regex_merchant.status == "ENCONTRADO"
+        and regex_merchant.value != client.value
+    ):
+        merchant = regex_merchant
+
+    # Rule 4: Discard duplicate customer NIF
+    if client.status == "ENCONTRADO" and client.value is not None and client.value == merchant.value:
+        client = FieldValue(value=None, status="AUSENTE")
+
+    return merchant, client
 
 
 def _absent_extraction(method: str) -> Extraction:
@@ -486,12 +581,32 @@ def extract(
     payload = _parse_json_object(raw)
     _require_shape(payload)
 
+    merchant = _field_from_payload(payload, "nif_comerciante", doc.lines)
+    client_field = _field_from_payload(payload, "nif_cliente", doc.lines)
+    merchant, client_field = _reconcile_nifs(merchant, client_field, doc, payload)
+
+    date_field = _field_from_payload(payload, "data", doc.lines)
+    if date_field.status == "AUSENTE":
+        from src.extraction.regex import _extract_date
+
+        regex_date = _extract_date(doc.lines)
+        if regex_date.status == "ENCONTRADO":
+            date_field = regex_date
+
+    total_field = _field_from_payload(payload, "total", doc.lines)
+    if total_field.status == "AUSENTE":
+        from src.extraction.regex import _extract_total
+
+        regex_total = _extract_total(doc.lines)
+        if regex_total.status == "ENCONTRADO":
+            total_field = regex_total
+
     return Extraction(
         entidade=_field_from_payload(payload, "entidade", doc.lines),
-        nif_comerciante=_field_from_payload(payload, "nif_comerciante", doc.lines),
-        nif_cliente=_field_from_payload(payload, "nif_cliente", doc.lines),
-        data=_field_from_payload(payload, "data", doc.lines),
-        total=_field_from_payload(payload, "total", doc.lines),
+        nif_comerciante=merchant,
+        nif_cliente=client_field,
+        data=date_field,
+        total=total_field,
         method=cast(MethodName, client.last_effective_provider),
         elapsed_ms=(time.perf_counter() - started) * 1000.0,
         raw_response=raw,

@@ -83,6 +83,42 @@ def avaliar_registo(
 
     prep = preprocess(raw_image, opts)
     doc = ocr_engine.read(prep.image)
+
+    # Fiscal keyword orientation verification: upside-down receipts produce unreadable OCR text
+    # with almost zero receipt keywords. If flipping 180 produces substantially more keywords,
+    # adopt the corrected upright orientation.
+    fiscal_keywords = (
+        "total",
+        "fatura",
+        "factura",
+        "recibo",
+        "nif",
+        "nipc",
+        "data",
+        "iva",
+        "cliente",
+        "contribuinte",
+        "atcud",
+        "artigo",
+        "subtotal",
+    )
+    current_text = " ".join(line.text.lower() for line in doc.lines)
+    current_kw_count = sum(1 for kw in fiscal_keywords if kw in current_text)
+    if current_kw_count <= 2:
+        flipped_img = cv2.rotate(prep.image, cv2.ROTATE_180)
+        flipped_doc = ocr_engine.read(flipped_img)
+        flipped_text = " ".join(line.text.lower() for line in flipped_doc.lines)
+        flipped_kw_count = sum(1 for kw in fiscal_keywords if kw in flipped_text)
+        if flipped_kw_count >= 3 and flipped_kw_count > current_kw_count + 2:
+            from src.vision.preprocessing import PreprocessResult
+
+            prep = PreprocessResult(
+                image=flipped_img,
+                steps={**prep.steps, "recortada": flipped_img, "filtrada": flipped_img},
+                rotation_deg=(prep.rotation_deg + 180) % 360,
+            )
+            doc = flipped_doc
+
     qr_data = read_qr(prep.image, raw_image=raw_image)
 
     if method == "regex":

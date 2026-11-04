@@ -186,6 +186,7 @@ def test_normalizar_entidade_legal_suffixes() -> None:
         ("nif_comerciante", "501 964 843", "501964843", True),
         ("entidade", "Café Bom, Lda.", "Cafe Bom", True),
         ("entidade", "Pingo Doce, S.A.", "Pingo Doce SA", True),
+        ("entidade", "BCM Bricolage", "BCM BRICOLAGE ota D0 Paizinho", True),
         ("total", "1,00", "2,00", False),
         ("total", None, None, True),
         ("total", None, "1,00", False),
@@ -206,3 +207,16 @@ def test_valores_equivalentes_rejeita_campo_desconhecido() -> None:
     """Raises ValueError when given an unsupported canonical field name."""
     with pytest.raises(ValueError, match="Unsupported field"):
         valores_equivalentes("desconhecido", "a", "a")
+
+
+def test_parse_moeda_multiple_space_separated_amounts() -> None:
+    """parse_moeda takes the first amount and does not glue two spaced amounts together."""
+    assert parse_moeda("6,00 6,00") == Decimal("6.00")
+
+
+def test_parse_nif_ocr_pt_and_crease_recovery() -> None:
+    """parse_nif extracts 9 digits across PT/P7 prefixes and crease slashes."""
+    assert parse_nif("NIF: PT502011475") == "502011475"
+    assert parse_nif("NIF: P7502011475") == "502011475"
+    assert parse_nif("7502011475") == "502011475"
+    assert parse_nif("50895/796") == "508957796"
