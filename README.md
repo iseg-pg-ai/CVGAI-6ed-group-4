@@ -58,7 +58,7 @@ O extrator por LLM e o assistente de Q&A podem correr contra um `llama-server` l
 (`scripts/run_llama_server.sh`) ou contra a chave de API da Google (`GEMINI_API_KEY`) no `.env`.
 
 O corpus conta com 27 imagens recolhidas em `data/receipts/` (`01_...` a `27_...`) e
-`data/ground_truth.csv` contém os 27 registos correspondentes validados estruturalmente (WP-17 em curso de alinhamento semântico dos nomes de entidades).
+`data/ground_truth.csv` contém os 27 registos correspondentes validados por `scripts/check_golden_set.sh` (WP-17 concluído, com as designações comerciais alinhadas aos cabeçalhos impressos nos talões).
 
 ## Requisitos
 
@@ -332,7 +332,7 @@ uv run pytest -k "nif" -q                           # filtra por nome
 uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 ```
 
-Ficheiros atuais da suite (291 testes offline): `test_smoke.py`, `test_settings.py`,
+Ficheiros atuais da suite (296 testes offline): `test_smoke.py`, `test_settings.py`,
 `test_normalizers.py`, `test_golden_set.py`, `test_preprocessing.py`, `test_ocr_contract.py`,
 `test_ocr_tesseract.py`, `test_qr_reader.py`, `test_evidence.py`, `test_llm_client.py`,
 `test_extractor_regex.py`, `test_extractor_llm.py`, `test_qa_assistant.py`, `test_scoring.py`,
@@ -360,7 +360,7 @@ src/
   extraction/       extração estruturada (regex, LLM local/cloud) e assistente Q&A
   evaluation/       validação do golden set, pontuação, estatísticas e benchmark runner
   app.py            aplicação interativa Gradio com 3 separadores
-tests/              suite pytest com 291 testes, offline e determinística
+tests/              suite pytest com 296 testes, offline e determinística
 data/               imagens do golden set e verdade de referência
 results/            saídas do benchmark citadas no relatório
 Docs/               planeamento e apresentação
@@ -369,5 +369,5 @@ scripts/            validação do golden set (check_golden_set.sh) e arranque d
 ```
 
 O plano de implementação, com os pacotes de trabalho e os respetivos donos, está em
-`Docs/Planning/implementation_plan.md`; as regras para agentes e colaboradores estão em
+`Docs/implementation_plan.md`; as regras para agentes e colaboradores estão em
 `AGENTS.md`.

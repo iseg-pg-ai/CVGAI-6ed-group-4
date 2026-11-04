@@ -1,6 +1,6 @@
 """Run the receipt benchmark from image preprocessing through metric reporting.
 
-Ref: Docs/Planning/implementation_plan.md, section 6, WP-15.
+Ref: Docs/implementation_plan.md, section 6, WP-15.
 """
 
 from __future__ import annotations

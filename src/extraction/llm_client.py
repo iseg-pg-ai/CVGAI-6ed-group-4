@@ -4,7 +4,7 @@ Provides a uniform interface for local llama-server instances (Qwen2.5-3B) and G
 handling structured JSON schemas and automatic fallback to local inference on network, timeout,
 or quota failures.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-08.
+Ref: Docs/implementation_plan.md, section 7, WP-08.
 """
 
 from __future__ import annotations

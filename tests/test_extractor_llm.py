@@ -5,7 +5,7 @@ leaves the process. The payloads are the shapes a model actually returns, includ
 failure modes that matter: a contradiction between ``presente`` and the value, and a line
 number that does not exist in the document.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-10.
+Ref: Docs/implementation_plan.md, section 7, WP-10.
 """
 
 from __future__ import annotations

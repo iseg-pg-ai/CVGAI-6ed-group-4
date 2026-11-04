@@ -12,17 +12,17 @@ prazo real de submissão antes de partilhar.
 
 Equipa: Vitor (pipeline), José (camada de dados e métricas), Raquel (corpus e narrativa).
 
-**Estado em 2026-11-03.** WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09,
-WP-10, WP-11, WP-12, WP-13, WP-14, WP-15 e WP-16 estão fechados e integrados em `master`. O `src/settings.py`
+**Estado em 2026-11-04.** WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09,
+WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16 e WP-17 estão fechados e integrados em `master`. O `src/core/settings.py`
 foi acrescentado fora da numeração para centralizar o acesso ao ambiente e aos caminhos, e `scripts/check_golden_set.sh`
 valida o dataset de forma automática. O detalhe do que foi entregue, e do que diverge do plano original, está na secção 5.1.
-As restantes secções descrevem o alvo e continuam válidas para os pacotes por executar (WP-17, WP-18).
+As restantes secções descrevem o alvo e continuam válidas para o pacote por executar (WP-18).
 
 ---
 
 ## 0. Princípios de Engenharia
 
-1. **Contratos primeiro, implementação depois.** O ficheiro `src/types.py` é escrito e revisto
+1. **Contratos primeiro, implementação depois.** O ficheiro `src/core/types.py` é escrito e revisto
    antes de qualquer módulo. É isso que permite duas pessoas trabalharem em paralelo sem
    colisões.
 2. **Fronteiras de responsabilidade nítidas.** Cada ficheiro tem um dono. Um pacote de
@@ -201,16 +201,15 @@ código, e nessa altura já não há tempo para distinguir os dois.
 ```text
 CVGAI-6ed-group-4/
 ├── Docs/
-│   ├── Planning/
-│   │   ├── PROJECT_PLAN.md
-│   │   └── implementation_plan.md
+│   ├── assignment.pdf
+│   ├── implementation_plan.md
 │   └── Presentation/              # mini-apresentação da Raquel (pendente)
 ├── data/
 │   ├── receipts/                  # 27 imagens presentes (01_... a 27_...)
 │   │   ├── 01_direito_controlauto.jpg
 │   │   ├── 02_amachucado_tiendaanimal.jpg
 │   │   └── ...
-│   └── ground_truth.csv           # 27 registos preenchidos (em revisão semântica de entidade)
+│   └── ground_truth.csv           # 27 registos validados (WP-17 concluído)
 ├── models/                        # .gguf (git-ignored)
 ├── results/                       # saídas do benchmark (versionadas, pequenas)
 ├── src/
@@ -273,7 +272,7 @@ CVGAI-6ed-group-4/
 ```
 
 `feito` significa integrado em `master` com testes a passar; `pendente`, não iniciado. A árvore
-está atualizada a 2026-11-03. O `run_llama_server` existe também em `.ps1` e `.bat`, porque a
+está atualizada a 2026-11-04. O `run_llama_server` existe também em `.ps1` e `.bat`, porque a
 equipa trabalha em três sistemas.
 
 ### `.gitignore` (estado atual)
@@ -326,7 +325,7 @@ partilhadas do projeto (`FIELD_NAMES`, `GROUPS`, `OCR_ENGINES`, `LLM_PROVIDERS`,
 `GROUND_TRUTH_COLUMNS`, `MATCH_RESULT_COLUMNS`, `METRIC_NAMES`, `ROTATION_CHOICES`), impõe tipos `Literal`
 estritos (`OcrEngineName`, `MethodName`, `GroupName`, `FieldName`, `ProviderName`, `Status`, `AnswerStatus`,
 `MetricName`, `RotationOption`) nos atributos das dataclasses e valida a ordenação geométrica não-negativa
-(`x2 >= x1`, `y2 >= y1`) em `BBox.__post_init__`.
+(`x2 >= x1`, `y2 >= y1`) em `BBox.__post_init__`, além de exportar o validador partilhado `validate_image(image)`.
 A implementação acrescentou três membros derivados, sem alterar nenhum campo do rascunho original:
 
 | Tipo | Acrescento |
@@ -390,18 +389,17 @@ documento, para que a interface possa simplesmente esconder o painel de recorte.
 | WP-14 | Estatística do corpus | **José** | WP-03 | 2 a 3 h | `src/evaluation/dataset_stats.py` | feito |
 | WP-15 | Runner do benchmark | **José** | WP-13 | 4 a 5 h | `src/evaluation/evaluate.py`, `tests/test_evaluate.py` | feito |
 | WP-16 | Aplicação Gradio | Vitor | WP-04 a WP-12 | 10 h | `src/app.py` | feito |
-| WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` | em curso |
+| WP-17 | Golden set: imagens + CSV | **Raquel** | — | 3 a 4 h | `data/receipts/*`, `data/ground_truth.csv` | feito |
 | WP-18 | Mini-apresentação do golden set | **Raquel** | WP-17 | 3 h | `Docs/Presentation/` | pendente |
 
-O caminho crítico inicial (WP-00 → WP-01 → WP-04 → WP-05 → WP-09 → WP-10 → WP-12 → WP-16)
-e o runner do benchmark oficial (WP-15) encontram-se integralmente fechados e integrados em `master`.
-Os pacotes restantes são o alinhamento semântico dos nomes de entidades no golden set
-(WP-17, `data/ground_truth.csv`) e a mini-apresentação (WP-18).
+O caminho crítico inicial (WP-00 → WP-01 → WP-04 → WP-05 → WP-09 → WP-10 → WP-12 → WP-16),
+o runner do benchmark oficial (WP-15) e o golden set (WP-17) encontram-se integralmente fechados e integrados em `master`.
+O único pacote restante é a mini-apresentação (WP-18).
 
 ### 5.1 Estado das entregas e desvios face ao plano
 
-Fechados e integrados em `master` a 2026-11-03: WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06,
-WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15 e WP-16. A suite tem 291 testes offline que correm
+Fechados e integrados em `master` a 2026-11-04: WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06,
+WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16 e WP-17. A suite tem 296 testes offline que correm
 em cerca de 4,5 s, mais um teste `slow` com o EasyOCR real, deselecionado por omissão.
 
 Desvios que valem registo, porque afetam os pacotes seguintes:
@@ -414,13 +412,13 @@ Desvios que valem registo, porque afetam os pacotes seguintes:
 - **Organização modular em subpacotes.** Os módulos foram arrumados em 5 subpastas temáticas
   (`src/core/`, `src/vision/`, `src/ocr/`, `src/extraction/`, `src/evaluation/`), com `src/app.py`
   como entrada superior. Foi acrescentado `src/core/cli_utils.py` com funções partilhadas de
-  carregamento e formatação de talões em CLI, e `src/ocr/__init__.py` com a fábrica `build_ocr_engine`.
+  carregamento e formatação de talões em CLI (`list_receipt_images`, `resolve_and_load_receipt`, `format_extraction_field`), e `src/ocr/__init__.py` com a fábrica `build_ocr_engine`.
 - **Convenção de CLI.** Todos os módulos correm como `python -m src.<modulo>` e expõem
   `main(argv=None, settings_override=None)`. Os imports pesados (Pillow, EasyOCR, `settings`)
   ficam adiados para `main` ou para o construtor do motor. Isso mantém o import barato e é o
   que permite correr a suite em milissegundos.
-- **Validação de imagens.** Todas as funções públicas que recebem uma imagem levantam
-  `ValueError("Input image must not be empty or zero-sized.")` e devolvem sempre uma cópia, sem
+- **Validação de imagens.** Todas as funções públicas que recebem uma imagem usam `validate_image(image)` de `src/core/types.py`, levantando
+  `ValueError("Input image must not be empty or zero-sized.")` e devolvendo sempre uma cópia, sem
   mutar a entrada. Os testes de `evidence.py` verificam a não-destrutividade.
 - **WP-04:** além da heurística de proporção, o recorte faz warp de perspetiva com suporte a
   `minAreaRect`, existe compensação contínua de inclinação (`auto_deskew=False` por omissão), e a
@@ -436,32 +434,34 @@ Desvios que valem registo, porque afetam os pacotes seguintes:
   esbatido, para que a evidência ativa salte à vista.
 - **WP-02:** os normalizadores são puros e não leem ficheiros, ambiente nem desenham nada.
   `parse_data` utiliza `re.finditer` para testar todos os candidatos da linha, evitando saídas
-  prematuras provocadas por números de referência; `normalizar_entidade` remove sufixos societários
-  (`lda`, `sa`, `unipessoal`, `sociedade`) preservando pelo menos um token.
+  prematuras provocadas por números de referência; `validar_data` verifica `2000-01-01 <= parsed <= today`;
+  `parse_nif` normaliza prefixos `PT` distorcidos por OCR, recupera sequências de 10 dígitos iniciadas por `7` e repara barras (`/`) para `7` ou `1` quando validadas pelo dígito de controlo;
+  `normalizar_entidade` remove sufixos societários (`ENTITY_SUFFIXES`: `lda`, `sa`, `unipessoal`, `unip`, `sociedade`, `limitada`, `s`) preservando pelo menos um token; e `valores_equivalentes` valida `campo` antes de qualquer verificação de `None`.
 - **WP-06:** `TesseractEngine` agrega caixas de palavra por `(block_num, par_num, line_num)`,
   descarta `conf < 0`, expõe `image_to_data_fn` para injeção de testes e restaura o
   `pytesseract.pytesseract.tesseract_cmd` global no fim.
 - **WP-08:** `llm_client` expõe `OpenAICompatibleClient` (que serve o `llama-server` local),
-  `GeminiClient` (com sanitização recursiva de `additionalProperties` via `_sanitize_gemini_schema`)
-  e `FailoverLLMClient`. O suporte ao provedor direto `llm_openai` foi removido para focar a
+  `GeminiClient` (com sanitização recursiva de `additionalProperties` via `_sanitize_gemini_schema`),
+  `FailoverLLMClient`, e utilitários partilhados (`build_object_schema`, `parse_json_object`, `coerce_line_id`). O suporte ao provedor direto `llm_openai` foi removido para focar a
   comparação em Local vs. Google Gemini.
 - **WP-09:** ver a secção 6, WP-09, para as regras do baseline e as três armadilhas que o
   pacote fecha (sentinela do consumidor final, NIF duplicado e total com quantidade à frente).
   O padrão `_TOTAL_LINE` suporta qualificadores (`A PAGAR`, `LIQUIDO`, `GERAL`, `FINAL`) e
   prefixos de moeda.
 - **WP-10:** `extract` aceita um `client` injetável e, sem ele, constrói o provedor a partir do
-  ambiente. O `_locate_line` para o total pesquisa em ordem inversa (`reversed(lines)`) e prioriza
+  ambiente. Reconcilia `nif_comerciante` e `nif_cliente` contra a extração regex via `_reconcile_nifs`, recorre ao fallback regex para `data` e `total` quando o LLM devolve `AUSENTE`, e o `_locate_line` para o total pesquisa em ordem inversa (`reversed(lines)`) priorizando
   linhas com palavras-chave de total para não ancorar em linhas de artigos.
+- **WP-15:** `avaliar_registo` inclui verificação pós-OCR de orientação por palavras-chave fiscais, rodando a imagem 180° e repetindo o OCR quando a primeira passagem encontra `<= 2` palavras-chave e a imagem invertida produz `>= 3` palavras-chave (e pelo menos mais 3 do que a orientação inicial).
 - **Arranque do `llama-server` (`scripts/run_llama_server.*`).** O modelo por omissão é
   `models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf`, com porta 8080 e `NGL=0`.
 - **Validação do golden set (`scripts/check_golden_set.sh`).** Atalho que executa `src.evaluation.golden_set` e
   `src.evaluation.dataset_stats`.
 
-Estado atual do golden set e dependências do benchmark: o corpus conta com 27 imagens em
-`data/receipts/` e `data/ground_truth.csv` contém os 27 registos correspondentes, passando a validação
-estrutural a 100 %. Encontra-se em curso a revisão semântica do WP-17 para que os valores de `entidade`
-reflitam as designações comerciais exatamente como impressas nos talões em vez de slugs de ficheiro,
-antes de executar o benchmark oficial do WP-15.
+Estado atual do golden set e do benchmark: o corpus conta com 27 imagens em `data/receipts/` e
+`data/ground_truth.csv` contém os 27 registos correspondentes com as designações comerciais de
+`entidade` alinhadas aos cabeçalhos impressos nos talões (WP-17 concluído), passando a validação de
+`scripts/check_golden_set.sh` a 100 % e gerando os relatórios oficiais em `results/metrics.csv` e
+`results/metrics.md`.
 
 ---
 
@@ -509,6 +509,10 @@ def parse_data(raw: str) -> date | None:
     """
 
 
+def validar_data(parsed: date) -> bool:
+    """Validate whether a parsed receipt date falls between 2000-01-01 and today inclusive."""
+
+
 def parse_nif(raw: str) -> str | None:
     """Extract nine digits from 'NIF: 518396894', 'NIF 518 396 894', '518396894'."""
 
@@ -519,7 +523,7 @@ def validar_nif(nif: str) -> bool:
 
 def normalizar_entidade(raw: str) -> str:
     """Canonical form for comparison: lowercase, no accents, no punctuation,
-    no corporate suffixes (lda, sa, unipessoal), whitespace collapsed."""
+    no corporate suffixes (lda, sa, unipessoal, unip, sociedade, limitada, s), whitespace collapsed."""
 
 
 def valores_equivalentes(campo: FieldName, esperado: str | None, obtido: str | None) -> bool:
@@ -729,7 +733,11 @@ def agregar(resultados: list[MatchResult]) -> dict[str, dict[str, float]]:
     """
 
 
-def escrever_tabelas(resultados: list[MatchResult], destino: Path) -> None:
+def escrever_tabelas(
+    resultados: Sequence[MatchResult],
+    destino: Path,
+    metadata: dict[str, str] | None = None,
+) -> None:
     """Write results/metrics.csv and results/metrics.md (table for the report)."""
 ```
 
@@ -789,12 +797,12 @@ Orquestrar a avaliação fim a fim do pipeline sobre todos os documentos do gold
 (que são lidos diretamente pelo separador 3 da aplicação Gradio e citados no relatório).
 
 **Convenções obrigatórias do repositório (verificar antes de abrir MR):**
-1. **Docstring de topo com referência:** incluir `Ref: Docs/Planning/implementation_plan.md, section 6, WP-15.`
-2. **Imports pesados adiados:** no topo do ficheiro importar apenas tipos leves (`src.types`, `pathlib`, `collections.abc`, `argparse`). Adiar `cv2`, `EasyOCREngine`, `TesseractEngine`, `build_client`, `get_settings` para dentro de `main()` ou das funções quando os objetos injetáveis forem `None`.
+1. **Docstring de topo com referência:** incluir `Ref: Docs/implementation_plan.md, section 6, WP-15.`
+2. **Imports pesados adiados:** no topo do ficheiro importar apenas tipos leves (`src.core.types`, `pathlib`, `collections.abc`, `argparse`). Adiar `cv2`, `EasyOCREngine`, `TesseractEngine`, `build_client`, `get_settings` para dentro de `main()` ou das funções quando os objetos injetáveis forem `None`.
 3. **Sem `print` em funções de biblioteca:** `avaliar_corpus` não faz `print`; toda a saída de consola vive em `main()`.
 4. **Sem leitura direta de variáveis de ambiente:** usar exclusivamente `settings_override or get_settings()`.
 
-**Assinaturas a implementar em `src/evaluate.py`:**
+**Assinaturas a implementar em `src/evaluation/evaluate.py`:**
 
 ```python
 MethodName = Literal["regex", "llm_local", "llm_gemini"]
@@ -808,6 +816,7 @@ def avaliar_registo(
     method: MethodName = "regex",
     llm_client: LLMClient | None = None,
     preprocess_opts: PreprocessOptions | None = None,
+    settings: Settings | None = None,
 ) -> tuple[Extraction, list[MatchResult]]:
     """Run preprocessing, OCR, QR reading, extraction, and scoring for a single receipt.
 
@@ -818,6 +827,7 @@ def avaliar_registo(
         method: Extraction method ('regex', 'llm_local', or 'llm_gemini').
         llm_client: Optional injected LLM client (used when method != 'regex').
         preprocess_opts: Optional OpenCV preprocessing options. When None, default options apply.
+        settings: Optional Settings instance for configuring preprocessing or client fallback.
 
     Returns:
         Tuple of (Extraction, list of 5 MatchResult objects).
@@ -837,6 +847,8 @@ def avaliar_corpus(
     llm_client: LLMClient | None = None,
     preprocess_opts: PreprocessOptions | None = None,
     destino_resultados: Path | None = None,
+    settings: Settings | None = None,
+    progress_callback: Callable[[int, int, GroundTruthRecord], None] | None = None,
 ) -> list[MatchResult]:
     """Evaluate a sequence of ground-truth records and optionally write report tables.
 
@@ -849,6 +861,8 @@ def avaliar_corpus(
         preprocess_opts: Optional OpenCV preprocessing options.
         destino_resultados: When provided, calls ``escrever_tabelas(resultados, destino_resultados)``
             to generate ``metrics.csv`` and ``metrics.md``.
+        settings: Optional Settings instance forwarded to record evaluation.
+        progress_callback: Optional callback invoked before processing each receipt.
 
     Returns:
         Combined list of ``MatchResult`` objects across all evaluated receipts (5 per receipt).
@@ -867,7 +881,7 @@ def main(
 1. Construir o caminho da imagem: `image_path = receipts_dir / registo.filename`. Se não existir (`not image_path.is_file()`), levantar `FileNotFoundError(f"Receipt image not found: {image_path}")`.
 2. Ler a imagem com `cv2.imread(str(image_path))`. Se devolver `None`, levantar `ValueError(f"Unable to decode receipt image: {image_path}")`.
 3. Pré-processar a imagem: `prep = preprocess(raw_image, preprocess_opts or PreprocessOptions())`.
-4. Correr o OCR sobre a imagem pré-processada: `doc = ocr_engine.read(prep.image)`.
+4. Correr o OCR sobre a imagem pré-processada: `doc = ocr_engine.read(prep.image)`. Se a leitura inicial produzir `<= 2` palavras-chave fiscais (`total`, `fatura`, `nif`, `iva`, etc.) e a imagem rodada a 180° produzir `>= 3` palavras-chave (e pelo menos mais 3 do que a orientação inicial), adotar a imagem invertida e o respetivo `OcrDocument`.
 5. Ler o QR Code (para paridade de assinatura): `qr_data = read_qr(prep.image, raw_image=raw_image)`.
 6. Extrair os 5 campos estruturados:
    - Se `method == "regex"`: chamar `extract_regex(doc, qr=qr_data)`.
@@ -1025,14 +1039,12 @@ def main(argv: Sequence[str] | None = None, settings_override: Settings | None =
 - Recuperação do JSON: tolera bloco de código cercado e uma frase de prosa antes ou depois do
   objeto. Sem objeto descodificável, ou com uma chave obrigatória em falta, levanta
   `LLMResponseError`. Chaves desconhecidas são registadas em `logger.warning` e ignoradas.
-- `presente` é autoritativo. Um modelo que devolve texto com a flag a `false` está a
-  contradizer-se, e a leitura segura de uma contradição é a ausência: é isto que impede um
-  falso positivo num talão sem NIF de cliente.
+- `presente` é autoritativo por omissão: quando o modelo devolve texto mas marca `presente` a `false`, o valor só é aceite se passar a validação semântica do campo e puder ser fisicamente ancorado numa linha do OCR; caso contrário resulta em `AUSENTE`, impedindo falsos positivos num talão sem NIF de cliente.
 - Pós-processamento, sempre a desconfiar do modelo: `parse_nif` + `validar_nif` para os NIF (com
-  o sentinela do consumidor final a resultar em `AUSENTE`), `parse_data` para a data (com
-  rejeição de datas futuras), `parse_moeda` para o total (com rejeição de zero ou negativo). O
+  o sentinela do consumidor final a resultar em `AUSENTE`), `parse_data` + `validar_data` para a data (com
+  rejeição de datas futuras ou anteriores a `2000-01-01`), `parse_moeda` para o total (com rejeição de zero ou negativo). O
   que não sobrevive fica `INVALIDO` e conserva o texto, para a pontuação contar como erro e não
-  como omissão.
+  como omissão. Adicionalmente, `_reconcile_nifs` desambigua `nif_comerciante` e `nif_cliente` com recurso à extração regex sobre o OCR (corrigindo trocas, truncagens ou códigos postais), e `data` / `total` marcados como `AUSENTE` pelo LLM recorrem ao fallback regex quando este encontra um valor válido.
 - O prompt proíbe expressamente somas e cálculos (regra 2 do sistema). Sem isto, o modelo local
   real somou duas linhas de artigos (0,80 + 2,40 = 3,20) e marcou o total como presente num talão
   que não tinha total impresso.
@@ -1119,11 +1131,11 @@ NN_estado_comerciante_par.jpg
 
 Exemplos: `01_direito_pingo_doce.jpg`, `02_amarrotado_pingo_doce_par.jpg`.
 
-**Estado a 2026-11-03:** `data/receipts/` tem 27 imagens recolhidas (`01_direito_controlauto.jpg`,
+**Estado a 2026-11-04:** `data/receipts/` tem 27 imagens recolhidas (`01_direito_controlauto.jpg`,
 `02_amachucado_tiendaanimal.jpg`, etc., onde os talões amarrotados usam o prefixo `NN_amachucado_...`
 no nome do ficheiro e o grupo canónico `"amarrotado"` na coluna CSV) e `data/ground_truth.csv`
-contém os 27 registos que passam a validação estrutural do WP-03. Quando o WP-17 concluir o alinhamento
-semântico dos nomes de entidades, o benchmark (WP-15) pode ser executado.
+contém os 27 registos com os nomes comerciais de `entidade` alinhados aos cabeçalhos impressos (WP-17
+concluído), validados sem erros por `scripts/check_golden_set.sh` e avaliados pelo benchmark (WP-15).
 
 ### 8.3 Protocolo de captura
 

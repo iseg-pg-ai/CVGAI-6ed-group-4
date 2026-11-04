@@ -3,7 +3,7 @@
 Centralises every environment access and filesystem path resolution so no other module
 in the codebase calls os.getenv or deals with relative path quirks.
 
-Ref: Docs/Planning/implementation_plan.md, section 2.
+Ref: Docs/implementation_plan.md, section 2.
 """
 
 from __future__ import annotations

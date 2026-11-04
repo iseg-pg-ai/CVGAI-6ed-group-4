@@ -1,6 +1,6 @@
 """Summarize the receipt corpus by image group, merchant, and field presence.
 
-Ref: Docs/Planning/implementation_plan.md, section 6, WP-14.
+Ref: Docs/implementation_plan.md, section 6, WP-14.
 """
 
 from __future__ import annotations

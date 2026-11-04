@@ -1,6 +1,6 @@
 """Functions to normalise and compare receipt field values.
 
-Ref: Docs/Planning/implementation_plan.md, section 4.3.
+Ref: Docs/implementation_plan.md, section 4.3.
 """
 
 from __future__ import annotations

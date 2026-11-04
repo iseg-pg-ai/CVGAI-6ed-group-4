@@ -4,7 +4,7 @@ Extracts and parses the Portaria n.º 195/2020 key-value QR payload (* separated
 receipt images using cv2.QRCodeDetector with fallback enhancements. Used for cross-validation
 and comparison against OCR/LLM extractions.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-07.
+Ref: Docs/implementation_plan.md, section 7, WP-07.
 """
 
 from __future__ import annotations

@@ -17,7 +17,7 @@ Three behaviours are worth stating up front, because they are easy to get wrong:
   :func:`src.core.normalizers.parse_moeda`, because the latter returns the *first* number in a
   string and would read ``"TOTAL 2 UN 16,10"`` as ``2``.
 
-Ref: Docs/Planning/implementation_plan.md, section 5 (WP-09).
+Ref: Docs/implementation_plan.md, section 5 (WP-09).
 """
 
 from __future__ import annotations

@@ -3,7 +3,7 @@
 Word-level Tesseract bounding boxes are aggregated into receipt lines with bounded
 geometry and 1-based sequential line identifiers, satisfying the shared OcrEngine protocol.
 
-Ref: Docs/Planning/implementation_plan.md, section 4.5.
+Ref: Docs/implementation_plan.md, section 4.5.
 """
 
 from __future__ import annotations

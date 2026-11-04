@@ -4,7 +4,7 @@ Handles downsampling, rotation correction, receipt boundary detection and perspe
 fold/crease shadow removal via morphological background division, and thermal ink contrast
 enhancement via CLAHE.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-04.
+Ref: Docs/implementation_plan.md, section 7, WP-04.
 """
 
 from __future__ import annotations

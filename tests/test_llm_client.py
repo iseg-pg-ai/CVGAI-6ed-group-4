@@ -3,7 +3,7 @@
 All tests run strictly offline, deterministically, and in milliseconds by injecting
 mock client backends. No real API keys or running llama-server instances are required.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-08.
+Ref: Docs/implementation_plan.md, section 7, WP-08.
 """
 
 from __future__ import annotations

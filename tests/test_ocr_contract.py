@@ -3,7 +3,7 @@
 All standard tests run strictly offline, deterministically, and in milliseconds by injecting
 mock reader objects. Live weights testing is quarantined under the 'slow' pytest marker.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-05.
+Ref: Docs/implementation_plan.md, section 7, WP-05.
 """
 
 from __future__ import annotations

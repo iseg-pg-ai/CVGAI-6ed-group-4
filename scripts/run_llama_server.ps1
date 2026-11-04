@@ -2,7 +2,7 @@
 .SYNOPSIS
     Starts llama-server on Windows PowerShell for receipt extraction and verifiable Q&A.
 .DESCRIPTION
-    Ref: Docs/Planning/implementation_plan.md, section 1.1 and WP-08.
+    Ref: Docs/implementation_plan.md, section 1.1 and WP-08.
 
     Configuration precedence:
       1. Script parameters: -Model, -Port, -Ngl, -Ctx

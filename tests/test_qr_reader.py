@@ -3,7 +3,7 @@
 All tests run completely offline, deterministically, and fast using synthetic QR codes
 generated via cv2.QRCodeEncoder or injected mock detectors.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-07.
+Ref: Docs/implementation_plan.md, section 7, WP-07.
 """
 
 from __future__ import annotations

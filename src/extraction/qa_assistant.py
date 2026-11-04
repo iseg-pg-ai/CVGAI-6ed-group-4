@@ -4,7 +4,7 @@ Answers natural language questions about a recognised receipt using the OCR text
 line identifiers, returning a structured :class:`src.core.types.Answer` with presence status and
 supporting line IDs for visual highlighting.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-12.
+Ref: Docs/implementation_plan.md, section 7, WP-12.
 """
 
 from __future__ import annotations

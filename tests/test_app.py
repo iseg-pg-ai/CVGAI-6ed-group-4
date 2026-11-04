@@ -3,7 +3,7 @@
 All tests run completely offline and deterministically in milliseconds without
 launching a live HTTP server, downloading external weights, or touching the real golden set.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-16.
+Ref: Docs/implementation_plan.md, section 7, WP-16.
 """
 
 from __future__ import annotations

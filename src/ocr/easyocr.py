@@ -3,7 +3,7 @@
 Extracts text lines and bounding boxes from preprocessed receipt images, clamping coordinates
 to image bounds, filtering empty tokens, and assigning stable sequential 1-based identifiers.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-05.
+Ref: Docs/implementation_plan.md, section 7, WP-05.
 """
 
 from __future__ import annotations

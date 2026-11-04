@@ -1,6 +1,6 @@
 """Score extraction results against the receipt ground truth.
 
-Ref: Docs/Planning/implementation_plan.md, section 4.7.
+Ref: Docs/implementation_plan.md, section 4.7.
 """
 
 from __future__ import annotations

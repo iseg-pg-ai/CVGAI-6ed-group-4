@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start llama-server for local receipt extraction and verifiable Q&A.
-# Ref: Docs/Planning/implementation_plan.md, section 1.1 and WP-08.
+# Ref: Docs/implementation_plan.md, section 1.1 and WP-08.
 #
 # Configuration precedence:
 #   1. CLI argument:       $0 <path/to/model.gguf>

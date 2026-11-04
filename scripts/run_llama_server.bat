@@ -1,6 +1,6 @@
 @echo off
 rem Starts llama-server on Windows Command Prompt for receipt extraction and Q&A.
-rem Ref: Docs/Planning/implementation_plan.md, section 1.1 and WP-08.
+rem Ref: Docs/implementation_plan.md, section 1.1 and WP-08.
 rem
 rem Configuration precedence:
 rem   1. CLI argument:       run_llama_server.bat <path\to\model.gguf>

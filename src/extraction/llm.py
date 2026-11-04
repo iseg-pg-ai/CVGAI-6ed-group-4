@@ -21,7 +21,7 @@ Three details drive the implementation and are easy to get wrong:
 The AT payload is accepted in the signature for parity with the regex baseline and is never
 used to fill a field, for the same reason documented in :mod:`src.extraction.regex`.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-10.
+Ref: Docs/implementation_plan.md, section 7, WP-10.
 """
 
 from __future__ import annotations

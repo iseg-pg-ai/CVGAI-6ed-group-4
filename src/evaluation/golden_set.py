@@ -1,6 +1,6 @@
 """Load and validate the receipt dataset ground truth.
 
-Ref: Docs/Planning/implementation_plan.md, section 6, WP-03.
+Ref: Docs/implementation_plan.md, section 6, WP-03.
 """
 
 from __future__ import annotations

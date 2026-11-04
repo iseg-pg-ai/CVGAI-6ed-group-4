@@ -4,7 +4,7 @@ This module is the coordination keystone of the project: every stage (preprocess
 extraction, question answering, scoring) exchanges only the types defined here. Changing a
 field or a name in this file is a contract change and must be announced to the team.
 
-Ref: Docs/Planning/implementation_plan.md, section 3.
+Ref: Docs/implementation_plan.md, section 3.
 """
 
 from dataclasses import dataclass

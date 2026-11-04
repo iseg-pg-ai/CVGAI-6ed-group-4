@@ -5,7 +5,7 @@ Every case builds a synthetic :class:`OcrDocument`; no image is decoded and noth
 notice in a benchmark: the consumer-final sentinel, the duplicate-NIF rule, and the fact that
 :func:`src.core.normalizers.parse_moeda` would read a quantity as the total.
 
-Ref: Docs/Planning/implementation_plan.md, section 5 (WP-09).
+Ref: Docs/implementation_plan.md, section 5 (WP-09).
 """
 
 from __future__ import annotations

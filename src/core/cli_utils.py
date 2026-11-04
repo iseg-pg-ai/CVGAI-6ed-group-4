@@ -1,6 +1,6 @@
 """Shared CLI utilities for receipt loading and result formatting.
 
-Ref: Docs/Planning/implementation_plan.md.
+Ref: Docs/implementation_plan.md.
 """
 
 from __future__ import annotations

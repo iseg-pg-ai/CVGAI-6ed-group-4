@@ -3,7 +3,7 @@
 Draws OCR spatial bounding boxes, highlights active answer evidence lines with semi-transparent
 colored overlays, and extracts padded zoomed image snippets supporting extracted fields or Q&A.
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-11.
+Ref: Docs/implementation_plan.md, section 7, WP-11.
 """
 
 from __future__ import annotations

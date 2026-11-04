@@ -1,9 +1,9 @@
 """Unit and acceptance tests for pure field normalisers and comparators.
 
-Encodes the exact acceptance table from Docs/Planning/implementation_plan.md (section 6, WP-02)
+Encodes the exact acceptance table from Docs/implementation_plan.md (section 6, WP-02)
 along with regression cases for edge cases discovered during review.
 
-Ref: Docs/Planning/implementation_plan.md, section 6, WP-02.
+Ref: Docs/implementation_plan.md, section 6, WP-02.
 """
 
 from datetime import date

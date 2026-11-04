@@ -5,7 +5,7 @@ Assembles the full pipeline into three interactive tabs:
 2. Step-by-Step Computer Vision Pipeline (didactic inspection for reports and presentation)
 3. Validation and Benchmark Dashboard (accuracy metrics and error analysis)
 
-Ref: Docs/Planning/implementation_plan.md, section 7, WP-16.
+Ref: Docs/implementation_plan.md, section 7, WP-16.
 """
 
 from __future__ import annotations
