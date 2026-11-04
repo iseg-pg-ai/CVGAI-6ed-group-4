@@ -45,6 +45,8 @@ class Settings:
         clahe_clip_limit: Default CLAHE contrast limit.
         llama_port: Default local llama-server port.
         llama_ngl: Default GPU layers offloaded in local llama-server.
+        llama_ctx: Context size in tokens for local llama-server.
+        llama_model_path: Path to local GGUF model file or default.
     """
 
     llama_base_url: str
@@ -64,6 +66,8 @@ class Settings:
     clahe_clip_limit: float = 2.0
     llama_port: int = 8080
     llama_ngl: int = 0
+    llama_ctx: int = 8192
+    llama_model_path: Path | None = None
 
 
 def _resolve_path(repo_root: Path, path_str: str) -> Path:
@@ -142,8 +146,13 @@ def load_settings(repo_root: Path | None = None) -> Settings:
 
     max_side = _get_int("PREPROCESS_MAX_SIDE", 1280)
     clahe_clip_limit = _get_float("PREPROCESS_CLAHE_CLIP", 2.0)
-    llama_port = _get_int("LLAMA_PORT", 8080)
-    llama_ngl = _get_int("LLAMA_NGL", 0)
+    llama_port = _get_int("LLAMA_PORT", _get_int("PORT", 8080))
+    llama_ngl = _get_int("LLAMA_NGL", _get_int("NGL", 0))
+    llama_ctx = _get_int("LLAMA_CTX", _get_int("CTX", 8192))
+    raw_model = _normalize_optional_str(_get_val("LLAMA_MODEL_PATH", "") or _get_val("MODEL", "") or None)
+    llama_model_path = (
+        _resolve_path(root, raw_model) if raw_model else (root / "models" / "Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf")
+    )
 
     return Settings(
         llama_base_url=llama_base_url,
@@ -163,6 +172,8 @@ def load_settings(repo_root: Path | None = None) -> Settings:
         clahe_clip_limit=clahe_clip_limit,
         llama_port=llama_port,
         llama_ngl=llama_ngl,
+        llama_ctx=llama_ctx,
+        llama_model_path=llama_model_path,
     )
 
 

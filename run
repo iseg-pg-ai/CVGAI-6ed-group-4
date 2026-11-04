@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+export PYTHONUTF8=1
+exec uv run poe "$@"

@@ -88,7 +88,7 @@ class OpenAICompatibleClient:
             if "Connection" in err_type or "ConnectError" in err_type or "Connection refused" in err_str:
                 msg = (
                     f"Could not connect to {self.provider} at {self.base_url} (Connection refused). "
-                    "Ensure llama-server is running (see scripts/run_llama_server.sh)."
+                    "Ensure llama-server is running (run 'run serve' or './run serve')."
                     if self.provider == "llm_local"
                     else f"Could not connect to {self.provider} at {self.base_url}."
                 )

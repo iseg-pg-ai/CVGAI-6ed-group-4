@@ -240,7 +240,7 @@ def main(
         print(f"  Effective provider: {client.last_effective_provider}")
         print(f"  Output: {response}")
     except LLMConnectionError as exc:
-        hint_cmd = r".\scripts\run_llama_server.ps1" if sys.platform == "win32" else "./scripts/run_llama_server.sh"
+        hint_cmd = "run serve" if sys.platform == "win32" else "./run serve"
         print(f"\nConnection Error: {exc}", file=sys.stderr)
         print(f"Hint: Start the local model using: {hint_cmd}", file=sys.stderr)
     except LLMError as exc:

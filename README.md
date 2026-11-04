@@ -51,14 +51,14 @@ EasyOCR, que descarrega os pesos na primeira execução):
 
 Cada módulo CLI opera sobre o primeiro talão de `data/receipts/`; a flag `--file`
 escolhe outro ficheiro e `--save` escreve o resultado em disco em vez de abrir a janela.
-O script `bash scripts/check_golden_set.sh` corre a validação do golden set e as estatísticas do corpus num só passo.
+O comando `./run check-dataset` (ou `run check-dataset` no Windows) corre a validação do golden set e as estatísticas do corpus num só passo.
 
 Por construir: mini-apresentação (WP-18).
 O extrator por LLM e o assistente de Q&A podem correr contra um `llama-server` local
-(`scripts/run_llama_server.sh`) ou contra a chave de API da Google (`GEMINI_API_KEY`) no `.env`.
+(`./run serve` ou `run serve` no Windows) ou contra a chave de API da Google (`GEMINI_API_KEY`) no `.env`.
 
 O corpus conta com 27 imagens recolhidas em `data/receipts/` (`01_...` a `27_...`) e
-`data/ground_truth.csv` contém os 27 registos correspondentes validados por `scripts/check_golden_set.sh` (WP-17 concluído, com as designações comerciais alinhadas aos cabeçalhos impressos nos talões).
+`data/ground_truth.csv` contém os 27 registos correspondentes validados por `./run check-dataset` (WP-17 concluído, com as designações comerciais alinhadas aos cabeçalhos impressos nos talões).
 
 ## Requisitos
 
@@ -247,7 +247,7 @@ Além da interface Gradio, cada fase do pipeline tem uma entrada de linha de com
 janela com o resultado sobre o primeiro talão de `data/receipts/` ou imprime o resultado na consola:
 
 ```bash
-bash scripts/check_golden_set.sh          # validação do golden set e estatísticas do corpus
+./run check-dataset                       # validação do golden set e estatísticas do corpus
 uv run python -m src.vision.preprocessing # antes vs depois do OpenCV
 uv run python -m src.ocr.easyocr          # linhas numeradas prontas para o prompt
 uv run python -m src.ocr.tesseract        # OCR alternativo via Tesseract
@@ -271,6 +271,8 @@ escolher as linhas a destacar e a recortar; sem a flag, usa até três linhas qu
 ### Aplicação Gradio
 
 ```bash
+./run app          # Linux / macOS (ou 'run app' no Windows)
+# ou diretamente via uv:
 uv run python -m src.app
 ```
 
@@ -285,19 +287,18 @@ demonstração offline: a partir daí os pesos ficam em cache local. Isto aplica
 pré-visualizações de OCR e de evidência; a de pré-processamento só usa OpenCV.
 
 Para o LLM local, arrancar primeiro o servidor num terminal separado, a partir da raiz do
-repositório, com `llama-server` no `PATH`. O script de arranque usa por omissão o
+repositório, com `llama-server` no `PATH`. O lançador usa por omissão o
 `models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` e `-ngl 0` (seguro para CPU, que corre
 confortavelmente o modelo 3B e evita erros de alocação de VRAM em placas pequenas):
 
 ```bash
-bash scripts/run_llama_server.sh
+./run serve        # Linux / macOS (ou 'run serve' no Windows)
 ```
 
-Em Windows, correr `.\scripts\run_llama_server.ps1` ou `scripts\run_llama_server.bat`. Com uma
-GPU com pelo menos 3 GB livres, passar `NGL=99` para descarregar as camadas:
+Com uma GPU com pelo menos 3 GB livres, passar `-ngl 99`:
 
 ```bash
-NGL=99 bash scripts/run_llama_server.sh
+./run serve -ngl 99
 ```
 
 O `models/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf` também corre no servidor como modelo de texto,
@@ -365,7 +366,7 @@ data/               imagens do golden set e verdade de referência
 results/            saídas do benchmark citadas no relatório
 Docs/               planeamento e apresentação
 models/             pesos .gguf do LLM local (não versionados)
-scripts/            validação do golden set (check_golden_set.sh) e arranque do llama-server (.sh, .ps1, .bat)
+run, run.bat        atalhos de execução multiplataforma (poethepoet)
 ```
 
 O plano de implementação, com os pacotes de trabalho e os respetivos donos, está em

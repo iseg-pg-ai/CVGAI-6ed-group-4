@@ -337,7 +337,7 @@ def test_main_cli_handles_connection_error_gracefully(
 
     captured = capsys.readouterr()
     assert "Connection Error: Could not connect to llm_local" in captured.err
-    assert "run_llama_server.sh" in captured.err
+    assert "run serve" in captured.err
 
 
 def test_gemini_client_sanitizes_additional_properties_from_schema() -> None:

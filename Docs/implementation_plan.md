@@ -14,7 +14,7 @@ Equipa: Vitor (pipeline), José (camada de dados e métricas), Raquel (corpus e 
 
 **Estado em 2026-11-04.** WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06, WP-07, WP-08, WP-09,
 WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16 e WP-17 estão fechados e integrados em `master`. O `src/core/settings.py`
-foi acrescentado fora da numeração para centralizar o acesso ao ambiente e aos caminhos, e `scripts/check_golden_set.sh`
+foi acrescentado fora da numeração para centralizar o acesso ao ambiente e aos caminhos, e `./run check-dataset`
 valida o dataset de forma automática. O detalhe do que foi entregue, e do que diverge do plano original, está na secção 5.1.
 As restantes secções descrevem o alvo e continuam válidas para o pacote por executar (WP-18).
 
@@ -261,9 +261,8 @@ CVGAI-6ed-group-4/
 │   ├── test_dataset_stats.py      [José]   feito
 │   ├── test_evaluate.py           [José]   feito
 │   └── test_app.py                [Vitor]  feito
-├── scripts/                       # atalhos de arranque
-│   ├── check_golden_set.sh        # atalho de validação         [Vitor]  feito
-│   └── run_llama_server.sh        # arranque do servidor        [Vitor]  feito
+├── run                            # lançador unificado Linux/macOS [Vitor] feito
+├── run.bat                        # lançador unificado Windows     [Vitor] feito
 ├── .env.example
 ├── .gitignore
 ├── pyproject.toml
@@ -272,8 +271,8 @@ CVGAI-6ed-group-4/
 ```
 
 `feito` significa integrado em `master` com testes a passar; `pendente`, não iniciado. A árvore
-está atualizada a 2026-11-04. O `run_llama_server` existe também em `.ps1` e `.bat`, porque a
-equipa trabalha em três sistemas.
+está atualizada a 2026-11-04. Os atalhos `run` e `run.bat` unificam os comandos via `poethepoet`,
+assegurando execução idêntica em Windows, Linux e macOS.
 
 ### `.gitignore` (estado atual)
 
@@ -452,15 +451,15 @@ Desvios que valem registo, porque afetam os pacotes seguintes:
   ambiente. Reconcilia `nif_comerciante` e `nif_cliente` contra a extração regex via `_reconcile_nifs`, recorre ao fallback regex para `data` e `total` quando o LLM devolve `AUSENTE`, e o `_locate_line` para o total pesquisa em ordem inversa (`reversed(lines)`) priorizando
   linhas com palavras-chave de total para não ancorar em linhas de artigos.
 - **WP-15:** `avaliar_registo` inclui verificação pós-OCR de orientação por palavras-chave fiscais, rodando a imagem 180° e repetindo o OCR quando a primeira passagem encontra `<= 2` palavras-chave e a imagem invertida produz `>= 3` palavras-chave (e pelo menos mais 3 do que a orientação inicial).
-- **Arranque do `llama-server` (`scripts/run_llama_server.*`).** O modelo por omissão é
+- **Arranque do `llama-server` (`./run serve` / `run serve`).** O modelo por omissão é
   `models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf`, com porta 8080 e `NGL=0`.
-- **Validação do golden set (`scripts/check_golden_set.sh`).** Atalho que executa `src.evaluation.golden_set` e
+- **Validação do golden set (`./run check-dataset`).** Atalho que executa `src.evaluation.golden_set` e
   `src.evaluation.dataset_stats`.
 
 Estado atual do golden set e do benchmark: o corpus conta com 27 imagens em `data/receipts/` e
 `data/ground_truth.csv` contém os 27 registos correspondentes com as designações comerciais de
 `entidade` alinhadas aos cabeçalhos impressos nos talões (WP-17 concluído), passando a validação de
-`scripts/check_golden_set.sh` a 100 % e gerando os relatórios oficiais em `results/metrics.csv` e
+`./run check-dataset` a 100 % e gerando os relatórios oficiais em `results/metrics.csv` e
 `results/metrics.md`.
 
 ---
@@ -1135,7 +1134,7 @@ Exemplos: `01_direito_pingo_doce.jpg`, `02_amarrotado_pingo_doce_par.jpg`.
 `02_amachucado_tiendaanimal.jpg`, etc., onde os talões amarrotados usam o prefixo `NN_amachucado_...`
 no nome do ficheiro e o grupo canónico `"amarrotado"` na coluna CSV) e `data/ground_truth.csv`
 contém os 27 registos com os nomes comerciais de `entidade` alinhados aos cabeçalhos impressos (WP-17
-concluído), validados sem erros por `scripts/check_golden_set.sh` e avaliados pelo benchmark (WP-15).
+concluído), validados sem erros por `./run check-dataset` e avaliados pelo benchmark (WP-15).
 
 ### 8.3 Protocolo de captura
 

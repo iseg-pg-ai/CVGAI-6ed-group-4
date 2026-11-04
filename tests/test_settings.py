@@ -43,6 +43,10 @@ def test_default_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
     assert settings.receipts_dir == (tmp_path / "data" / "receipts").resolve()
     assert settings.ground_truth_path == (tmp_path / "data" / "ground_truth.csv").resolve()
     assert settings.results_dir == (tmp_path / "results").resolve()
+    assert settings.llama_port == 8080
+    assert settings.llama_ngl == 0
+    assert settings.llama_ctx == 8192
+    assert settings.llama_model_path == (tmp_path / "models" / "Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf").resolve()
 
 
 def test_empty_string_api_keys_normalize_to_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -66,6 +70,10 @@ def test_environment_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("EASYOCR_LANGS", "pt, es, fr")
     monkeypatch.setenv("TESSERACT_CMD", "/usr/bin/tesseract")
     monkeypatch.setenv("DATA_DIR", "custom_data")
+    monkeypatch.setenv("LLAMA_PORT", "9090")
+    monkeypatch.setenv("LLAMA_NGL", "32")
+    monkeypatch.setenv("LLAMA_CTX", "4096")
+    monkeypatch.setenv("LLAMA_MODEL_PATH", "custom_models/model.gguf")
 
     settings = load_settings(repo_root=tmp_path)
 
@@ -77,6 +85,10 @@ def test_environment_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert settings.easyocr_langs == ("pt", "es", "fr")
     assert settings.tesseract_cmd == Path("/usr/bin/tesseract").resolve()
     assert settings.data_dir == (tmp_path / "custom_data").resolve()
+    assert settings.llama_port == 9090
+    assert settings.llama_ngl == 32
+    assert settings.llama_ctx == 4096
+    assert settings.llama_model_path == (tmp_path / "custom_models/model.gguf").resolve()
 
 
 def test_invalid_timeout_falls_back_to_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

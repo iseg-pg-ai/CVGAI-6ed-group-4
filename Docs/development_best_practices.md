@@ -119,7 +119,7 @@ uv run pytest
 ## 6. Evaluation, Golden Set & Model Robustness
 
 ### Ground Truth Integrity
-- **Contract Enforcement**: Provide an automated validation script (`scripts/check_golden_set.sh`) that verifies schema columns, image file existence, category groups, checksums, and date/total validity.
+- **Contract Enforcement**: Provide an automated validation task (`./run check-dataset`) that verifies schema columns, image file existence, category groups, checksums, and date/total validity.
 - **Corpus Balance Tracking**: Automatically compute and display dataset distributions (e.g. pristine vs crumpled documents, merchant representation) as part of baseline checks.
 
 ### Transparent Model Failover

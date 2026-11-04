@@ -26,11 +26,33 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "poethepoet>=0.32.0",
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "ruff>=0.7",
     "pyright>=1.1.380",
 ]
+
+[tool.poe.env]
+PYTHONUTF8 = "1"
+
+[tool.poe.tasks]
+format = "ruff format --line-length 120 src tests"
+lint = "ruff check src tests"
+lint-fix = "ruff check --fix src tests"
+typecheck = "pyright src tests"
+test = "pytest"
+test-all = "pytest -m ''"
+
+check = ["format", "lint", "typecheck", "test"]
+
+validate-golden-set = "python -m src.evaluation.golden_set"
+corpus-stats = "python -m src.evaluation.dataset_stats"
+check-dataset = ["validate-golden-set", "corpus-stats"]
+
+evaluate = "python -m src.evaluation.evaluate"
+app = "python -m src.app"
+serve = "python -m src.core.server_launcher"
 
 [tool.uv]
 # The project is run as `python -m src.app` from the repository root, not installed as a

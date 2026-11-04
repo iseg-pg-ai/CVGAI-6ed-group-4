@@ -18,7 +18,7 @@ desktop.ini
 *.log
 *.swp
 .idea/
-.vscode/
+# .vscode/ Share vscode settings and extensions with the team
 
 # Benchmark artefacts: the summary tables are tracked, the raw per-image dumps are not.
 results/*.json

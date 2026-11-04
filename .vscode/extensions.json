@@ -1,0 +1,14 @@
+{
+    "recommendations": [
+        "ms-pyright.pyright",
+        "ms-python.python",
+        "ms-python.debugpy",
+        "ms-python.vscode-python-envs",
+        "KevinRose.vsc-python-indent",
+        "cstrap.python-snippets",
+        "charliermarsh.ruff",
+        "ItamarAri.colang-formatter",
+        "jebbs.plantuml",
+        "tamasfe.even-better-toml"
+    ]
+}

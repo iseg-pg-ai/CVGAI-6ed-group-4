@@ -4,11 +4,11 @@ Smart reader for Portuguese purchase receipts and simplified invoices. Hybrid pi
 
 ## Current State
 
-Closed work packages: WP-00 (skeleton), WP-01 (data contracts), WP-02 (pure normalizers), WP-03 (golden set loader), WP-04 (preprocessing), WP-05 (EasyOCR), WP-06 (Tesseract), WP-07 (AT QR reader), WP-08 (LLM client), WP-09 (regex baseline), WP-10 (LLM extractor), WP-11 (visual evidence), WP-12 (Q&A assistant), WP-13 (scoring), WP-14 (corpus statistics), WP-15 (benchmark runner), WP-16 (Gradio UI), WP-17 (golden set `entidade` alignment). `src/core/settings.py` centralizes environment and path resolution, and `scripts/check_golden_set.sh` provides automated golden set verification.
+Closed work packages: WP-00 (skeleton), WP-01 (data contracts), WP-02 (pure normalizers), WP-03 (golden set loader), WP-04 (preprocessing), WP-05 (EasyOCR), WP-06 (Tesseract), WP-07 (AT QR reader), WP-08 (LLM client), WP-09 (regex baseline), WP-10 (LLM extractor), WP-11 (visual evidence), WP-12 (Q&A assistant), WP-13 (scoring), WP-14 (corpus statistics), WP-15 (benchmark runner), WP-16 (Gradio UI), WP-17 (golden set `entidade` alignment). `src/core/settings.py` centralizes environment and path resolution, and `./run check-dataset` provides automated golden set verification.
 
-- Implemented: `src/core/types.py`, `src/core/settings.py`, `src/core/normalizers.py`, `src/core/cli_utils.py`, `src/evaluation/golden_set.py`, `src/vision/preprocessing.py`, `src/ocr/easyocr.py`, `src/ocr/tesseract.py`, `src/ocr/__init__.py`, `src/vision/qr_reader.py`, `src/extraction/llm_client.py`, `src/extraction/regex.py`, `src/extraction/llm.py`, `src/vision/evidence.py`, `src/extraction/qa_assistant.py`, `src/evaluation/scoring.py`, `src/evaluation/dataset_stats.py`, `src/evaluation/evaluate.py`, `src/app.py`, `scripts/run_llama_server.{sh,ps1,bat}`, `scripts/check_golden_set.sh`.
+- Implemented: `src/core/types.py`, `src/core/settings.py`, `src/core/server_launcher.py`, `src/core/normalizers.py`, `src/core/cli_utils.py`, `src/evaluation/golden_set.py`, `src/vision/preprocessing.py`, `src/ocr/easyocr.py`, `src/ocr/tesseract.py`, `src/ocr/__init__.py`, `src/vision/qr_reader.py`, `src/extraction/llm_client.py`, `src/extraction/regex.py`, `src/extraction/llm.py`, `src/vision/evidence.py`, `src/extraction/qa_assistant.py`, `src/evaluation/scoring.py`, `src/evaluation/dataset_stats.py`, `src/evaluation/evaluate.py`, `src/app.py`, `run`, `run.bat`.
 - Not implemented yet: `Docs/Presentation/` (WP-18 slide deck). Do not describe it as available, in docs or in code.
-- Corpus: `data/receipts/` holds 27 images (`01_...` to `27_...`); `data/ground_truth.csv` has 27 records validated by `scripts/check_golden_set.sh`. Note that crumpled receipt filenames on disk use the `NN_amachucado_...` prefix, whereas the CSV `grupo` column and `GroupName` contract strictly use `"amarrotado"`.
+- Corpus: `data/receipts/` holds 27 images (`01_...` to `27_...`); `data/ground_truth.csv` has 27 records validated by `./run check-dataset`. Note that crumpled receipt filenames on disk use the `NN_amachucado_...` prefix, whereas the CSV `grupo` column and `GroupName` contract strictly use `"amarrotado"`.
 - Suite: 296 offline tests (~4.5 s). One `@pytest.mark.slow` live-EasyOCR test is deselected by default.
 
 Each module docstring carries a `Ref:` line pointing at the section of `Docs/implementation_plan.md` that specifies it. Keep that convention for new modules.
@@ -23,9 +23,13 @@ Each module docstring carries a `Ref:` line pointing at the section of `Docs/imp
 
 ## Verification Commands
 
-Always run checks in this order before completing work:
+Run checks before completing work (or simply run `./run check` / `run check` on Windows):
 
 ```bash
+# Unified 4-step verification gate
+./run check
+
+# Or individual commands in order:
 # 1. Formatting (line length 120; also set in pyproject.toml)
 uv run ruff format --line-length 120 src tests
 
@@ -42,11 +46,11 @@ uv run pytest
 ### Focused Testing & Dataset Shortcuts
 
 ```bash
+./run check-dataset                                 # Validate ground_truth.csv + print corpus stats
 uv run pytest tests/test_evidence.py -q             # Single test file
 uv run pytest -k "nif" -q                           # Filter tests by expression
 uv run pytest -m slow                               # Opt-in live EasyOCR test (needs cached weights)
 uv run pytest --cov=src --cov-report=term-missing   # Coverage report
-bash scripts/check_golden_set.sh                    # Validate data/ground_truth.csv + print corpus stats
 ```
 
 `pyproject.toml` sets `addopts = "-q --strict-markers -m 'not slow'"`, so `slow` tests never run by default and an unregistered marker fails the suite.
@@ -83,7 +87,7 @@ bash scripts/check_golden_set.sh                    # Validate data/ground_truth
 - **Benchmark runner (`src/evaluation/evaluate.py`)**: `avaliar_registo(...)` and `avaliar_corpus(...)`. Includes a post-OCR fiscal-keyword orientation check that flips the preprocessed image 180 degrees and re-runs OCR if the initial pass finds `<= 2` receipt keywords and the flipped pass yields `>= 3` keywords (and at least +3 over the initial pass).
 - **Gradio UI (`src/app.py`)**: `build_app(settings_override=None) -> gr.Blocks`. Three tabs: Document Reader and Q&A (with decoupled Q&A provider selector), Step-by-Step CV Pipeline, and Validation & Benchmark Dashboard (reading `metrics.csv` with `utf-8-sig`). In-memory caches are guarded by `_CACHE_LOCK`.
 - **LLM Prompting Gotcha**: `llama-server` does not inject `response_format` schemas into the prompt text automatically. Prompts must explicitly describe the expected JSON schema. Keep schemas flat without union types to avoid breaking `llama.cpp`'s `json-schema-to-grammar`.
-- **Local Model Serving (`scripts/run_llama_server.*`)**: Defaults to `models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` on port 8080 with `NGL=0`. `NGL=0` runs safely on CPU; passing `NGL=99` on small GPUs (e.g. 2 GB MX150) fails allocation instead of falling back. `Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf` can serve as text, but image inputs fail with HTTP 500 without a companion `mmproj` GGUF file.
+- **Local Model Serving (`./run serve` / `run serve`)**: Defaults to `models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` on port 8080 with `NGL=0`. `NGL=0` runs safely on CPU; passing `NGL=99` on small GPUs (e.g. 2 GB MX150) fails allocation instead of falling back. `Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf` can serve as text, but image inputs fail with HTTP 500 without a companion `mmproj` GGUF file.
 
 ## Testing Rules
 
