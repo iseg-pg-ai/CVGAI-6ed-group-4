@@ -281,6 +281,12 @@ Arranca o servidor Gradio local (por omissão em `http://127.0.0.1:7860`) e exp�
 2. **Pipeline Passo a Passo**: inspeção visual das quatro fases de Visão Computacional (bruta, alinhada/recortada, filtrada e caixas delimitadoras de OCR).
 3. **Validação e Benchmark**: dashboard com resumo das métricas e relatório do golden set.
 
+Se o extrator escolhido não estiver disponível (por exemplo, `LLM Local (llama.cpp)` sem o
+`llama-server` a correr), a aplicação mostra um aviso no ecrã e recorre ao `Regex Baseline`
+como alternativa. O aviso fica à cabeça da caixa de metadados e a coluna `Extracao` indica o
+método que produziu de facto os valores. O assistente de Q&A não tem alternativa: sem
+`llama-server` a resposta é um erro explícito com a instrução para arrancar `./run serve`.
+
 Na primeira execução o EasyOCR descarrega os pesos do modelo para `~/.EasyOCR` (no Windows,
 `C:\Users\<nome>\.EasyOCR`), o que exige rede. Correr uma vez com rede antes de qualquer
 demonstração offline: a partir daí os pesos ficam em cache local. Isto aplica-se às
@@ -333,7 +339,7 @@ uv run pytest -k "nif" -q                           # filtra por nome
 uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 ```
 
-Ficheiros atuais da suite (296 testes offline): `test_smoke.py`, `test_settings.py`,
+Ficheiros atuais da suite (304 testes offline): `test_smoke.py`, `test_settings.py`,
 `test_normalizers.py`, `test_golden_set.py`, `test_preprocessing.py`, `test_ocr_contract.py`,
 `test_ocr_tesseract.py`, `test_qr_reader.py`, `test_evidence.py`, `test_llm_client.py`,
 `test_extractor_regex.py`, `test_extractor_llm.py`, `test_qa_assistant.py`, `test_scoring.py`,
@@ -361,7 +367,7 @@ src/
   extraction/       extração estruturada (regex, LLM local/cloud) e assistente Q&A
   evaluation/       validação do golden set, pontuação, estatísticas e benchmark runner
   app.py            aplicação interativa Gradio com 3 separadores
-tests/              suite pytest com 296 testes, offline e determinística
+tests/              suite pytest com 304 testes, offline e determinística
 data/               imagens do golden set e verdade de referência
 results/            saídas do benchmark citadas no relatório
 Docs/               planeamento e apresentação

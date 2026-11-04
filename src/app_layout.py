@@ -129,7 +129,7 @@ def build_blocks(
                 with gr.Column(scale=4):
                     output_annotated = gr.Image(label="Documento com Destaque Visual", type="numpy")
                     output_crop = gr.Image(label="Recorte Comprovativo da Evidencia", type="numpy")
-                    txt_metadata = gr.Textbox(label="Metadados da Execucao", interactive=False)
+                    txt_metadata = gr.Textbox(label="Metadados da Execucao", lines=2, interactive=False)
 
                 with gr.Column(scale=4):
                     gr.Markdown("### Dados Estruturados Extraidos")

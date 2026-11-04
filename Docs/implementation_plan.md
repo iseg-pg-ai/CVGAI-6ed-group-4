@@ -398,7 +398,7 @@ O único pacote restante é a mini-apresentação (WP-18).
 ### 5.1 Estado das entregas e desvios face ao plano
 
 Fechados e integrados em `master` a 2026-11-04: WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06,
-WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16 e WP-17. A suite tem 296 testes offline que correm
+WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16 e WP-17. A suite tem 304 testes offline que correm
 em cerca de 4,5 s, mais um teste `slow` com o EasyOCR real, deselecionado por omissão.
 
 Desvios que valem registo, porque afetam os pacotes seguintes:
@@ -1102,6 +1102,9 @@ ausente).
 - Separador 3: Validação e Benchmark, com carregamento do relatório `metrics.csv` com `utf-8-sig` e exibição
   estruturada dos cabeçalhos.
 - Caches de OCR e de motores em memória com proteção de concorrência via `threading.Lock()`.
+- Se o extrator selecionado falhar (por exemplo `LLM Local (llama.cpp)` sem `llama-server`), o aviso é
+  emitido como `gr.Warning` (modal no ecrã) e repetido no início de `txt_metadata`, e a extração
+  continua com o `Regex Baseline`; o campo `Extracao` do metadata mostra o método efetivamente usado.
 - `demo.queue().launch(share=False)`.
 
 ---

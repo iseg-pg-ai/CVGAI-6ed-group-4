@@ -9,7 +9,7 @@ Closed work packages: WP-00 (skeleton), WP-01 (data contracts), WP-02 (pure norm
 - Implemented: `src/core/types.py`, `src/core/settings.py`, `src/core/server_launcher.py`, `src/core/normalizers.py`, `src/core/cli_utils.py`, `src/evaluation/golden_set.py`, `src/vision/preprocessing.py`, `src/ocr/easyocr.py`, `src/ocr/tesseract.py`, `src/ocr/__init__.py`, `src/vision/qr_reader.py`, `src/extraction/llm_client.py`, `src/extraction/regex.py`, `src/extraction/llm.py`, `src/vision/evidence.py`, `src/extraction/qa_assistant.py`, `src/evaluation/scoring.py`, `src/evaluation/dataset_stats.py`, `src/evaluation/evaluate.py`, `src/app.py`, `run`, `run.bat`.
 - Not implemented yet: `Docs/Presentation/` (WP-18 slide deck). Do not describe it as available, in docs or in code.
 - Corpus: `data/receipts/` holds 27 images (`01_...` to `27_...`); `data/ground_truth.csv` has 27 records validated by `./run check-dataset`. Note that crumpled receipt filenames on disk use the `NN_amachucado_...` prefix, whereas the CSV `grupo` column and `GroupName` contract strictly use `"amarrotado"`.
-- Suite: 296 offline tests (~4.5 s). One `@pytest.mark.slow` live-EasyOCR test is deselected by default.
+- Suite: 304 offline tests (~4.5 s). One `@pytest.mark.slow` live-EasyOCR test is deselected by default.
 
 Each module docstring carries a `Ref:` line pointing at the section of `Docs/implementation_plan.md` that specifies it. Keep that convention for new modules.
 

@@ -255,8 +255,20 @@ def test_process_document_execution_and_rgb_output(
     assert "[01] PINGO DOCE" in prompt_txt
 
 
+def test_notify_warning_delegates_to_gradio_toast(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_notify_warning forwards the message to gr.Warning so the UI shows a toast."""
+    from src import app
+
+    captured: list[str] = []
+    monkeypatch.setattr(app.gr, "Warning", captured.append)
+
+    app._notify_warning("mensagem de teste")
+
+    assert captured == ["mensagem de teste"]
+
+
 def test_process_document_llm_extractor_fallback(monkeypatch: pytest.MonkeyPatch, mock_app_settings: Settings) -> None:
-    """When an LLM extractor fails, process_document falls back to regex with an explanatory note."""
+    """When an LLM extractor fails, process_document warns the user and falls back to regex."""
     mock_doc = OcrDocument(
         lines=[OcrLine(id=1, text="Total 16.10", confidence=0.99, bbox=BBox(0, 0, 10, 10))],
         engine="easyocr",
@@ -278,6 +290,9 @@ def test_process_document_llm_extractor_fallback(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr("src.app.extract_llm", failing_llm)
 
+    toasts: list[str] = []
+    monkeypatch.setattr("src.app._notify_warning", toasts.append)
+
     synthetic_rgb = np.full((50, 50, 3), 200, dtype=np.uint8)
     res = process_document(
         image=synthetic_rgb,
@@ -293,6 +308,51 @@ def test_process_document_llm_extractor_fallback(monkeypatch: pytest.MonkeyPatch
     info = res[2]
     assert "Aviso: LLM Local (llama.cpp) indisponivel" in info
     assert "recurso alternativo" in info
+    # The warning leads the metadata string so the UI never clips it.
+    assert info.startswith("Aviso: LLM Local (llama.cpp) indisponivel")
+    assert "llama-server unreachable on 8080" in info
+
+    # The user must be told through the modal, not only through the metadata box.
+    assert len(toasts) == 1
+    assert "llama-server unreachable on 8080" in toasts[0]
+
+
+def test_process_document_regex_extractor_emits_no_warning(
+    monkeypatch: pytest.MonkeyPatch, mock_app_settings: Settings
+) -> None:
+    """Selecting the regex baseline must not raise a warning toast."""
+    mock_doc = OcrDocument(
+        lines=[OcrLine(id=1, text="Total 16.10", confidence=0.99, bbox=BBox(0, 0, 10, 10))],
+        engine="easyocr",
+        elapsed_ms=1.0,
+        image_size=(20, 20),
+    )
+
+    class FakeEngine:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def read(self, image: np.ndarray) -> OcrDocument:
+            return mock_doc
+
+    monkeypatch.setattr("src.app.EasyOCREngine", FakeEngine)
+
+    toasts: list[str] = []
+    monkeypatch.setattr("src.app._notify_warning", toasts.append)
+
+    res = process_document(
+        image=np.full((50, 50, 3), 200, dtype=np.uint8),
+        rotation_str="0",
+        auto_crop=False,
+        remove_shadows=False,
+        clahe_clip=0.0,
+        ocr_engine_name="EasyOCR",
+        extractor_name="Regex Baseline",
+        settings=mock_app_settings,
+    )
+
+    assert toasts == []
+    assert not res[2].startswith("Aviso:")
 
 
 def test_answer_question_validation_and_error_handling(mock_app_settings: Settings) -> None:

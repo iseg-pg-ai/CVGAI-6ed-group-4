@@ -49,6 +49,7 @@ __all__ = [
     "_from_gradio_rgb",
     "_get_ocr_document",
     "_get_ocr_engine",
+    "_notify_warning",
     "_to_gradio_rgb",
     "answer_question",
     "ask_qa",
@@ -77,6 +78,19 @@ def clear_caches() -> None:
     with _CACHE_LOCK:
         _OCR_CACHE.clear()
         _ENGINE_CACHE.clear()
+
+
+def _notify_warning(message: str) -> None:
+    """Surface a non-fatal warning as a Gradio toast.
+
+    Inside an active Gradio request this renders a modal in the browser; when the
+    callback is invoked outside a request (unit tests, CLI use) ``gr.Warning``
+    degrades to a plain ``warnings.warn`` and processing continues unaffected.
+
+    Args:
+        message: Human readable warning shown to the user.
+    """
+    gr.Warning(message)
 
 
 def _from_gradio_rgb(image: np.ndarray) -> np.ndarray:
@@ -227,7 +241,8 @@ def process_document(
             client = build_client(provider="llm_local", settings=settings)
             extraction = extract_llm(ocr_doc, qr=qr_data, client=client)
     except Exception as exc:
-        fallback_note = f" | Aviso: {extractor_name} indisponivel ({exc}); utilizado regex como recurso alternativo"
+        fallback_note = f"Aviso: {extractor_name} indisponivel ({exc}); utilizado regex como recurso alternativo"
+        _notify_warning(fallback_note)
         extraction = extract_regex(ocr_doc, qr=qr_data)
 
     table_rows: list[list[str]] = []
@@ -258,11 +273,13 @@ def process_document(
     ocr_prompt_text = ocr_doc.as_prompt_text()
 
     qr_summary = "Detetado" if qr_data else "Nao detetado (recibo sem QR ou danificado)"
-    metadata_info = (
+    execution_info = (
         f"Motor OCR: {ocr_doc.engine} ({ocr_doc.elapsed_ms:.1f} ms, {len(ocr_doc.lines)} linhas) | "
         f"Extracao: {extraction.method} ({extraction.elapsed_ms:.1f} ms) | QR: {qr_summary}"
-        f"{fallback_note}"
     )
+    # The warning goes first so it stays readable instead of being clipped at the
+    # right edge of the single-line metadata box.
+    metadata_info = f"{fallback_note} | {execution_info}" if fallback_note else execution_info
 
     return (
         _to_gradio_rgb(annotated_bgr),
