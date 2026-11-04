@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 import time
 from collections.abc import Sequence
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, cast
 
 from src.core.cli_utils import format_extraction_field
@@ -142,6 +144,17 @@ def _reconcile_nifs(
     ):
         merchant = regex_merchant
 
+    # If the LLM client NIF is a helpline/toll-free number or grounded to a telecom line, drop it
+    if client.status in {"ENCONTRADO", "INVALIDO"} and client.value is not None:
+        if any(client.value.startswith(p) for p in ("800", "808", "707", "708")):
+            client = FieldValue(value=None, status="AUSENTE")
+        elif client.line_id is not None:
+            line_idx = client.line_id - 1
+            if 0 <= line_idx < len(doc.lines):
+                line_text = doc.lines[line_idx].text.lower()
+                if re.search(r"\b(?:apoio|suporte|linha|chamada|atendimento)\b", line_text):
+                    client = FieldValue(value=None, status="AUSENTE")
+
     if client.status == "ENCONTRADO" and client.value is not None and client.value == merchant.value:
         client = FieldValue(value=None, status="AUSENTE")
 
@@ -195,15 +208,25 @@ def extract(
             date_field = regex_date
 
     total_field = _field_from_payload(payload, "total", doc.lines)
-    if total_field.status == "AUSENTE":
-        from src.extraction.regex import _extract_total
+    from src.extraction.regex import _extract_total
 
-        regex_total = _extract_total(doc.lines)
+    regex_total = _extract_total(doc.lines)
+    if total_field.status == "AUSENTE":
         if regex_total.status == "ENCONTRADO":
             total_field = regex_total
+    elif total_field.status == "ENCONTRADO" and total_field.value is not None:
+        try:
+            dec_val = Decimal(total_field.value)
+            # If total exceeds 500 Euros and regex found a valid decimal total, recover regex
+            if dec_val > Decimal("500.00") and regex_total.status == "ENCONTRADO":
+                total_field = regex_total
+        except InvalidOperation:
+            pass
+
+    entity_field = _field_from_payload(payload, "entidade", doc.lines)
 
     return Extraction(
-        entidade=_field_from_payload(payload, "entidade", doc.lines),
+        entidade=entity_field,
         nif_comerciante=merchant,
         nif_cliente=client_field,
         data=date_field,

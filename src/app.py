@@ -32,6 +32,7 @@ from src.ocr.easyocr import EasyOCREngine
 from src.ocr.tesseract import TesseractEngine
 from src.vision.evidence import crop, draw_all_ocr_boxes, highlight
 from src.vision.preprocessing import PreprocessOptions, PreprocessResult, preprocess
+from src.vision.qr_reader import mask_qr_region
 from src.vision.qr_reader import read as read_qr
 
 if TYPE_CHECKING:
@@ -162,7 +163,8 @@ def _get_ocr_document(
 
     prep_result = preprocess(image_bgr, opts=opts)
     engine = _get_ocr_engine(engine_name, settings=settings)
-    ocr_doc = engine.read(prep_result.image)
+    ocr_image = mask_qr_region(prep_result.image)
+    ocr_doc = engine.read(ocr_image)
     qr_data = read_qr(prep_result.image, raw_image=image_bgr)
 
     with _CACHE_LOCK:

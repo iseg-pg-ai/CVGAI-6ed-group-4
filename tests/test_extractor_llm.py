@@ -639,6 +639,30 @@ def test_main_cli_reports_an_unusable_response(
     assert "unusable" in capsys.readouterr().out.lower()
 
 
+def test_reconcile_overrides_dropped_decimal_total() -> None:
+    """When the model outputs a large integer total > 500 without decimals, valid regex decimal total wins."""
+    texts = ["SUPERMERCADO", "NIF: 500100144", "26-10-27", "TOTAL 14,99 EUR"]
+    payload = copy.deepcopy(RECEIPT)
+    payload["total"] = "14096.00"
+
+    extraction = extract(_document(texts), client=FakeClient(payload))
+    assert extraction.total.value == "14.99"
+    assert extraction.total.status == "ENCONTRADO"
+
+
+def test_reconcile_drops_telecom_helpline_client_nif() -> None:
+    """When the LLM outputs a toll-free 808 customer support number, reconcile resets it to AUSENTE."""
+    texts = ["PINGO DOCE", "NIF: 500100144", "Linha Apoio Cliente 808204545", "TOTAL 5,86"]
+    payload = copy.deepcopy(RECEIPT)
+    payload["nif_cliente"] = "808204545"
+    payload["presente"]["nif_cliente"] = True
+    payload["linhas"]["nif_cliente"] = 3
+
+    extraction = extract(_document(texts), client=FakeClient(payload))
+    assert extraction.nif_cliente.status == "AUSENTE"
+    assert extraction.nif_cliente.value is None
+
+
 def test_main_cli_missing_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """A missing --file path is reported instead of raising."""
     main(argv=["--file", str(tmp_path / "absent.jpg")])

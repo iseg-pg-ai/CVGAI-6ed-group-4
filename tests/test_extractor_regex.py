@@ -375,6 +375,37 @@ def test_main_cli_prints_the_extracted_fields(
     assert "3 lines" in captured, captured
 
 
+def test_rejects_telecom_helpline_as_client_nif() -> None:
+    """Lines with customer care helpline markers or toll-free prefixes are not customer NIFs."""
+    lines = [
+        "SUPERMERCADO CENTRAL",
+        "NIF: 500100144",
+        "Linha de Apoio ao Cliente: 808 204 545",
+        "TOTAL 10,00",
+    ]
+    doc = _document(lines)
+    extraction = extract(doc)
+    assert extraction.nif_cliente.status == "AUSENTE"
+    assert extraction.nif_cliente.value is None
+
+
+def test_extract_entity_respects_header_cutoff() -> None:
+    """extract_entity bounds its search to the top header band when image_size is given."""
+    lines = [
+        "FATURA SIMPLIFICADA",
+        "LOJA DO BAIRRO",
+        "ARTIGO 1 5,00",
+        "ARTIGO 2 5,00",
+        "TOTAL 10,00",
+        "OBRIGADO PELA PREFERENCIA",
+    ]
+    # height = 6 * 20 = 120; cutoff = 120 * 0.4 = 48 -> lines 1 and 2 are in header band
+    doc = _document(lines, height=120)
+    extraction = extract(doc)
+    assert extraction.entidade.value == "LOJA DO BAIRRO"
+    assert extraction.entidade.line_id == 2
+
+
 def test_main_cli_missing_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """A missing --file path is reported instead of raising."""
     main(argv=["--file", str(tmp_path / "absent.jpg")])

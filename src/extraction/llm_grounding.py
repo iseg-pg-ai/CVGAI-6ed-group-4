@@ -77,7 +77,10 @@ def build_field(field: str, value: str, line_id: int | None) -> FieldValue:
         return FieldValue(value=None, status="AUSENTE")
 
     if field == "entidade":
-        return FieldValue(value=cleaned, status="ENCONTRADO", line_id=line_id)
+        sanitized = re.sub(r"(?i)\b(?:nif|nipc|contribuinte)\b.*$", "", cleaned).strip()
+        if len(sanitized) < 2:
+            return FieldValue(value=None, status="AUSENTE")
+        return FieldValue(value=sanitized, status="ENCONTRADO", line_id=line_id)
 
     if field in {"nif_comerciante", "nif_cliente"}:
         nif = parse_nif(cleaned)

@@ -104,7 +104,7 @@ def build_blocks(
                             minimum=0.5, maximum=2.5, value=1.0, step=0.1, label="Densidade da Tinta (Gamma)"
                         )
                         slider_sharpen = gr.Slider(
-                            minimum=0.0, maximum=3.0, value=0.0, step=0.25, label="Nitidez (Unsharp Mask)"
+                            minimum=0.0, maximum=3.0, value=0.35, step=0.05, label="Nitidez (Unsharp Mask)"
                         )
                         slider_shadow_k = gr.Slider(
                             minimum=11, maximum=51, value=25, step=2, label="Janela de Sombra (Shadow Kernel)"

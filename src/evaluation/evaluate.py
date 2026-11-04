@@ -60,6 +60,7 @@ def avaliar_registo(
     from src.evaluation.scoring import pontuar_registo
     from src.extraction.regex import extract as extract_regex
     from src.vision.preprocessing import PreprocessOptions, preprocess
+    from src.vision.qr_reader import mask_qr_region
     from src.vision.qr_reader import read as read_qr
 
     image_path = receipts_dir / registo.filename
@@ -82,7 +83,8 @@ def avaliar_registo(
         )
 
     prep = preprocess(raw_image, opts)
-    doc = ocr_engine.read(prep.image)
+    ocr_input = mask_qr_region(prep.image)
+    doc = ocr_engine.read(ocr_input)
 
     # Fiscal keyword orientation verification: upside-down receipts produce unreadable OCR text
     # with almost zero receipt keywords. If flipping 180 produces substantially more keywords,
@@ -106,7 +108,8 @@ def avaliar_registo(
     current_kw_count = sum(1 for kw in fiscal_keywords if kw in current_text)
     if current_kw_count <= 2:
         flipped_img = cv2.rotate(prep.image, cv2.ROTATE_180)
-        flipped_doc = ocr_engine.read(flipped_img)
+        flipped_ocr_input = mask_qr_region(flipped_img)
+        flipped_doc = ocr_engine.read(flipped_ocr_input)
         flipped_text = " ".join(line.text.lower() for line in flipped_doc.lines)
         flipped_kw_count = sum(1 for kw in fiscal_keywords if kw in flipped_text)
         if flipped_kw_count >= 3 and flipped_kw_count > current_kw_count + 2:
@@ -193,6 +196,7 @@ def avaliar_corpus(
             and not preprocess_opts.auto_crop
             and not preprocess_opts.remove_shadows
             and preprocess_opts.clahe_clip_limit <= 0.0
+            and preprocess_opts.sharpen_strength <= 0.0
             else "ativo"
         )
         metadata = {
@@ -272,6 +276,7 @@ def main(
             auto_crop=False,
             remove_shadows=False,
             clahe_clip_limit=0.0,
+            sharpen_strength=0.0,
             auto_orient_osd=False,
             tesseract_cmd=settings.tesseract_cmd,
         )

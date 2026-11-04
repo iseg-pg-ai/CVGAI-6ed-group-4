@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from src.core.settings import load_settings
-from src.vision.qr_reader import main, parse_at_qr_payload, read
+from src.vision.qr_reader import find_qr_bounding_boxes, main, mask_qr_region, parse_at_qr_payload, read
 
 
 def test_parse_at_qr_payload_full_valid_string() -> None:
@@ -154,3 +154,30 @@ def test_main_cli_execution_with_qr(
     assert "AT Tax Authority QR Data Found" in captured
     assert "518396894" in captured
     assert "16.10" in captured
+
+
+def test_mask_qr_region_returns_copy_when_no_qr() -> None:
+    """mask_qr_region returns an exact pixel copy when no QR code is present."""
+    blank = np.full((100, 100, 3), 240, dtype=np.uint8)
+    masked = mask_qr_region(blank)
+    assert masked is not blank
+    np.testing.assert_array_equal(masked, blank)
+
+
+def test_mask_qr_region_masks_synthetic_qr() -> None:
+    """mask_qr_region overwrites synthetic QR regions with paper background fill."""
+    encoder = cv2.QRCodeEncoder.create()
+    payload = "A:500829993*B:999999990*D:FS*F:20261027*O:5.86*H:ABC123"
+    raw_matrix = encoder.encode(payload)
+    scaled = cv2.resize(raw_matrix, (raw_matrix.shape[1] * 8, raw_matrix.shape[0] * 8), interpolation=cv2.INTER_NEAREST)
+    bordered = cv2.copyMakeBorder(scaled, 40, 40, 40, 40, cv2.BORDER_CONSTANT, value=255)
+    bgr = cv2.cvtColor(bordered, cv2.COLOR_GRAY2BGR)
+
+    boxes = find_qr_bounding_boxes(bgr)
+    assert len(boxes) >= 1
+
+    masked = mask_qr_region(bgr, padding=8)
+    assert masked.shape == bgr.shape
+    # The center of the QR matrix in bordered had black modules (0, 0, 0), which should now be filled with paper color (255)
+    cy, cx = bgr.shape[0] // 2, bgr.shape[1] // 2
+    assert int(masked[cy, cx].mean()) > 240

@@ -197,6 +197,24 @@ def test_main_cli_execution_with_mock(
     assert "Lines found: 1" in captured
 
 
+def test_easyocr_accepts_width_ths_and_mag_ratio_or_catches_type_error() -> None:
+    """EasyOCREngine passes width_ths and mag_ratio or cleanly catches TypeError with simple mocks."""
+    calls: list[dict[str, Any]] = []
+
+    class AdvancedMockReader:
+        def readtext(
+            self, image: np.ndarray, detail: int = 1, width_ths: float = 0.7, mag_ratio: float = 1.0
+        ) -> list[Any]:
+            calls.append({"width_ths": width_ths, "mag_ratio": mag_ratio})
+            return []
+
+    engine = EasyOCREngine(reader=AdvancedMockReader())
+    engine.read(np.zeros((50, 50, 3), dtype=np.uint8))
+    assert len(calls) == 1
+    assert calls[0]["width_ths"] == 0.5
+    assert calls[0]["mag_ratio"] == 1.5
+
+
 @pytest.mark.slow
 def test_live_easyocr_engine_smoke() -> None:
     """Live EasyOCR model smoke test (opt-in only via `pytest -m slow`)."""

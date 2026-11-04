@@ -89,7 +89,10 @@ class EasyOCREngine:
         height, width = bgr.shape[:2]
 
         start_time = time.perf_counter()
-        raw_results = self._reader.readtext(bgr, detail=1)
+        try:
+            raw_results = self._reader.readtext(bgr, detail=1, width_ths=0.5, mag_ratio=1.5)
+        except TypeError:
+            raw_results = self._reader.readtext(bgr, detail=1)
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
         candidates: list[tuple[int, int, str, float, BBox]] = []

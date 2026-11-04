@@ -104,7 +104,7 @@ class PreprocessOptions:
     clahe_clip_limit: float = 2.0
     clahe_tile_grid_size: tuple[int, int] = (8, 8)
     contrast_gamma: float = 1.0
-    sharpen_strength: float = 0.0
+    sharpen_strength: float = 0.35
     shadow_kernel_size: int = 25
     auto_orient_osd: bool = True
     auto_deskew: bool = False
@@ -253,7 +253,7 @@ def main(
     parser.add_argument("--no-deskew", action="store_true", help="Disable continuous text-line deskew")
     parser.add_argument("--clahe", type=float, default=2.0, help="CLAHE contrast limit")
     parser.add_argument("--gamma", type=float, default=1.0, help="Ink contrast gamma correction")
-    parser.add_argument("--sharpen", type=float, default=0.0, help="Unsharp masking strength")
+    parser.add_argument("--sharpen", type=float, default=0.35, help="Unsharp masking strength")
     parser.add_argument("--shadow-kernel", type=int, default=25, help="Shadow attenuation kernel size")
     parser.add_argument("--save", "-s", type=str, default=None, help="Save side-by-side comparison image to path")
 

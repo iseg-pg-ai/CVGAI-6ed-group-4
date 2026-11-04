@@ -27,6 +27,15 @@ MERCHANT_MARKER = _MERCHANT_MARKER
 _HEADER_BAND_RATIO = 0.4
 HEADER_BAND_RATIO = _HEADER_BAND_RATIO
 
+#: Words that identify customer care lines, helplines, or call rates that must not be parsed as customer NIFs.
+_TELECOM_MARKER = re.compile(
+    r"\b(?:apoio|suporte|linha|chamada|custo|atendimento|contacto|contacte|rede|fixa|movel|gratuito|dias\s+uteis)\b",
+    re.IGNORECASE,
+)
+
+#: Portuguese toll-free and shared-cost telephone prefixes that share 9 digits.
+_TELEPHONE_PREFIXES = ("800", "808", "707", "708")
+
 
 def fold_text(text: str) -> str:
     """Return the keyword-comparable form of a line.
@@ -120,13 +129,16 @@ def extract_nifs(lines: Sequence[OcrLine], image_size: tuple[int, int]) -> tuple
                 break
 
         has_client = (_CLIENT_MARKER.search(folded) is not None) or has_preceding_client_context
-        if re.search(r"\b(?:apoio|suporte|linha)\b", folded):
+        if _TELECOM_MARKER.search(folded) is not None:
             has_client = False
         has_merchant = _MERCHANT_MARKER.search(folded) is not None
 
-        if has_client:
-            valid_c = [n for n in nifs if validar_nif(n)]
-            client_pairs.append((valid_c[-1] if valid_c else nifs[-1], line))
+        # Filter out toll-free / helpline telephone numbers from customer NIF candidate pools
+        candidate_client_nifs = [n for n in nifs if not any(n.startswith(p) for p in _TELEPHONE_PREFIXES)]
+
+        if has_client and candidate_client_nifs:
+            valid_c = [n for n in candidate_client_nifs if validar_nif(n)]
+            client_pairs.append((valid_c[-1] if valid_c else candidate_client_nifs[-1], line))
             if has_merchant and len(nifs) > 1:
                 valid_m = [n for n in nifs[:-1] if validar_nif(n)]
                 merchant_pairs.append((valid_m[0] if valid_m else nifs[0], line))

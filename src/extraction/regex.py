@@ -111,9 +111,19 @@ _MIN_ENTITY_LETTERS = 3
 _MIN_ENTITY_ALPHA_RATIO = 0.5
 
 
-def extract_entity(lines: Sequence[OcrLine]) -> FieldValue:
-    """Pick the merchant trading name from the first plausible header line."""
-    for line in lines:
+def extract_entity(lines: Sequence[OcrLine], image_size: tuple[int, int] | None = None) -> FieldValue:
+    """Pick the merchant trading name from the top header band of the document."""
+    if not lines:
+        return FieldValue(value=None, status="AUSENTE")
+
+    candidate_lines = lines
+    if image_size is not None and image_size[1] > 0:
+        cutoff = image_size[1] * _HEADER_BAND_RATIO
+        header_lines = [line for line in lines if line.bbox.y1 < cutoff]
+        if header_lines:
+            candidate_lines = header_lines
+
+    for line in candidate_lines:
         text = limpar_texto(line.text)
         folded = fold_text(text)
         if not folded or _ENTITY_STOPWORDS.search(folded):
@@ -183,7 +193,7 @@ def extract(doc: OcrDocument, qr: dict[str, str] | None = None) -> Extraction:
 
     merchant_nif, client_nif = extract_nifs(doc.lines, doc.image_size)
     return Extraction(
-        entidade=extract_entity(doc.lines),
+        entidade=extract_entity(doc.lines, doc.image_size),
         nif_comerciante=merchant_nif,
         nif_cliente=client_nif,
         data=extract_date(doc.lines),

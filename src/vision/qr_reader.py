@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 
 from src.core.types import CONSUMIDOR_FINAL_NIF, validate_image
+from src.vision.geometry import compute_paper_border_value
 
 if TYPE_CHECKING:
     from src.core.settings import Settings
@@ -232,6 +233,110 @@ def read(
             return raw_result
 
     return None
+
+
+def find_qr_bounding_boxes(image: np.ndarray, detector: Any | None = None) -> list[tuple[int, int, int, int]]:
+    """Locate bounding boxes (x1, y1, x2, y2) of any QR codes present in the image.
+
+    Args:
+        image: Source BGR or grayscale image.
+        detector: Optional injected detector instance.
+
+    Returns:
+        List of (x1, y1, x2, y2) boxes clamped to image boundaries.
+    """
+    validate_image(image)
+    h, w = image.shape[:2]
+    boxes: list[tuple[int, int, int, int]] = []
+
+    # 1. Try PyZbar polygon rectangles
+    with contextlib.suppress(Exception):
+        import pyzbar.pyzbar as pyzbar  # type: ignore[import-not-found,import-untyped]
+
+        codes = pyzbar.decode(image)
+        for code in codes:
+            if code.type == "QRCODE":
+                rect = code.rect
+                x1 = max(0, rect.left)
+                y1 = max(0, rect.top)
+                x2 = min(w, rect.left + rect.width)
+                y2 = min(h, rect.top + rect.height)
+                if x2 > x1 and y2 > y1:
+                    boxes.append((x1, y1, x2, y2))
+
+    # 2. Try OpenCV QRCodeDetector multi-detection points
+    qr_detector = detector or cv2.QRCodeDetector()
+    with contextlib.suppress(Exception):
+        if hasattr(qr_detector, "detectMulti"):
+            found, points = qr_detector.detectMulti(image)
+            if found and points is not None:
+                for pts in points:
+                    pts_reshaped = pts.reshape(-1, 2)
+                    x1 = max(0, int(np.floor(pts_reshaped[:, 0].min())))
+                    y1 = max(0, int(np.floor(pts_reshaped[:, 1].min())))
+                    x2 = min(w, int(np.ceil(pts_reshaped[:, 0].max())))
+                    y2 = min(h, int(np.ceil(pts_reshaped[:, 1].max())))
+                    if x2 > x1 and y2 > y1:
+                        boxes.append((x1, y1, x2, y2))
+        else:
+            found, points = qr_detector.detect(image)
+            if found and points is not None and points.size >= 8:
+                pts_reshaped = points.reshape(-1, 2)
+                x1 = max(0, int(np.floor(pts_reshaped[:, 0].min())))
+                y1 = max(0, int(np.floor(pts_reshaped[:, 1].min())))
+                x2 = min(w, int(np.ceil(pts_reshaped[:, 0].max())))
+                y2 = min(h, int(np.ceil(pts_reshaped[:, 1].max())))
+                if x2 > x1 and y2 > y1:
+                    boxes.append((x1, y1, x2, y2))
+
+    # Remove duplicates or near-identical boxes
+    unique_boxes: list[tuple[int, int, int, int]] = []
+    for b in boxes:
+        is_dup = False
+        for ub in unique_boxes:
+            if abs(b[0] - ub[0]) < 10 and abs(b[1] - ub[1]) < 10 and abs(b[2] - ub[2]) < 10 and abs(b[3] - ub[3]) < 10:
+                is_dup = True
+                break
+        if not is_dup:
+            unique_boxes.append(b)
+
+    return unique_boxes
+
+
+def mask_qr_region(image: np.ndarray, padding: int = 12, detector: Any | None = None) -> np.ndarray:
+    """Return a copy of the image with detected QR code areas overwritten by paper background.
+
+    Args:
+        image: Source BGR or grayscale image.
+        padding: Pixel expansion applied to all four sides of each detected box.
+        detector: Optional injected detector instance.
+
+    Returns:
+        New image array with QR regions masked out, or an exact copy if no QR is found.
+    """
+    validate_image(image)
+    boxes = find_qr_bounding_boxes(image, detector=detector)
+    if not boxes:
+        return image.copy()
+
+    h, w = image.shape[:2]
+    masked = image.copy()
+    paper_fill = compute_paper_border_value(image)
+
+    for x1, y1, x2, y2 in boxes:
+        pad_x1 = max(0, x1 - padding)
+        pad_y1 = max(0, y1 - padding)
+        pad_x2 = min(w, x2 + padding)
+        pad_y2 = min(h, y2 + padding)
+
+        if masked.ndim == 2:
+            fill_val = paper_fill if isinstance(paper_fill, int) else int(paper_fill[0])
+            masked[pad_y1:pad_y2, pad_x1:pad_x2] = fill_val
+        else:
+            fill_tuple = paper_fill if isinstance(paper_fill, tuple) else (paper_fill, paper_fill, paper_fill)
+            masked[pad_y1:pad_y2, pad_x1:pad_x2] = fill_tuple
+
+    return masked
 
 
 def main(
