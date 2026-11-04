@@ -25,6 +25,18 @@ def test_default_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
         "RECEIPTS_DIR",
         "GROUND_TRUTH_PATH",
         "RESULTS_DIR",
+        "LLAMA_MODEL_PATH",
+        "MODEL",
+        "LLAMA_PORT",
+        "PORT",
+        "LLAMA_NGL",
+        "NGL",
+        "LLAMA_CTX",
+        "CTX",
+        "PREPROCESS_MAX_SIDE",
+        "PREPROCESS_CLAHE_CLIP",
+        "PREPROCESS_GAMMA",
+        "PREPROCESS_SHARPEN",
     ]:
         monkeypatch.delenv(var, raising=False)
 

@@ -9,7 +9,6 @@ Ref: Docs/implementation_plan.md, section 1.1 and WP-08.
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys
@@ -96,9 +95,8 @@ def main(
     args = parser.parse_args(argv)
 
     # 1. Resolve model path
-    model_str = args.model or os.getenv("MODEL") or os.getenv("LLAMA_MODEL_PATH")
-    if model_str:
-        candidate_path = Path(model_str)
+    if args.model:
+        candidate_path = Path(args.model)
         model_path = candidate_path if candidate_path.is_absolute() else (settings.repo_root / candidate_path).resolve()
     else:
         model_path = settings.llama_model_path or (
