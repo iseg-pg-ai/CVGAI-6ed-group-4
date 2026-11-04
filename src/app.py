@@ -11,20 +11,19 @@ Ref: Docs/implementation_plan.md, section 7, WP-16.
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import sys
 import threading
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import cv2
 import gradio as gr
 import numpy as np
 
-from src.core.cli_utils import list_receipt_images
+from src.app_layout import build_blocks, load_benchmark_report
 from src.core.settings import get_settings
-from src.core.types import ROTATION_CHOICES, Extraction, OcrDocument, OcrEngine, RotationOption
+from src.core.types import Extraction, OcrDocument, OcrEngine, RotationOption
 from src.extraction.llm import extract as extract_llm
 from src.extraction.llm_client import build_client
 from src.extraction.qa_assistant import ask as ask_qa
@@ -38,6 +37,34 @@ from src.vision.qr_reader import read as read_qr
 if TYPE_CHECKING:
     from src.core.settings import Settings
 
+__all__ = [
+    "EasyOCREngine",
+    "PreprocessOptions",
+    "TesseractEngine",
+    "_CACHE_LOCK",
+    "_ENGINE_CACHE",
+    "_OCR_CACHE",
+    "_build_preprocess_options",
+    "_compute_cache_key",
+    "_from_gradio_rgb",
+    "_get_ocr_document",
+    "_get_ocr_engine",
+    "_to_gradio_rgb",
+    "answer_question",
+    "ask_qa",
+    "build_app",
+    "clear_caches",
+    "crop",
+    "draw_all_ocr_boxes",
+    "extract_llm",
+    "extract_regex",
+    "highlight",
+    "load_benchmark_report",
+    "main",
+    "preprocess",
+    "process_document",
+    "read_qr",
+]
 
 # In-memory thread-safe caches
 _CACHE_LOCK = threading.Lock()
@@ -53,17 +80,7 @@ def clear_caches() -> None:
 
 
 def _from_gradio_rgb(image: np.ndarray) -> np.ndarray:
-    """Convert Gradio RGB/RGBA/Grayscale array to 3-channel BGR for the OpenCV pipeline.
-
-    Args:
-        image: Source array passed by Gradio.
-
-    Returns:
-        3-channel BGR uint8 array.
-
-    Raises:
-        ValueError: If the input array has an unsupported shape.
-    """
+    """Convert Gradio RGB/RGBA/Grayscale array to 3-channel BGR for the OpenCV pipeline."""
     if image.ndim == 2:
         return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     if image.ndim == 3:
@@ -75,14 +92,7 @@ def _from_gradio_rgb(image: np.ndarray) -> np.ndarray:
 
 
 def _to_gradio_rgb(image: np.ndarray | None) -> np.ndarray | None:
-    """Convert OpenCV BGR array back to RGB for Gradio browser display.
-
-    Args:
-        image: Source BGR array from OpenCV pipeline or None.
-
-    Returns:
-        RGB array ready for Gradio display, or None.
-    """
+    """Convert OpenCV BGR array back to RGB for Gradio browser display."""
     if image is None:
         return None
     if image.ndim == 2:
@@ -129,23 +139,17 @@ def _get_ocr_document(
     engine_name: str,
     settings: Settings | None = None,
 ) -> tuple[PreprocessResult, OcrDocument, dict[str, str] | None]:
-    """Retrieve preprocessed result, OCR document, and QR data from cache or compute them."""
+    """Retrieve or compute the OCR document and AT QR payload with thread-safe caching."""
     cache_key = _compute_cache_key(image_bgr, opts, engine_name)
     with _CACHE_LOCK:
         if cache_key in _OCR_CACHE:
             return _OCR_CACHE[cache_key]
 
-    # Step 1: Preprocess (BGR -> BGR)
-    prep_result = preprocess(image_bgr, opts)
-
-    # Step 2: OCR on aligned/filtered BGR image
+    prep_result = preprocess(image_bgr, opts=opts)
     engine = _get_ocr_engine(engine_name, settings=settings)
     ocr_doc = engine.read(prep_result.image)
-
-    # Step 3: QR Code
     qr_data = read_qr(prep_result.image, raw_image=image_bgr)
 
-    # Store in cache (limit size to 20 entries)
     with _CACHE_LOCK:
         if len(_OCR_CACHE) >= 20:
             _OCR_CACHE.pop(next(iter(_OCR_CACHE)))
@@ -183,15 +187,15 @@ def process_document(
     extractor_name: str,
     settings: Settings | None = None,
 ) -> tuple[
-    np.ndarray | None,  # annotated_image (RGB for Gradio)
-    np.ndarray | None,  # evidence_crop (RGB for Gradio)
-    str,  # metadata_info
-    list[list[str]],  # structured_table
-    np.ndarray | None,  # step1_raw (RGB)
-    np.ndarray | None,  # step2_cropped (RGB)
-    np.ndarray | None,  # step3_filtered (RGB)
-    np.ndarray | None,  # step4_boxes (RGB)
-    str,  # ocr_prompt_text
+    np.ndarray | None,
+    np.ndarray | None,
+    str,
+    list[list[str]],
+    np.ndarray | None,
+    np.ndarray | None,
+    np.ndarray | None,
+    np.ndarray | None,
+    str,
 ]:
     """Run full preprocessing, OCR, extraction, and visual evidence highlighting."""
     if image is None:
@@ -211,7 +215,6 @@ def process_document(
         err_msg = f"Erro no processamento de imagem/OCR: {exc}"
         return None, None, err_msg, [], None, None, None, None, ""
 
-    # Map extractor choice with transparent fallback logging
     extraction: Extraction
     fallback_note = ""
     try:
@@ -227,7 +230,6 @@ def process_document(
         fallback_note = f" | Aviso: {extractor_name} indisponivel ({exc}); utilizado regex como recurso alternativo"
         extraction = extract_regex(ocr_doc, qr=qr_data)
 
-    # Build Structured Fields Dataframe rows
     table_rows: list[list[str]] = []
     qr_mapping = {
         "entidade": "-",
@@ -246,11 +248,9 @@ def process_document(
         if fv.line_id is not None:
             highlight_line_ids.append(fv.line_id)
 
-    # Evidence rendering in BGR
     annotated_bgr = highlight(prep_result.image, ocr_doc, highlight_line_ids)
     evidence_crop_bgr = crop(prep_result.image, ocr_doc, highlight_line_ids)
 
-    # Step-by-step pipeline views in BGR (Tab 2)
     step1_raw_bgr = prep_result.steps.get("bruta", prep_result.image)
     step2_cropped_bgr = prep_result.steps.get("recortada", prep_result.image)
     step3_filtered_bgr = prep_result.steps.get("filtrada", prep_result.image)
@@ -288,10 +288,10 @@ def answer_question(
     provider_choice: str,
     settings: Settings | None = None,
 ) -> tuple[
-    str,  # status_str
-    str,  # answer_text
-    np.ndarray | None,  # annotated_image (RGB)
-    np.ndarray | None,  # evidence_crop (RGB)
+    str,
+    str,
+    np.ndarray | None,
+    np.ndarray | None,
 ]:
     """Execute grounded question answering over the cached OCR document."""
     if image is None:
@@ -336,43 +336,6 @@ def answer_question(
     )
 
 
-def load_benchmark_report(settings: Settings | None = None) -> tuple[str, list[str], list[list[str]]]:
-    """Load benchmark metrics markdown and CSV if generated, or provide placeholder.
-
-    Returns:
-        Tuple of (markdown_summary, csv_headers, csv_data_rows).
-    """
-    cfg = settings or get_settings()
-    results_dir = cfg.results_dir
-
-    md_path = results_dir / "metrics.md"
-    csv_path = results_dir / "metrics.csv"
-
-    if md_path.is_file():
-        md_content = md_path.read_text(encoding="utf-8")
-    else:
-        md_content = (
-            "### Relatorio de Avaliacao de Desempenho (Pendente de Execucao)\n\n"
-            "O benchmark oficial sobre o golden set pode ser executado com o comando:\n\n"
-            "```bash\n"
-            "uv run python -m src.evaluation.evaluate\n"
-            "```\n\n"
-            "Os resultados discriminados por metodo (Regex vs LLM) e por grupo (direito vs amarrotado) "
-            "serao gerados em `results/metrics.md` e `results/metrics.csv`."
-        )
-
-    csv_headers: list[str] = []
-    csv_rows: list[list[str]] = []
-    if csv_path.is_file():
-        with csv_path.open(encoding="utf-8-sig") as f:
-            reader = list(csv.reader(f))
-            if reader:
-                csv_headers = reader[0]
-                csv_rows = reader[1:]
-
-    return md_content, csv_headers, csv_rows
-
-
 def build_app(settings_override: Settings | None = None) -> gr.Blocks:
     """Build the multi-tab Gradio application interface.
 
@@ -383,216 +346,12 @@ def build_app(settings_override: Settings | None = None) -> gr.Blocks:
         Configured Gradio Blocks application.
     """
     settings = settings_override or get_settings()
-    example_files: list[list[Any]] = [[str(p)] for p in list_receipt_images(settings.receipts_dir)]
-
-    with gr.Blocks(title="Leitor Inteligente de Documentos Visuais") as demo:
-        gr.Markdown(
-            "# Leitor Inteligente de Faturas e Taloes de Compra\n"
-            "**CVGAI 6ª Edicao — Grupo 4** | Pipeline hibrido de Visao Computacional, OCR e Modelos de Linguagem"
-        )
-
-        with gr.Tabs():
-            # -------------------------------------------------------------------------
-            # TAB 1: Demonstracao Principal (Leitor + Assistente)
-            # -------------------------------------------------------------------------
-            with gr.Tab("Leitor e Assistente de Documentos"), gr.Row():
-                # Left Column: Inputs & Controls
-                with gr.Column(scale=4):
-                    input_image = gr.Image(label="Fotografia do Talao", type="numpy")
-
-                    with gr.Accordion("Parametros de Pre-processamento (OpenCV)", open=False):
-                        rot_choice = gr.Radio(
-                            choices=list(ROTATION_CHOICES),
-                            value="auto",
-                            label="Rotacao (Orientacao)",
-                        )
-                        chk_crop = gr.Checkbox(value=True, label="Recorte Automatico do Documento")
-                        chk_shadows = gr.Checkbox(value=True, label="Atenuacao de Sombras de Vincos")
-                        slider_clahe = gr.Slider(
-                            minimum=0.0, maximum=5.0, value=2.0, step=0.5, label="Intensidade de Contraste CLAHE"
-                        )
-
-                    with gr.Row():
-                        ocr_choice = gr.Radio(
-                            choices=["EasyOCR", "Tesseract"],
-                            value="EasyOCR",
-                            label="Motor OCR",
-                        )
-                        extractor_choice = gr.Radio(
-                            choices=[
-                                "Regex Baseline",
-                                "LLM Local (llama.cpp)",
-                                "LLM Cloud (Gemini)",
-                            ],
-                            value="Regex Baseline",
-                            label="Metodo de Extracao",
-                        )
-
-                    btn_process = gr.Button("Processar Documento", variant="primary")
-
-                    if example_files:
-                        gr.Examples(
-                            examples=example_files,
-                            inputs=[input_image],
-                            label="Exemplos do Golden Set",
-                        )
-
-                # Center Column: Visual Grounding Evidence
-                with gr.Column(scale=4):
-                    output_annotated = gr.Image(label="Documento com Destaque Visual", type="numpy")
-                    output_crop = gr.Image(label="Recorte Comprovativo da Evidencia", type="numpy")
-                    txt_metadata = gr.Textbox(label="Metadados da Execucao", interactive=False)
-
-                # Right Column: Extracted Fields & Grounded Q&A
-                with gr.Column(scale=4):
-                    gr.Markdown("### Dados Estruturados Extraidos")
-                    tbl_fields = gr.Dataframe(
-                        headers=["Campo", "Valor Extraido", "Estado", "Linha OCR", "QR Code AT"],
-                        datatype=["str", "str", "str", "str", "str"],
-                        interactive=False,
-                        label="Campos Obrigatorios do Recibo",
-                    )
-
-                    gr.Markdown("### Assistente Verificavel de Perguntas e Respostas")
-                    qa_provider_choice = gr.Radio(
-                        choices=[
-                            "LLM Local (llama.cpp)",
-                            "LLM Cloud (Gemini)",
-                        ],
-                        value="LLM Local (llama.cpp)",
-                        label="Modelo LLM para Q&A",
-                    )
-                    txt_question = gr.Textbox(
-                        label="Pergunta em Linguagem Natural",
-                        placeholder="Ex: Qual o NIF do cliente? Qual o total a pagar?",
-                    )
-
-                    with gr.Row():
-                        btn_q1 = gr.Button("NIF do Cliente", size="sm")
-                        btn_q2 = gr.Button("Metodo de Pagamento", size="sm")
-                        btn_q3 = gr.Button("Email da Loja", size="sm")
-                        btn_q4 = gr.Button("Total Pago", size="sm")
-
-                    btn_ask = gr.Button("Perguntar ao Documento", variant="secondary")
-
-                    with gr.Row():
-                        txt_qa_status = gr.Textbox(label="Estado da Resposta", interactive=False, scale=1)
-                        txt_qa_answer = gr.Textbox(label="Resposta do Assistente", lines=2, interactive=False, scale=3)
-
-            # -------------------------------------------------------------------------
-            # TAB 2: Pipeline Passo a Passo (Didatico / Slides)
-            # -------------------------------------------------------------------------
-            with gr.Tab("Pipeline Passo a Passo (Visao Computacional)"):
-                gr.Markdown(
-                    "### Evolucao Visual das Etapas de Pre-processamento e OCR\n"
-                    "Permite capturar ecrans diretos para demonstrar o impacto do alinhamento, "
-                    "recorte por contornos, remocao de sombras e CLAHE."
-                )
-                with gr.Row():
-                    step1_img = gr.Image(label="1. Imagem Bruta", type="numpy")
-                    step2_img = gr.Image(label="2. Alinhada e Recortada", type="numpy")
-                with gr.Row():
-                    step3_img = gr.Image(label="3. Filtrada e Otimizada (CLAHE)", type="numpy")
-                    step4_img = gr.Image(label="4. Mapa de Caixas Delimitadoras (OCR)", type="numpy")
-
-                with gr.Accordion("Texto Indexado por Linha (Prompt LLM)", open=False):
-                    txt_ocr_prompt = gr.Textbox(
-                        label="Texto Reconhecido com Identificadores Estaveis [NN]",
-                        lines=12,
-                        interactive=False,
-                    )
-
-            # -------------------------------------------------------------------------
-            # TAB 3: Validacao e Benchmark
-            # -------------------------------------------------------------------------
-            with gr.Tab("Validacao e Benchmark"):
-                gr.Markdown("### Metricas Quantitativas sobre o Golden Set")
-                md_benchmark = gr.Markdown()
-                tbl_benchmark = gr.Dataframe(
-                    headers=[
-                        "filename",
-                        "grupo",
-                        "campo",
-                        "esperado",
-                        "obtido",
-                        "acertou",
-                        "falso_positivo",
-                        "omissao",
-                    ],
-                    datatype=["str", "str", "str", "str", "str", "str", "str", "str"],
-                    interactive=False,
-                    label="Tabela de Metricas Detalhada (results/metrics.csv)",
-                )
-                btn_refresh_bench = gr.Button("Atualizar Relatorio de Metricas", size="sm")
-
-        # -----------------------------------------------------------------------------
-        # Wire Events
-        # -----------------------------------------------------------------------------
-        btn_process.click(
-            fn=lambda img, rot, crop_chk, sh_chk, clahe, ocr_eng, extr: process_document(
-                img, rot, crop_chk, sh_chk, clahe, ocr_eng, extr, settings=settings
-            ),
-            inputs=[
-                input_image,
-                rot_choice,
-                chk_crop,
-                chk_shadows,
-                slider_clahe,
-                ocr_choice,
-                extractor_choice,
-            ],
-            outputs=[
-                output_annotated,
-                output_crop,
-                txt_metadata,
-                tbl_fields,
-                step1_img,
-                step2_img,
-                step3_img,
-                step4_img,
-                txt_ocr_prompt,
-            ],
-        )
-
-        btn_ask.click(
-            fn=lambda q, img, rot, crop_chk, sh_chk, clahe, ocr_eng, prov: answer_question(
-                q, img, rot, crop_chk, sh_chk, clahe, ocr_eng, prov, settings=settings
-            ),
-            inputs=[
-                txt_question,
-                input_image,
-                rot_choice,
-                chk_crop,
-                chk_shadows,
-                slider_clahe,
-                ocr_choice,
-                qa_provider_choice,
-            ],
-            outputs=[
-                txt_qa_status,
-                txt_qa_answer,
-                output_annotated,
-                output_crop,
-            ],
-        )
-
-        # Quick question shortcut buttons
-        btn_q1.click(lambda: "Qual o NIF do cliente?", outputs=txt_question)
-        btn_q2.click(lambda: "Qual o metodo de pagamento?", outputs=txt_question)
-        btn_q3.click(lambda: "Qual o email da loja?", outputs=txt_question)
-        btn_q4.click(lambda: "Qual o valor total pago?", outputs=txt_question)
-
-        # Benchmark tab load & refresh handlers
-        def _refresh_benchmark() -> tuple[str, Any]:
-            md, headers, rows = load_benchmark_report(settings=settings)
-            if headers:
-                return md, gr.update(value=rows, headers=headers)
-            return md, gr.update(value=[])
-
-        demo.load(fn=_refresh_benchmark, outputs=[md_benchmark, tbl_benchmark])
-        btn_refresh_bench.click(fn=_refresh_benchmark, outputs=[md_benchmark, tbl_benchmark])
-
-    return demo
+    return build_blocks(
+        process_document_fn=process_document,
+        answer_question_fn=answer_question,
+        report_fn=load_benchmark_report,
+        settings=settings,
+    )
 
 
 def main(

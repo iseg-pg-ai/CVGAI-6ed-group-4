@@ -10,14 +10,28 @@ Ref: Docs/implementation_plan.md, section 7, WP-08.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 import time
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from src.core.types import LLM_PROVIDERS
+from src.extraction.llm_client_base import (
+    LLMClient,
+    LLMConnectionError,
+    LLMError,
+    LLMQuotaError,
+    build_object_schema,
+    coerce_line_id,
+    parse_json_object,
+)
+from src.extraction.llm_providers import (
+    GeminiClient,
+    OpenAICompatibleClient,
+    _sanitize_gemini_schema,
+    sanitize_gemini_schema,
+)
 
 if TYPE_CHECKING:
     import numpy as np
@@ -26,291 +40,22 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-class LLMError(RuntimeError):
-    """Base exception for all language model client failures."""
-
-
-class LLMConnectionError(LLMError):
-    """Raised when an LLM provider endpoint is unreachable (connection refused, timeout)."""
-
-
-class LLMQuotaError(LLMError):
-    """Raised when an API quota is exhausted (HTTP 429)."""
-
-
-def build_object_schema(properties: dict[str, Any]) -> dict[str, Any]:
-    """Build a closed JSON object schema with every property required.
-
-    ``additionalProperties: false`` ensures strict schema enforcement on local
-    llama-server grammar constraints and is automatically stripped by GeminiClient.
-
-    Args:
-        properties: Property schemas keyed by property name.
-
-    Returns:
-        A JSON schema object requiring all given properties.
-    """
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": list(properties),
-        "additionalProperties": False,
-    }
-
-
-def parse_json_object(raw: str, error_cls: type[Exception] = ValueError) -> dict[str, Any]:
-    """Recover a JSON object from a raw model response string.
-
-    Tolerates markdown code fences and prose surrounding the JSON object.
-
-    Args:
-        raw: Raw text returned by the LLM client.
-        error_cls: Exception class to raise on malformed JSON or non-dict payloads.
-
-    Returns:
-        Decoded JSON dictionary.
-
-    Raises:
-        Exception: Instance of error_cls when no JSON object can be decoded.
-    """
-    text = raw.strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end < start:
-        raise error_cls(f"Response contains no JSON object: {text[:200]!r}")
-
-    candidate = text[start : end + 1]
-    try:
-        payload = json.loads(candidate)
-    except json.JSONDecodeError as exc:
-        raise error_cls(f"Response is not valid JSON: {exc}") from exc
-
-    if not isinstance(payload, dict):
-        raise error_cls(f"Response JSON is a {type(payload).__name__}, expected an object")
-    return payload
-
-
-def coerce_line_id(raw: object, valid_ids: set[int]) -> int | None:
-    """Coerce a raw line identifier to an int if it exists in valid_ids.
-
-    Args:
-        raw: Candidate line identifier (int or numeric string) from decoded JSON.
-        valid_ids: Set of valid 1-based line identifiers in the OCR document.
-
-    Returns:
-        Validated integer line ID, or None if invalid or absent from valid_ids.
-    """
-    if raw is None or isinstance(raw, bool):
-        return None
-    if isinstance(raw, int):
-        return raw if raw in valid_ids else None
-    if isinstance(raw, str) and raw.strip().isdigit():
-        candidate = int(raw.strip())
-        return candidate if candidate in valid_ids else None
-    return None
-
-
-class LLMClient(Protocol):
-    """Interface every LLM provider backend must satisfy."""
-
-    provider: str
-    last_effective_provider: str
-
-    def complete(
-        self,
-        system: str,
-        user: str,
-        schema: dict[str, Any] | None = None,
-    ) -> str:
-        """Generate a completion from system and user prompt strings.
-
-        Args:
-            system: System instructions (persona, task definition, schema description).
-            user: User content (indexed OCR lines, questions, document context).
-            schema: Optional flat JSON schema dictionary for structured output.
-
-        Returns:
-            Raw text response from the model (structured JSON string or natural language).
-        """
-        ...
-
-
-class OpenAICompatibleClient:
-    """Client for backends adhering to the OpenAI /v1/chat/completions specification.
-
-    Serves local llama-server instances.
-    """
-
-    def __init__(
-        self,
-        provider: str,
-        base_url: str,
-        api_key: str,
-        model: str,
-        timeout_s: float = 120.0,
-        client: Any | None = None,
-    ) -> None:
-        """Initialise the OpenAI-compatible client.
-
-        Args:
-            provider: Identifier of the provider, e.g. 'llm_local'.
-            base_url: Target API endpoint URL.
-            api_key: API authorization key.
-            model: Model name string.
-            timeout_s: Request timeout in seconds.
-            client: Optional pre-configured client instance for testing or dependency injection.
-        """
-        self.provider = provider
-        self.last_effective_provider = provider
-        self.base_url = base_url
-        self.model = model
-        self.timeout_s = timeout_s
-
-        if client is not None:
-            self._client = client
-        else:
-            from openai import OpenAI
-
-            self._client = OpenAI(base_url=base_url, api_key=api_key, timeout=timeout_s)
-
-    def complete(
-        self,
-        system: str,
-        user: str,
-        schema: dict[str, Any] | None = None,
-        image: np.ndarray | None = None,
-    ) -> str:
-        """Generate completion using OpenAI chat completions API."""
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ]
-
-        kwargs: dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": 0.0,
-        }
-
-        if schema is not None:
-            kwargs["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "response",
-                    "strict": True,
-                    "schema": schema,
-                },
-            }
-
-        try:
-            response = self._client.chat.completions.create(**kwargs)
-        except Exception as exc:
-            err_type = type(exc).__name__
-            err_str = str(exc)
-            if "Connection" in err_type or "ConnectError" in err_type or "Connection refused" in err_str:
-                msg = (
-                    f"Could not connect to {self.provider} at {self.base_url} (Connection refused). "
-                    "Ensure llama-server is running (see scripts/run_llama_server.sh)."
-                    if self.provider == "llm_local"
-                    else f"Could not connect to {self.provider} at {self.base_url}."
-                )
-                raise LLMConnectionError(msg) from exc
-            if "Timeout" in err_type or "timeout" in err_str.lower():
-                raise LLMConnectionError(f"Request to {self.provider} at {self.base_url} timed out.") from exc
-            if "RateLimit" in err_type or "429" in err_str:
-                raise LLMQuotaError(f"Rate limit exceeded for {self.provider} ({exc}).") from exc
-            raise LLMError(f"API error from {self.provider}: {exc}") from exc
-
-        self.last_effective_provider = self.provider
-
-        content = response.choices[0].message.content
-        return content or ""
-
-
-def _sanitize_gemini_schema(schema: Any) -> Any:
-    """Recursively strip fields unsupported by Google Gemini's Schema API.
-
-    OpenAI strict mode mandates 'additionalProperties: false', but Google Gemini's
-    Schema API does not support 'additionalProperties' and rejects requests with
-    HTTP 400 INVALID_ARGUMENT.
-    """
-    if isinstance(schema, dict):
-        return {
-            k: _sanitize_gemini_schema(v)
-            for k, v in schema.items()
-            if k not in ("additionalProperties", "additional_properties")
-        }
-    if isinstance(schema, list):
-        return [_sanitize_gemini_schema(item) for item in schema]
-    return schema
-
-
-class GeminiClient:
-    """Client for Google Gemini models using the google-genai SDK."""
-
-    provider: str = "llm_gemini"
-
-    def __init__(
-        self,
-        api_key: str,
-        model: str = "gemini-3.5-flash",
-        client: Any | None = None,
-    ) -> None:
-        """Initialise the Google Gemini client.
-
-        Args:
-            api_key: Google Gemini API key.
-            model: Gemini model identifier.
-            client: Optional pre-configured client instance for testing or dependency injection.
-        """
-        self.last_effective_provider = self.provider
-        self.model = model
-
-        if client is not None:
-            self._client = client
-        else:
-            from google import genai
-
-            self._client = genai.Client(api_key=api_key)
-
-    def complete(
-        self,
-        system: str,
-        user: str,
-        schema: dict[str, Any] | None = None,
-        image: np.ndarray | None = None,
-    ) -> str:
-        """Generate completion using Google GenAI SDK."""
-        from google.genai import types
-
-        config_kwargs: dict[str, Any] = {
-            "system_instruction": system,
-            "temperature": 0.0,
-        }
-
-        if schema is not None:
-            config_kwargs["response_mime_type"] = "application/json"
-            config_kwargs["response_schema"] = _sanitize_gemini_schema(schema)
-
-        config = types.GenerateContentConfig(**config_kwargs)
-
-        try:
-            response = self._client.models.generate_content(
-                model=self.model,
-                contents=user,
-                config=config,
-            )
-        except Exception as exc:
-            err_str = str(exc).lower()
-            if "quota" in err_str or "429" in err_str or "resource_exhausted" in err_str:
-                raise LLMQuotaError(f"Quota exceeded for {self.provider} ({exc}).") from exc
-            if "connect" in err_str or "timeout" in err_str:
-                raise LLMConnectionError(f"Connection to {self.provider} failed ({exc}).") from exc
-            raise LLMError(f"Gemini error: {exc}") from exc
-
-        self.last_effective_provider = self.provider
-        return response.text or ""
+__all__ = [
+    "FailoverLLMClient",
+    "GeminiClient",
+    "LLMClient",
+    "LLMConnectionError",
+    "LLMError",
+    "LLMQuotaError",
+    "OpenAICompatibleClient",
+    "_sanitize_gemini_schema",
+    "build_client",
+    "build_object_schema",
+    "coerce_line_id",
+    "main",
+    "parse_json_object",
+    "sanitize_gemini_schema",
+]
 
 
 class FailoverLLMClient:
