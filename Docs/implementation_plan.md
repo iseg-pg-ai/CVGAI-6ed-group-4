@@ -398,16 +398,15 @@ O único pacote restante é a mini-apresentação (WP-18).
 ### 5.1 Estado das entregas e desvios face ao plano
 
 Fechados e integrados em `master` a 2026-11-04: WP-00, WP-01, WP-02, WP-03, WP-04, WP-05, WP-06,
-WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16 e WP-17. A suite tem 304 testes offline que correm
-em cerca de 4,5 s, mais um teste `slow` com o EasyOCR real, deselecionado por omissão.
+WP-07, WP-08, WP-09, WP-10, WP-11, WP-12, WP-13, WP-14, WP-15, WP-16 e WP-17. A suite tem 320 testes offline que correm
+em cerca de 4,5 s across 19 ficheiros de teste, mais um teste `slow` com o EasyOCR real, deselecionado por omissão.
 
 Desvios que valem registo, porque afetam os pacotes seguintes:
 
 - **`src/core/settings.py` (fora da numeração).** Centraliza `os.getenv`, o carregamento do `.env` e
-  a resolução de todos os caminhos, para cumprir a regra "nenhuma leitura de ambiente fora de
-  `settings.py`". `load_settings(repo_root=...)` usa `dotenv_values` para construir um `Settings`
-  isolado sem mutar `os.environ`; `get_settings()` é `lru_cache`ado e não deve ser usado em testes.
-  Expõe configurações para `max_side`, `clahe_clip_limit`, `llama_port` e `llama_ngl`.
+  a resolução de todos os caminhos via `pydantic_settings.BaseSettings`, para cumprir a regra "nenhuma leitura de ambiente fora de
+  `settings.py`" (com logging centralizado em `src/core/logging.py`). Suporta aliases de retrocompatibilidade, validação tipada e proxies de dataclass.
+  Expõe configurações para `max_side`, `clahe_clip_limit`, `contrast_gamma`, `sharpen_strength`, `shadow_kernel_size`, `llama_port`, `llama_ngl`, `llama_ctx` e `llama_model_path`.
 - **Organização modular em subpacotes.** Os módulos foram arrumados em 5 subpastas temáticas
   (`src/core/`, `src/vision/`, `src/ocr/`, `src/extraction/`, `src/evaluation/`), com `src/app.py`
   como entrada superior. Foi acrescentado `src/core/cli_utils.py` com funções partilhadas de

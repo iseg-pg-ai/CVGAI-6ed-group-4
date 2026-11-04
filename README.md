@@ -30,22 +30,25 @@ EasyOCR, que descarrega os pesos na primeira execução):
 | Módulo | Estado | Pré-visualização |
 | :--- | :--- | :--- |
 | `src/core/types.py` | Contratos de dados fechados | — |
-| `src/core/settings.py` | Configuração e caminhos a partir do `.env` | — |
+| `src/core/settings.py` | Configuração tipada e caminhos via `pydantic-settings` | — |
+| `src/core/logging.py` | Configuração centralizada de logging (`setup_logging`) | — |
+| `src/core/server_launcher.py` | Lançador multiplataforma de `llama-server` | `./run serve --dry-run` |
 | `src/core/normalizers.py` | Normalização e comparação de campos | — |
 | `src/core/cli_utils.py` | Utilitários partilhados de carregamento e formatação CLI | — |
 | `src/evaluation/golden_set.py` | Validação e carregamento do golden set | `uv run python -m src.evaluation.golden_set` |
-| `src/vision/preprocessing.py` | Redimensionamento, orientação, recorte, sombras, CLAHE | `uv run python -m src.vision.preprocessing` |
+| `src/vision/preprocessing.py` | Pipeline OpenCV (geometria, fotometria, orientação) | `uv run python -m src.vision.preprocessing` |
 | `src/ocr/__init__.py` | Fábrica unificada de motores OCR (`build_ocr_engine`) | — |
 | `src/ocr/easyocr.py` | EasyOCR com caixas delimitadoras e IDs de linha | `uv run python -m src.ocr.easyocr` |
 | `src/ocr/tesseract.py` | Motor OCR comparativo, com agregação de palavras em linhas | `uv run python -m src.ocr.tesseract` |
-| `src/vision/qr_reader.py` | Leitura do QR da AT para validação cruzada | `uv run python -m src.vision.qr_reader` |
-| `src/extraction/llm_client.py` | Clientes local e Gemini com failover | `uv run python -m src.extraction.llm_client` |
-| `src/extraction/regex.py` | Extrator por regex (baseline) | `uv run python -m src.extraction.regex` |
-| `src/extraction/llm.py` | Extrator por LLM, local ou cloud, com JSON validado | `uv run python -m src.extraction.llm --provider llm_local` |
+| `src/vision/qr_reader.py` | Leitura e máscara de QR da AT para validação cruzada | `uv run python -m src.vision.qr_reader` |
+| `src/extraction/llm_client.py` | Clientes local e Gemini com failover automático | `uv run python -m src.extraction.llm_client` |
+| `src/extraction/regex.py` | Extrator por regex (baseline) com filtros de NIF | `uv run python -m src.extraction.regex` |
+| `src/extraction/llm.py` | Extrator por LLM estruturado com reconciliação e grounding | `uv run python -m src.extraction.llm --provider llm_local` |
 | `src/vision/evidence.py` | Destaque e recorte da região comprovativa | `uv run python -m src.vision.evidence -l 1,2,3` |
 | `src/extraction/qa_assistant.py` | Assistente de Q&A com fundamentação em linhas citadas | `uv run python -m src.extraction.qa_assistant` |
 | `src/evaluation/scoring.py` | Pontuação contra a verdade de referência e agregação de métricas | — |
 | `src/evaluation/dataset_stats.py` | Estatísticas do corpus por grupo, comerciante e campo | `uv run python -m src.evaluation.dataset_stats` |
+| `src/evaluation/tune_preprocessing.py` | Otimização de hiperparâmetros fotométricos de visão | `uv run python -m src.evaluation.tune_preprocessing` |
 | `src/evaluation/evaluate.py` | Runner do benchmark oficial sobre o golden set | `uv run python -m src.evaluation.evaluate` |
 | `src/app.py` | Aplicação interativa Gradio (3 separadores) | `uv run python -m src.app` |
 
@@ -226,9 +229,10 @@ winget install --id=astral-sh.uv -e
 
 ### Notas por sistema
 
-- **Windows:** definir `$env:PYTHONUTF8 = "1"` na sessão antes de arrancar a aplicação. Sem
-  isto a consola usa a code page do sistema e a impressão de acentos e símbolos falha com
-  `UnicodeEncodeError`. Para o tornar permanente, `setx PYTHONUTF8 1`.
+- **Windows:** o script `run.bat` e a ferramenta `poethepoet` já definem `PYTHONUTF8 = 1`
+  automaticamente. Se invocar `uv run python` diretamente numa consola PowerShell sem usar o
+  atalho `run`, defina antes `$env:PYTHONUTF8 = "1"` para evitar `UnicodeEncodeError` com
+  caracteres acentuados. Para o tornar permanente, `setx PYTHONUTF8 1`.
 - **Windows:** os caminhos no código são construídos com `pathlib`. Não escrever caminhos
   literais como `r"C:\..."` em código novo, nem concatenar com `os.sep`.
 - **Windows:** evitar manter o repositório dentro de pastas sincronizadas pelo OneDrive. A
@@ -236,8 +240,9 @@ winget install --id=astral-sh.uv -e
   à causa real.
 - **macOS:** o Homebrew instala em `/opt/homebrew/bin` nos Apple Silicon e em `/usr/local/bin`
   nos Intel; ambos já estão no `PATH` do Terminal nativo. Não usar o Terminal sob Rosetta.
-- **Todos:** o `.gitattributes` normaliza as terminações de linha, para que um ficheiro
-  editado no Windows não apareça como alterado em bloco no Linux e no macOS.
+- **Todos:** o `.pre-commit-config.yaml` (executável com `./run hooks` ou `run hooks` no Windows)
+  valida e normaliza automaticamente terminações de linha, espaços em branco e regras de formatação
+  Ruff em todos os ficheiros do repositório.
 
 ## Utilização
 
@@ -264,9 +269,11 @@ Flags comuns: `--file caminho/para/talao.jpg` escolhe a imagem e `--save saida.p
 resultado em disco em vez de abrir a janela. O `src.vision.evidence` acrescenta `--lines 1,2,3` para
 escolher as linhas a destacar e a recortar; sem a flag, usa até três linhas que contenham
 `TOTAL`, `NIF`, `NIPC` ou `CONTRIBUINTE` e, se não houver nenhuma, as duas primeiras. O
-`src.vision.preprocessing` aceita `--rotate`, `--no-crop`, `--no-shadows`, `--no-osd` e `--deskew` /
-`--no-deskew`; o `src.ocr.easyocr` aceita `--gpu` e `--no-preprocess`; o `src.vision.qr_reader` aceita
-`--no-preprocess`.
+`src.vision.preprocessing` aceita `--rotate`, `--no-crop`, `--no-shadows`, `--no-osd`, `--deskew` /
+`--no-deskew`, `--clahe`, `--gamma`, `--sharpen` e `--shadow-kernel`; o `src.ocr.easyocr` aceita
+`--gpu` e `--no-preprocess`; o `src.vision.qr_reader` aceita `--no-preprocess`; e o
+`src.evaluation.evaluate` aceita `--engine`, `--method`, `--limit`, `--gpu` e `--no-preprocess`
+(disponível também através do atalho `./run evaluate` ou `run evaluate` no Windows).
 
 ### Aplicação Gradio
 
@@ -293,9 +300,10 @@ demonstração offline: a partir daí os pesos ficam em cache local. Isto aplica
 pré-visualizações de OCR e de evidência; a de pré-processamento só usa OpenCV.
 
 Para o LLM local, arrancar primeiro o servidor num terminal separado, a partir da raiz do
-repositório, com `llama-server` no `PATH`. O lançador usa por omissão o
-`models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf` e `-ngl 0` (seguro para CPU, que corre
-confortavelmente o modelo 3B e evita erros de alocação de VRAM em placas pequenas):
+repositório, com `llama-server` no `PATH`. O lançador `./run serve` (implementado em
+`src/core/server_launcher.py`) usa por omissão o modelo
+`models/Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf`, porta 8080, `-ngl 0` (seguro para CPU, que corre
+confortavelmente o modelo 3B e evita erros de alocação de VRAM em placas pequenas) e contexto 8192:
 
 ```bash
 ./run serve        # Linux / macOS (ou 'run serve' no Windows)
@@ -307,12 +315,12 @@ Com uma GPU com pelo menos 3 GB livres, passar `-ngl 99`:
 ./run serve -ngl 99
 ```
 
-O `models/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf` também corre no servidor como modelo de texto,
-mas a entrada de imagens falha sem o ficheiro `mmproj` correspondente (`llama.cpp` precisa do
-projetor multimodal para processar imagens).
+Para usar outro modelo GGUF presente em `models/` (por exemplo, `models/Qwen2.5-7B-Instruct-Q8_0.gguf`),
+basta passar o caminho como argumento posicional (`./run serve models/Qwen2.5-7B-Instruct-Q8_0.gguf`)
+ou configurar `LLAMA_MODEL_PATH` no `.env`.
 
 O endereço por omissão em `.env.example` já aponta para `http://127.0.0.1:8080/v1`; se a porta
-8080 estiver ocupada, mudar `PORT` e `LLAMA_BASE_URL` em conjunto.
+8080 estiver ocupada, mudar `LLAMA_PORT` e `LLAMA_BASE_URL` em conjunto.
 
 ## Testes
 
@@ -339,18 +347,25 @@ uv run pytest -k "nif" -q                           # filtra por nome
 uv run pytest --cov=src --cov-report=term-missing   # com cobertura
 ```
 
-Ficheiros atuais da suite (304 testes offline): `test_smoke.py`, `test_settings.py`,
-`test_normalizers.py`, `test_golden_set.py`, `test_preprocessing.py`, `test_ocr_contract.py`,
-`test_ocr_tesseract.py`, `test_qr_reader.py`, `test_evidence.py`, `test_llm_client.py`,
-`test_extractor_regex.py`, `test_extractor_llm.py`, `test_qa_assistant.py`, `test_scoring.py`,
-`test_dataset_stats.py`, `test_evaluate.py` e `test_app.py`.
+Ficheiros atuais da suite (320 testes offline): `test_smoke.py`, `test_settings.py`,
+`test_logging.py`, `test_server_launcher.py`, `test_normalizers.py`, `test_golden_set.py`,
+`test_preprocessing.py`, `test_ocr_contract.py`, `test_ocr_tesseract.py`, `test_qr_reader.py`,
+`test_evidence.py`, `test_llm_client.py`, `test_extractor_regex.py`, `test_extractor_llm.py`,
+`test_qa_assistant.py`, `test_scoring.py`, `test_dataset_stats.py`, `test_evaluate.py` e `test_app.py`.
 
 Qualidade de código:
 
 ```bash
+# Gateway unificado de verificacao em 4 passos (formatacao, linting, tipos e testes)
+./run check        # Linux / macOS (ou 'run check' no Windows)
+
+# Comandos individuais:
 uv run ruff format --line-length 120 src tests
 uv run ruff check src tests
 uv run pyright src tests
+
+# Validacao de pre-commit em todos os ficheiros:
+./run hooks        # Linux / macOS (ou 'run hooks' no Windows)
 ```
 
 O `pyright` descarrega uma distribuição de Node na primeira execução, por isso precisa de rede
@@ -361,16 +376,17 @@ do `pyright`.
 
 ```text
 src/
-  core/             contratos de dados, configurações e normalizadores puros
-  vision/           OpenCV: pré-processamento, leitura do QR AT e evidência visual
+  core/             contratos de dados, configurações, logging, lançador e normalizadores puros
+  vision/           OpenCV: pré-processamento, geometria, fotometria, leitura do QR AT e evidência visual
   ocr/              motores OCR (EasyOCR, Tesseract) e factory unificada
   extraction/       extração estruturada (regex, LLM local/cloud) e assistente Q&A
-  evaluation/       validação do golden set, pontuação, estatísticas e benchmark runner
+  evaluation/       validação do golden set, pontuação, estatísticas, tuning e benchmark runner
   app.py            aplicação interativa Gradio com 3 separadores
-tests/              suite pytest com 304 testes, offline e determinística
+  app_layout.py     construção de layouts e carregamento de relatórios Gradio
+tests/              suite pytest com 320 testes offline e determinísticos
 data/               imagens do golden set e verdade de referência
 results/            saídas do benchmark citadas no relatório
-Docs/               planeamento e apresentação
+Docs/               planeamento, handbook de engenharia e apresentação
 models/             pesos .gguf do LLM local (não versionados)
 run, run.bat        atalhos de execução multiplataforma (poethepoet)
 ```
