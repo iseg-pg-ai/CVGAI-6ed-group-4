@@ -1182,7 +1182,7 @@ verdade de referência errada invalida todas as métricas do relatório.
 - Trunk Based Development: branches curtos a partir de `master`, dois dias no máximo.
 - Nomes: `feat/wp-02-normalizers`, `feat/wp-06-tesseract`, `fix/ocr-rotation`.
 - Commits pequenos e descritivos, em inglês, no imperativo.
-  
+
 ### 9.2 Tamanho e forma do merge request
 
 - No máximo ~200 linhas de diff útil.

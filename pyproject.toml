@@ -31,6 +31,7 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.7",
     "pyright>=1.1.380",
+    "pre-commit>=4.0.0",
 ]
 
 [tool.poe.env]
@@ -53,6 +54,7 @@ check-dataset = ["validate-golden-set", "corpus-stats"]
 evaluate = "python -m src.evaluation.evaluate"
 app = "python -m src.app"
 serve = "python -m src.core.server_launcher"
+hooks = "pre-commit run --all-files"
 
 [tool.uv]
 # The project is run as `python -m src.app` from the repository root, not installed as a
