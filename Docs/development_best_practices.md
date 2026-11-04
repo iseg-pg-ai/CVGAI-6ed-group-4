@@ -19,6 +19,19 @@ A consolidated reference of software engineering patterns, architectural invaria
   - Rely on native standard libraries for path handling (`pathlib.Path`), never raw string concatenation or OS-specific separators (`\`).
   - Support UTF-8 across operating systems (set `$env:PYTHONUTF8 = "1"` on Windows).
 
+### Unified Task Runner with `poethepoet` & Zero-Friction OS Wrappers
+- **Centralized Tasks in `pyproject.toml`**: Define all developer and pipeline tasks under `[tool.poe.tasks]` (`format`, `lint`, `lint-fix`, `typecheck`, `test`, `test-all`, `check`, `check-dataset`, `app`, `serve`, `hooks`).
+- **Enforced Cross-Platform UTF-8**: Set `[tool.poe.env] PYTHONUTF8 = "1"` to guarantee uniform UTF-8 decoding on Windows consoles without requiring manual shell configuration.
+- **Single-Word OS Wrappers (`run` / `run.bat`)**: Provide root-level wrappers (`run.bat` for Windows CMD, `./run` for POSIX shells) that forward commands to `uv run poe %*` / `uv run poe "$@"`. Team members with DOS muscle memory or limited CLI background can simply run:
+  ```bash
+  run check         # Full 4-step verification gate
+  run app           # Launch Gradio interface
+  run serve         # Launch local llama-server
+  run check-dataset # Validate golden set CSV and compute corpus stats
+  run hooks         # Execute all pre-commit hooks across files
+  ```
+- **Unified Python Server Launcher**: Replace fragmented platform scripts (`.sh`, `.ps1`, `.bat`) with a single, cross-platform Python entry point (`src/core/server_launcher.py`) that resolves configuration from settings, handles parameter fallbacks, and supports `--dry-run` for offline testing.
+
 ---
 
 ## 2. Code Quality & The 4-Step Verification Gate
@@ -43,6 +56,12 @@ uv run pytest
 - **Line Length**: Set code line limit to 120 characters in `pyproject.toml` under `[tool.ruff]`. Allow comments/docstrings flexibility via `ignore = ["E501"]` while enforcing code structure through the formatter.
 - **Type Checker**: Use standalone `pyright` in `typeCheckingMode = "standard"`. Reject untyped signatures on all public functions, classes, and return types. Avoid `Any` except where third-party SDKs omit stubs.
 - **No Emojis**: Maintain a clean, professional, human engineering tone. Absolutely zero emojis across code, docstrings, tests, CLI output, markdown documentation, commit messages, and PRs.
+
+### Automated Local-First Git Hooks (`pre-commit`)
+- **Local-First Execution (`repo: local`)**: Run Ruff formatting and linting via `language: system` with `uv run ruff ...`. This reuses the active virtual environment, eliminates redundant tool downloads, and ensures the hook uses the exact version pinned in `uv.lock`.
+- **Fast Sub-Second Commit Latency**: Restrict pre-commit hooks to fast static checks (Ruff formatting, Ruff linting with automatic safe fixes, trailing whitespace, end-of-file fixers, YAML/TOML validators, merge-conflict checks, and large-file boundaries). Deliberately exclude heavy type checkers (`pyright`) and test suites (`pytest`) from pre-commit hooks to avoid freezing developer workflows on resource-constrained laptops.
+- **Strict Scope Boundaries**: Explicitly scope Python hooks to `files: "^(src|tests)/"` and exclude external directories (`exclude: "^(class-material/|data/)"`) to prevent unwanted alterations to class materials or ground-truth image assets.
+- **Executable on Demand**: Expose pre-commit execution as a Poe task (`run hooks` or `uv run poe hooks`) so all repository files can be audited and fixed in one step.
 
 ---
 
@@ -70,10 +89,14 @@ uv run pytest
   - Represent missing fields as `None` (in ground truth) and `"AUSENTE"` (in extraction status). Never use empty strings, `0`, or `"N/A"` to signal absence.
   - Distinguish structurally invalid values (`"INVALIDO"`) from omissions (`"AUSENTE"`).
 
-### Centralized Settings (`src/core/settings.py`)
+### Centralized Settings (`src/core/settings.py`) & Runtime Validation via `pydantic-settings`
 - **Single Source of Truth**: Isolate all environment reads, path resolution, and default hyperparameters in `src/core/settings.py`.
-- **Zero Environment Mutation**: Load environment variables via `dotenv.dotenv_values()` rather than mutating `os.environ`.
-- **Caching Discipline**: Use `@lru_cache` for `get_settings()` in production, but provide `load_settings(repo_root=...)` for test injection.
+- **Declarative Schema via `pydantic-settings`**: Subclass `pydantic_settings.BaseSettings` with `frozen=True` and `extra="ignore"`. Every setting is validated, type-coerced, and checked against documented constraints.
+- **Automatic Path Resolution**: Use `@model_validator(mode="after")` to dynamically resolve all relative directory paths (`data_dir`, `receipts_dir`, `ground_truth_path`, `results_dir`, `llama_model_path`) against `repo_root`. This enables complete test isolation via `load_settings(repo_root=tmp_path)`.
+- **Strict Path Types for Static Analysis**: Type directory attributes strictly as `Path` (rather than `Path | None`), ensuring clean static analysis with zero `pyright` warnings across consuming modules.
+- **Environment Fallbacks & Aliases**: Support legacy environment variable names (`PORT`, `NGL`, `CTX`, `MODEL`, `PREPROCESS_MAX_SIDE`) via `AliasChoices`, and provide graceful fallbacks for malformed numeric inputs.
+- **Backward Compatibility via Dataclass Proxy**: Expose `__dataclass_fields__` on `Settings` so downstream modules and existing tests using `dataclasses.replace(settings, ...)` continue functioning seamlessly without requiring migration to `model.model_copy()`.
+- **Caching Discipline**: Use `@lru_cache(maxsize=1)` for `get_settings()` in production, while providing `load_settings(repo_root=...)` for test injection.
 
 ---
 
@@ -155,6 +178,14 @@ if __name__ == "__main__":
 - **Decouple Layout from Business Logic**: Never inline pipeline processing logic inside UI block declarations. Keep Gradio layout construction in a dedicated layout module (`src/app_layout.py`) that accepts callable handler functions as arguments.
 - **Thread Application Settings**: Pass explicit `Settings` instances through UI event callbacks rather than relying on global mutable state.
 
+### Centralized Structured Logging (`src/core/logging.py`)
+- **Single Logging Entry Point**: Centralize logging configuration in `src/core/logging.py` using `logging.config.dictConfig`.
+- **Standardized Console Formatting**: Format operational logs uniformly as `%(asctime)s [%(levelname)s] %(name)s: %(message)s` with date format `%Y-%m-%d %H:%M:%S`.
+- **Environment-Driven Log Levels**: Dynamically configure the effective log level from the `LOG_LEVEL` environment variable (default: `INFO`), with validation and safe fallback.
+- **Stream Separation**: Route operational logs to `sys.stderr` by default, keeping `sys.stdout` clean for CLI table formatting, pipes, and data evaluation outputs.
+- **Library Root Etiquette**: Attach a `logging.NullHandler()` to the root package logger (`src`) in `src/__init__.py`. When library modules are imported in tests or by third-party scripts without explicit configuration, Python emits zero "No handler found" warnings.
+- **Deferred Runtime Initialization**: Defer `setup_logging()` invocations strictly to the `main()` entry points of runnable modules (`src/app.py`, `src/core/server_launcher.py`, `src/evaluation/evaluate.py`), never invoking logging setup at module import time.
+
 ---
 
 ## 8. Documentation, Traceability & Git Workflow
@@ -173,3 +204,44 @@ if __name__ == "__main__":
 - **Short-Lived Branches**: Work in focused branches (`feat/wp-*`, `fix/*`) merged back to main frequently.
 - **Target Diff Size**: Keep work package diffs focused (< 200–300 lines of net change). Review moved files using git similarity flags (`git diff -M`).
 - **Synchronized Documentation**: Update `README.md`, `AGENTS.md`, and specification documents in the same commit that delivers the feature. Documentation must describe what currently exists, not what is planned.
+
+---
+
+## 9. Future Work & Production Hardening
+
+The following engineering practices were evaluated for the codebase and identified as valuable next steps for production deployment or future group projects:
+
+### 9.1 Remote Continuous Integration Pipelines (CI/CD)
+- **Concept**: Implement automated GitHub Actions or GitLab CI workflows executing the 4-step verification gate (`run check`) on every push and pull request in a clean-room virtual container.
+- **Benefits**: Guarantees platform-agnostic verification independent of developer machine quirks and prevents regressions on `master`.
+- **Why Deferred**: The academic coursework environment is self-contained and operates offline; caching large PyTorch and computer vision wheels on remote runners introduces CI setup and bandwidth overhead for short-lived research iterations.
+
+### 9.2 Standard Distribution Packaging & CLI Console Scripts
+- **Concept**: Adopt a formal build backend (`[build-system]` using `hatchling` or `flit-core`) and expose CLI commands via `[project.scripts]` (e.g. `receipt-reader = src.app:main`).
+- **Benefits**: Allows the project to be installed as a standard wheel (`pip install .`) and run from any directory without configuring `pythonpath`.
+- **Why Deferred**: The unified task runner (`poethepoet`) and zero-friction wrappers (`run app`, `run serve`) already provide a clean, single-word CLI interface for non-technical teammates without the risk of editable installation link drift (`pip install -e .`).
+
+### 9.3 Strict Static Type Checking (`pyright` in `strict` Mode)
+- **Concept**: Elevate `typeCheckingMode` from `"standard"` to `"strict"` in `pyproject.toml`, rejecting untyped third-party libraries, implicit `Any`, and unannotated function bodies.
+- **Benefits**: Guarantees total type safety across all boundaries and eliminates edge cases in optional unwrapping.
+- **Why Deferred**: Core computer vision and OCR C-extensions (`opencv-python-headless`, `pytesseract`, `easyocr`, `pyzbar`) lack complete or accurate type stubs, which would require extensive `# type: ignore` workarounds or custom `.pyi` stubs for diminishing returns. Future projects should prioritize libraries with first-class type stubs.
+
+### 9.4 Comprehensive Test Coverage & Test Quality Gates
+- **Concept**: Enforce minimum line coverage thresholds (`pytest-cov --cov-fail-under=85`) combined with mutation testing (`mutmut`) and property-based testing (`hypothesis`).
+  - **Mutation Testing (`mutmut`)**: Injects artificial faults (operator mutations, boundary inversions) into source code to verify that unit tests actively catch regressions rather than just stepping through lines.
+  - **Property-Based Testing (`hypothesis`)**: Generates pseudo-random, adversarial inputs to discover parsing edge cases in date and currency normalizers.
+- **Benefits**: Quantifies test assertion quality and ensures test suites genuinely validate algorithmic correctness.
+- **Why Deferred**: Mutation testing is computationally expensive and slow. Line coverage thresholds can incentivize superficial tests on UI layout blocks (`app_layout.py`) that are intentionally isolated from fast unit tests.
+
+### 9.5 Automated Dependency Vulnerability Auditing (`uv audit` / `pip-audit`)
+- **Concept**: Integrate automated dependency auditing into the verification pipeline to scan `uv.lock` against known Common Vulnerabilities and Exposures (CVE) databases.
+- **Benefits**: Detects unpatched security vulnerabilities in web application dependencies (Gradio, Starlette, FastAPI) and image processing runtimes.
+- **Why Deferred**: Deep machine learning dependencies (such as `easyocr`, which binds older PyTorch versions and has infrequent upstream releases) can trigger non-actionable vulnerability advisories in isolated local academic environments. Auditing will be mandated in future projects with public cloud deployment.
+
+### 9.6 End-to-End Domain Modeling via Pydantic (`BaseModel`)
+- **Concept**: Expand Pydantic adoption beyond application configuration (`pydantic-settings`, as detailed in Section 3) to the keystone domain contracts (`src/core/types.py`), migrating data exchange objects (`BBox`, `OcrLine`, `FieldValue`, `Extraction`, `GroundTruthRecord`, `MatchResult`) from standard `@dataclass(frozen=True, slots=True)` to Pydantic `BaseModel`.
+- **Benefits**:
+  - **Native Serialization & Deserialization**: Seamless bidirectional mapping (`model_dump()`, `model_dump_json()`) without requiring manual dictionary serializers, custom date parsers, or decimal encoders.
+  - **Declarative JSON & OpenAPI Schemas**: Automatic JSON Schema generation (`model_json_schema()`), which directly streamlines grammar-constrained LLM prompting (e.g. `llama-server` BNF grammar construction, Gemini structured output) and provides out-of-the-box OpenAPI schemas for FastAPI endpoints in upcoming AWS deployments.
+  - **Granular Constraint Enforcement**: Declarative boundary validation (e.g. `Annotated[int, Field(ge=0)]` for pixel coordinates, regex-backed Portuguese NIF constraints, and immutable field policies) enforced at domain ingestion boundaries.
+- **Why Deferred**: For the current computer vision and OCR extraction pipeline (as outlined in Section 3), frozen slot dataclasses provide minimal memory footprint and near-zero instantiation latency inside tight image-coordinate clamping loops and multi-token merge routines. For upcoming API-driven, database-backed, or cloud-hosted projects on AWS, the architectural benefits of automatic serialization, cloud interoperability, and runtime payload validation will far surpass raw dataclass micro-benchmarks.

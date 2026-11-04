@@ -8,13 +8,14 @@ Ref: Docs/implementation_plan.md, section 2.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
-import os
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated, Any
 
-from dotenv import dotenv_values
+from pydantic import AliasChoices, Field, ValidationInfo, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from src.core.types import OCR_ENGINES, OcrEngineName
 
@@ -23,8 +24,13 @@ logger = logging.getLogger(__name__)
 OcrEngineType = OcrEngineName
 
 
-@dataclass(frozen=True, slots=True)
-class Settings:
+def _resolve_path(repo_root: Path, value: str | Path) -> Path:
+    """Resolve a path against repo_root if it is not already absolute."""
+    path = Path(value)
+    return path.resolve() if path.is_absolute() else (repo_root / path).resolve()
+
+
+class Settings(BaseSettings):
     """Immutable application settings container.
 
     Attributes:
@@ -49,39 +55,144 @@ class Settings:
         llama_model_path: Path to local GGUF model file or default.
     """
 
-    llama_base_url: str
-    llama_model: str
-    llama_timeout_s: float
-    gemini_api_key: str | None
-    gemini_model: str
-    ocr_engine: OcrEngineType
-    easyocr_langs: tuple[str, ...]
-    tesseract_cmd: Path | None
-    repo_root: Path
-    data_dir: Path
-    receipts_dir: Path
-    ground_truth_path: Path
-    results_dir: Path
-    max_side: int = 1280
-    clahe_clip_limit: float = 2.0
-    llama_port: int = 8080
-    llama_ngl: int = 0
-    llama_ctx: int = 8192
-    llama_model_path: Path | None = None
+    model_config = SettingsConfigDict(
+        frozen=True,
+        extra="ignore",
+        env_file_encoding="utf-8",
+        populate_by_name=True,
+    )
+
+    repo_root: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[2])
+
+    llama_base_url: str = "http://127.0.0.1:8080/v1"
+    llama_model: str = "local-llm"
+    llama_timeout_s: float = 120.0
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-3.5-flash"
+    ocr_engine: OcrEngineType = "easyocr"
+    easyocr_langs: Annotated[tuple[str, ...], NoDecode] = ("pt", "en")
+    tesseract_cmd: Path | None = None
+
+    data_dir: Path = Path("data")
+    receipts_dir: Path = Path("data/receipts")
+    ground_truth_path: Path = Path("data/ground_truth.csv")
+    results_dir: Path = Path("results")
+
+    max_side: int = Field(
+        default=1280,
+        validation_alias=AliasChoices("PREPROCESS_MAX_SIDE", "max_side"),
+    )
+    clahe_clip_limit: float = Field(
+        default=2.0,
+        validation_alias=AliasChoices("PREPROCESS_CLAHE_CLIP", "clahe_clip_limit"),
+    )
+    llama_port: int = Field(
+        default=8080,
+        validation_alias=AliasChoices("LLAMA_PORT", "PORT", "llama_port"),
+    )
+    llama_ngl: int = Field(
+        default=0,
+        validation_alias=AliasChoices("LLAMA_NGL", "NGL", "llama_ngl"),
+    )
+    llama_ctx: int = Field(
+        default=8192,
+        validation_alias=AliasChoices("LLAMA_CTX", "CTX", "llama_ctx"),
+    )
+    llama_model_path: Path | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LLAMA_MODEL_PATH", "MODEL", "llama_model_path"),
+    )
+
+    @field_validator("llama_base_url", "llama_model", "gemini_model", mode="before")
+    @classmethod
+    def _strip_strings(cls, v: Any) -> Any:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("gemini_api_key", mode="before")
+    @classmethod
+    def _normalize_optional_key(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        stripped = str(v).strip()
+        return stripped if stripped else None
+
+    @field_validator("tesseract_cmd", mode="before")
+    @classmethod
+    def _normalize_tesseract_cmd(cls, v: Any) -> Path | None:
+        if v is None:
+            return None
+        if isinstance(v, Path):
+            return v.resolve()
+        stripped = str(v).strip()
+        return Path(stripped).resolve() if stripped else None
+
+    @field_validator("ocr_engine", mode="before")
+    @classmethod
+    def _validate_ocr_engine(cls, v: Any) -> OcrEngineType:
+        raw = str(v).strip().lower() if v is not None else "easyocr"
+        if raw in OCR_ENGINES:
+            return raw  # type: ignore[return-value]
+        logger.warning("Unrecognised OCR_ENGINE '%s'; defaulting to 'easyocr'.", raw)
+        return "easyocr"
+
+    @field_validator("easyocr_langs", mode="before")
+    @classmethod
+    def _parse_langs(cls, v: Any) -> tuple[str, ...]:
+        if isinstance(v, str):
+            parsed = tuple(lang.strip() for lang in v.split(",") if lang.strip())
+            return parsed or ("pt", "en")
+        if isinstance(v, (list, tuple)):
+            return tuple(str(x).strip() for x in v if str(x).strip()) or ("pt", "en")
+        return ("pt", "en")
+
+    @field_validator("llama_timeout_s", "clahe_clip_limit", mode="before")
+    @classmethod
+    def _safe_float(cls, v: Any, info: ValidationInfo) -> float:
+        defaults = {"llama_timeout_s": 120.0, "clahe_clip_limit": 2.0}
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return defaults[info.field_name or "llama_timeout_s"]
+
+    @field_validator("max_side", "llama_port", "llama_ngl", "llama_ctx", mode="before")
+    @classmethod
+    def _safe_int(cls, v: Any, info: ValidationInfo) -> int:
+        defaults = {"max_side": 1280, "llama_port": 8080, "llama_ngl": 0, "llama_ctx": 8192}
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return defaults[info.field_name or "max_side"]
+
+    @model_validator(mode="after")
+    def _resolve_repo_paths(self) -> Settings:
+        root = self.repo_root.resolve()
+        object.__setattr__(self, "repo_root", root)
+        object.__setattr__(self, "data_dir", _resolve_path(root, self.data_dir))
+        object.__setattr__(self, "receipts_dir", _resolve_path(root, self.receipts_dir))
+        object.__setattr__(self, "ground_truth_path", _resolve_path(root, self.ground_truth_path))
+        object.__setattr__(self, "results_dir", _resolve_path(root, self.results_dir))
+        if self.llama_model_path is not None:
+            object.__setattr__(self, "llama_model_path", _resolve_path(root, self.llama_model_path))
+        else:
+            object.__setattr__(
+                self,
+                "llama_model_path",
+                (root / "models" / "Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf").resolve(),
+            )
+        return self
 
 
-def _resolve_path(repo_root: Path, path_str: str) -> Path:
-    """Resolve a path string against repo_root if it is not already absolute."""
-    path = Path(path_str)
-    return path if path.is_absolute() else (repo_root / path).resolve()
+class _DataclassFieldProxy:
+    """Minimal proxy satisfying dataclasses.replace() contract for backwards compatibility."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self._field_type = getattr(dataclasses, "_FIELD", "FIELD")
+        self.init = True
 
 
-def _normalize_optional_str(value: str | None) -> str | None:
-    """Return stripped string or None if empty or unset."""
-    if value is None:
-        return None
-    stripped = value.strip()
-    return stripped if stripped else None
+# Expose __dataclass_fields__ so stdlib dataclasses.replace(settings, ...) continues working
+Settings.__dataclass_fields__ = {name: _DataclassFieldProxy(name) for name in Settings.model_fields}
 
 
 def load_settings(repo_root: Path | None = None) -> Settings:
@@ -96,84 +207,9 @@ def load_settings(repo_root: Path | None = None) -> Settings:
     """
     root = (repo_root or Path(__file__).resolve().parents[2]).resolve()
     env_file = root / ".env"
-    file_vars: dict[str, str | None] = dotenv_values(dotenv_path=env_file) if env_file.is_file() else {}
-
-    def _get_val(key: str, default: str = "") -> str:
-        env_val = os.getenv(key)
-        if env_val is not None:
-            return env_val
-        file_val = file_vars.get(key)
-        if file_val is not None:
-            return file_val
-        return default
-
-    def _get_int(key: str, default: int) -> int:
-        try:
-            return int(_get_val(key, str(default)))
-        except ValueError:
-            return default
-
-    def _get_float(key: str, default: float) -> float:
-        try:
-            return float(_get_val(key, str(default)))
-        except ValueError:
-            return default
-
-    llama_base_url = _get_val("LLAMA_BASE_URL", "http://127.0.0.1:8080/v1").strip()
-    llama_model = _get_val("LLAMA_MODEL", "local-llm").strip()
-    llama_timeout_s = _get_float("LLAMA_TIMEOUT_S", 120.0)
-
-    gemini_api_key = _normalize_optional_str(_get_val("GEMINI_API_KEY", "") or None)
-    gemini_model = _get_val("GEMINI_MODEL", "gemini-3.5-flash").strip()
-
-    raw_engine = _get_val("OCR_ENGINE", "easyocr").strip().lower()
-    if raw_engine in OCR_ENGINES:
-        ocr_engine: OcrEngineType = raw_engine  # type: ignore[assignment]
-    else:
-        logger.warning("Unrecognised OCR_ENGINE '%s'; defaulting to 'easyocr'.", raw_engine)
-        ocr_engine = "easyocr"
-
-    raw_langs = _get_val("EASYOCR_LANGS", "pt,en")
-    easyocr_langs = tuple(lang.strip() for lang in raw_langs.split(",") if lang.strip()) or ("pt", "en")
-
-    raw_tesseract_cmd = _normalize_optional_str(_get_val("TESSERACT_CMD", "") or None)
-    tesseract_cmd = Path(raw_tesseract_cmd).resolve() if raw_tesseract_cmd else None
-
-    data_dir = _resolve_path(root, _get_val("DATA_DIR", "data"))
-    receipts_dir = _resolve_path(root, _get_val("RECEIPTS_DIR", "data/receipts"))
-    ground_truth_path = _resolve_path(root, _get_val("GROUND_TRUTH_PATH", "data/ground_truth.csv"))
-    results_dir = _resolve_path(root, _get_val("RESULTS_DIR", "results"))
-
-    max_side = _get_int("PREPROCESS_MAX_SIDE", 1280)
-    clahe_clip_limit = _get_float("PREPROCESS_CLAHE_CLIP", 2.0)
-    llama_port = _get_int("LLAMA_PORT", _get_int("PORT", 8080))
-    llama_ngl = _get_int("LLAMA_NGL", _get_int("NGL", 0))
-    llama_ctx = _get_int("LLAMA_CTX", _get_int("CTX", 8192))
-    raw_model = _normalize_optional_str(_get_val("LLAMA_MODEL_PATH", "") or _get_val("MODEL", "") or None)
-    llama_model_path = (
-        _resolve_path(root, raw_model) if raw_model else (root / "models" / "Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf")
-    )
-
     return Settings(
-        llama_base_url=llama_base_url,
-        llama_model=llama_model,
-        llama_timeout_s=llama_timeout_s,
-        gemini_api_key=gemini_api_key,
-        gemini_model=gemini_model,
-        ocr_engine=ocr_engine,
-        easyocr_langs=easyocr_langs,
-        tesseract_cmd=tesseract_cmd,
         repo_root=root,
-        data_dir=data_dir,
-        receipts_dir=receipts_dir,
-        ground_truth_path=ground_truth_path,
-        results_dir=results_dir,
-        max_side=max_side,
-        clahe_clip_limit=clahe_clip_limit,
-        llama_port=llama_port,
-        llama_ngl=llama_ngl,
-        llama_ctx=llama_ctx,
-        llama_model_path=llama_model_path,
+        _env_file=env_file if env_file.is_file() else None,  # type: ignore[call-arg]
     )
 
 

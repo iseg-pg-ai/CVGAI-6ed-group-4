@@ -107,3 +107,13 @@ def test_get_settings_returns_cached_instance() -> None:
 
     assert isinstance(s1, Settings)
     assert s1 is s2
+
+
+def test_settings_supports_dataclasses_replace() -> None:
+    """Settings supports dataclasses.replace for backward compatibility."""
+    from dataclasses import replace
+
+    s = get_settings()
+    s_new = replace(s, llama_port=7777)
+    assert s_new.llama_port == 7777
+    assert s.llama_port != 7777
